@@ -1,15 +1,41 @@
-/* Resume page — compact typography tuned for resume density */
+/* Resume page — compact typography tuned for resume density
+   Typography modeled on yeasy.github.io/personal/cv_en.pdf:
+   - Sans-serif stack (modern / engineer-friendly, vs. yeasy's serif)
+   - Section headings bold + bottom rule (yeasy uses ALL CAPS; CJK
+     can't do ALL CAPS so we use bold + letter-spacing instead)
+   - Tight line-height (~1.5) to fit more content per page
+   - Print-friendly: navbar/footer/search hidden, section page-break-safe
+*/
+
+/* Sans-serif stack with CJK fallbacks:
+   - macOS:  -apple-system / BlinkMacSystemFont → PingFang SC
+   - Win:    Segoe UI → Microsoft YaHei
+   - Linux:  Roboto / WenQuanYi / Noto Sans CJK
+*/
+body,
+.resume-container,
+.resume-section-body,
+.resume-contact {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+        "Helvetica Neue", Arial,
+        "PingFang SC", "Hiragino Sans GB",
+        "Microsoft YaHei", "微软雅黑",
+        "Noto Sans CJK SC", "WenQuanYi Micro Hei",
+        sans-serif;
+}
 
 .resume-container {
     max-width: 860px;
     margin-top: 1.5rem;
     margin-bottom: 2rem;
+    line-height: 1.5;
+    color: #333;
 }
 
 /* Header: name + tagline + contact line */
 .resume-header {
-    padding-bottom: 1.25rem;
-    margin-bottom: 1.75rem;
+    padding-bottom: 1rem;
+    margin-bottom: 1.5rem;
     border-bottom: 2px solid #2c3e50;
 }
 
@@ -19,18 +45,21 @@
     letter-spacing: 0.02em;
     margin-bottom: 0.25rem;
     color: #2c3e50;
+    line-height: 1.15;
 }
 
 .resume-tagline {
     font-size: 1.05rem;
     color: #555;
     margin-bottom: 0.5rem;
+    line-height: 1.4;
 }
 
 .resume-contact {
     font-size: 0.92rem;
     color: #666;
     margin-bottom: 0;
+    line-height: 1.4;
 }
 
 .resume-contact a {
@@ -49,22 +78,33 @@
 
 /* Sections */
 .resume-section {
-    margin-bottom: 1.75rem;
+    margin-bottom: 1.5rem;
 }
 
+/* CJK section headings: use bold + slight letter-spacing to mimic
+   the visual weight of yeasy's ALL-CAPS English headings. */
 .resume-section-title {
-    font-size: 1.25rem;
+    font-size: 1.15rem;
     font-weight: 700;
     color: #2c3e50;
-    padding-bottom: 0.35rem;
-    margin-bottom: 0.85rem;
+    padding-bottom: 0.3rem;
+    margin-bottom: 0.75rem;
     border-bottom: 1px solid #e7e7e7;
-    letter-spacing: 0.01em;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    line-height: 1.3;
+}
+
+/* CJK uppercase uses ideographic characters (no glyph change),
+   but the tracking still creates the "label" feel of yeasy's headings. */
+
+.resume-section-body {
+    font-size: 0.95rem;
+    line-height: 1.55;
 }
 
 .resume-section-body p {
-    margin-bottom: 0.6rem;
-    line-height: 1.6;
+    margin-bottom: 0.55rem;
     color: #333;
 }
 
@@ -89,13 +129,25 @@
     .resume-container {
         max-width: 100%;
         margin: 0;
+        font-size: 10.5pt;
+        line-height: 1.4;
     }
 
     .resume-section {
         page-break-inside: avoid;
+        margin-bottom: 1rem;
     }
 
     .resume-header {
         page-break-after: avoid;
+        margin-bottom: 1rem;
+    }
+
+    .resume-name {
+        font-size: 22pt;
+    }
+
+    .resume-section-title {
+        font-size: 11pt;
     }
 }
