@@ -5,10 +5,10 @@
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="Wanqing Chen - 技术博客（Agent / RAG / Flink / JVM）">
+    <meta name="description" content="$if(summary)$$summary$$else$Wanqing Chen - 技术博客$endif$">
     <meta name="author" content="Wanqing Chen">
 
-    <title>博客 - Wanqing Chen</title>
+    <title>$title$ - Wanqing Chen</title>
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
         integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
@@ -40,40 +40,32 @@
                     <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
                     <button class="btn btn-outline-success" type="submit">搜索</button>
                 </form>
-                <ul class="navbar-nav">
-                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">中文</a></li>
-                    <li class="nav-item"><a class="nav-link" href="../en/blog/index.html">EN</a></li>
-                </ul>
             </div>
         </div>
     </nav>
 
     <div class="container">
-        <p>
-            <i>
-                关于 Agent 架构、RAG 流水线、大数据基础设施的工程笔记，以及读到的好文章的摘要与评述。
-            </i>
-        </p>
-    </div>
+        <article class="py-3">
+            <h1>$title$</h1>
+            <p class="text-muted">
+                $if(date)$$date$$endif$$if(tags)$ · $for(tags)$<span class="badge bg-secondary">$tags$</span> $endfor$$endif$
+            </p>
 
-    <div class="container">
+$if(source-url)$
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="$source-url$" target="_blank" rel="noopener">$if(source-title)$$source-title$$else$$source-url$$endif$</a>$if(source-author)$ · $source-author$$endif$
+            </div>
+$endif$
 
-        <div class="card border-info mb-3">
-            <div class="card-header">
-                <h2>文章</h2>
-            </div>
-            <div class="card-body">
-                <div class="mb-4">
-                    <h5 class="mb-1"><a href="2026-08-31-agent-as-person-org-design.html">把 Agent 当人：AI 组织建设的一个务实视角</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
-                    <p class="text-muted mb-1"><small>2026-08-31 <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">组织设计</span> <span class="badge bg-secondary">读文笔记</span> </small></p>
-                    <p class="mb-1">一篇主张&quot;Agent 是人而非工具&quot;的文章，核心价值在于把 AI 组织建设从架构重构问题降级成权限模型的增量问题。但它绕开了责任归属。</p>
-                </div>
-            </div>
-        </div>
+$body$
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
 
         <footer class="footer mt-auto py-3 bg-light">
             <div class="container">
-                <p class="text-muted">最后更新：2026-08-31</p>
+                <p class="text-muted">最后更新：$if(date)$$date$$endif$</p>
             </div>
         </footer>
     </div>

@@ -1,4 +1,19 @@
-<!DOCTYPE html>
+#!/usr/bin/env python3
+"""Build blog/*.html from blog/posts/*.md via pandoc, then regenerate blog/index.html."""
+
+import html
+import subprocess
+import sys
+from pathlib import Path
+
+import yaml
+
+ROOT = Path(__file__).resolve().parent.parent
+BLOG = ROOT / "blog"
+POSTS = BLOG / "posts"
+TEMPLATE = BLOG / "_template.html"
+
+INDEX = """<!DOCTYPE html>
 <html lang="zh-CN">
 
 <head>
@@ -63,17 +78,13 @@
                 <h2>文章</h2>
             </div>
             <div class="card-body">
-                <div class="mb-4">
-                    <h5 class="mb-1"><a href="2026-08-31-agent-as-person-org-design.html">把 Agent 当人：AI 组织建设的一个务实视角</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
-                    <p class="text-muted mb-1"><small>2026-08-31 <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">组织设计</span> <span class="badge bg-secondary">读文笔记</span> </small></p>
-                    <p class="mb-1">一篇主张&quot;Agent 是人而非工具&quot;的文章，核心价值在于把 AI 组织建设从架构重构问题降级成权限模型的增量问题。但它绕开了责任归属。</p>
-                </div>
+{entries}
             </div>
         </div>
 
         <footer class="footer mt-auto py-3 bg-light">
             <div class="container">
-                <p class="text-muted">最后更新：2026-08-31</p>
+                <p class="text-muted">最后更新：{updated}</p>
             </div>
         </footer>
     </div>
@@ -84,3 +95,65 @@
 </body>
 
 </html>
+"""
+
+EMPTY = '                <p class="text-muted">暂无文章。</p>'
+
+
+def frontmatter(path):
+    text = path.read_text(encoding="utf-8")
+    if not text.startswith("---"):
+        sys.exit(f"{path.name}: missing YAML frontmatter")
+    _, raw, _ = text.split("---", 2)
+    meta = yaml.safe_load(raw) or {}
+    for key in ("title", "date"):
+        if key not in meta:
+            sys.exit(f"{path.name}: frontmatter missing required key '{key}'")
+    return meta
+
+
+def render(meta, slug):
+    e = html.escape
+    tags = "".join(
+        f'<span class="badge bg-secondary">{e(str(t))}</span> ' for t in meta.get("tags", [])
+    )
+    badge = ' <span class="badge bg-info text-dark">读文笔记</span>' if meta.get("source-url") else ""
+    summary = f'<p class="mb-1">{e(meta["summary"])}</p>' if meta.get("summary") else ""
+    return (
+        '                <div class="mb-4">\n'
+        f'                    <h5 class="mb-1"><a href="{slug}.html">{e(meta["title"])}</a>{badge}</h5>\n'
+        f'                    <p class="text-muted mb-1"><small>{e(str(meta["date"]))} {tags}</small></p>\n'
+        f"                    {summary}\n"
+        "                </div>"
+    )
+
+
+def main():
+    if not POSTS.is_dir():
+        sys.exit(f"missing {POSTS}")
+
+    posts = sorted(POSTS.glob("*.md"), key=lambda p: p.name, reverse=True)
+    entries = []
+
+    for post in posts:
+        meta = frontmatter(post)
+        slug = post.stem
+        subprocess.run(
+            ["pandoc", str(post), "--from", "markdown", "--to", "html5",
+             "--template", str(TEMPLATE), "--standalone",
+             "--output", str(BLOG / f"{slug}.html")],
+            check=True,
+        )
+        entries.append(render(meta, slug))
+        print(f"built {slug}.html")
+
+    updated = max((str(frontmatter(p)["date"]) for p in posts), default="")
+    (BLOG / "index.html").write_text(
+        INDEX.format(entries="\n".join(entries) or EMPTY, updated=updated),
+        encoding="utf-8",
+    )
+    print(f"built index.html ({len(posts)} posts)")
+
+
+if __name__ == "__main__":
+    main()

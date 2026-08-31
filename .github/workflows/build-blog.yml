@@ -1,0 +1,39 @@
+name: build-blog
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'blog/posts/**'
+      - 'blog/_template.html'
+      - 'tools/build_blog.py'
+      - '.github/workflows/build-blog.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - run: pip install pyyaml
+
+      - name: Install pandoc
+        run: sudo apt-get update && sudo apt-get install -y pandoc
+
+      - run: python tools/build_blog.py
+
+      - name: Commit generated HTML
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add blog/*.html
+          git diff --staged --quiet || git commit -m "chore: rebuild blog from markdown"
+          git push
