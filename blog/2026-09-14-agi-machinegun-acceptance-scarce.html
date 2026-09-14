@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="老冯把”AGI
+机关枪”叙事推到极致，但最锋利的不是”门外汉也能烧”，而是”代码无限、信任不无限”和
+80/20 法则——稀缺的是 selection（知道什么值得做）和
+acceptance（知道哪里可能有问题），不是
+execution；蒋老板的”门外汉”其实是”有品味的门外汉”，这条叙事张力文章没解开。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>AGI 机关枪发下来了，可谁来验收 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>AGI 机关枪发下来了，可谁来验收</h1>
+            <p class="text-muted">
+                2026-09-14 · <span class="badge bg-secondary">AI</span> <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">读文笔记</span> <span class="badge bg-secondary">工程判断</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://vonng.com/ai/ai-machinegun-for-everyone/" target="_blank" rel="noopener">AGI
+机关枪发下来了</a> · 冯若航
+            </div>
+
+<h2 id="原文在说什么">原文在说什么</h2>
+<p>冯若航写了一个对照：蒋老板一个月用 Codex
+烧出四个数据库、一套操作系统、一门编程语言、一个编译器和一颗
+CPU，架构方向（主数据 S3、元数据 PG）甚至被老冯自己认可；老冯自己则接盘
+MinIO 做 Silo——自己懂对象存储、Agent
+负责搬砖。从这两个一冷一热的对照，他推出全文最锋利的判断：<strong>AI
+真正有价值的地方，是让已经拥有专业判断的人，不必再亲自完成所有体力劳动</strong>——不是让门外汉凭空拥有专业判断。</p>
+<p>他接着推出”供给无限”的论断：许愿就能得到软件的时代到了，门槛降了几个数量级。但紧跟一盆冷水——<strong>AI
+容易把项目从 0 推到 80 分，真正困难的是把剩下 20
+分补完：兼容性、边界条件、安全、迁移、升级、回滚、可观测性、长期维护、出事谁负责。这最后
+20 分，可能吃掉 99% 的成本。</strong>
+稀缺的不是代码，是”正确的愿望”和”验收能力”。代码无限，信任从来不无限。</p>
+<p>接下来他解释为什么是”这一个月”——Fable 5 恢复全球访问、GPT-5.6
+普遍可用，跨过了”能不能独立完成长时间大型工作”这条线。然后用杰文斯悖论解释订阅为什么从两个涨到10
+个还会涨到 20 个：能力涨，需求不是线性涨，而是爆炸涨。</p>
+<p>最后老冯用 Tibo 48.5
+万关注者做”圈层温度计”，推出关键判断：<strong>真正稀缺的不是 AI
+工具，而是认知差——10 亿人触达 OpenAI，只有约 1500 万真正用 Agent
+干活，深度用户再除几个数量级</strong>。以后稀缺的是洞察力（发现真问题）、影响力（推到用户面前），加验收能力作为入场资格。</p>
+<h2 id="我的看法">我的看法</h2>
+<h3
+id="我认同的部分8020-法则和信任从来不无限是最锋利的判断">我认同的部分：80/20
+法则和”信任从来不无限”是最锋利的判断</h3>
+<p>整篇文章读下来，最让我点头的不是”机关枪发下来了”那种修辞，而是中间那一段——“AI
+容易把项目从零推到 80 分，真正困难的是把剩下 20
+分补完”。<strong>这一刀切得准。</strong>
+我自己做后端工程这些年，见过太多”能跑”的代码卡死在第 20 分上：RocksDB
+状态后端参数不调对、Flink Checkpoint
+失败时状态回滚路径没设计、并发场景下锁竞争要 jstack
+才能看见。<strong>这些活的特点是上下文极大、需要工程直觉，AI
+给的多半是教科书答案</strong>——它能写出 RocksDB
+的示例配置，但看不出你的写入模式是写多读少还是范围扫描为主，所以调参方向会跑偏。</p>
+<p>“代码无限，信任从来不无限”这句话老冯写在文末做收束，其实才是全文的真正重量。<strong>它把”AI
+时代稀缺什么”这个问题从”技术能力”挪到了”关系和责任”层面</strong>——前者是工程问题，后者是组织问题。一个没人在乎的玩具
+GitHub 上多到溢出，能让人把业务、饭碗、数据交出来的产品从来都不多。</p>
+<h3 id="我的-push-back-之一蒋老板其实是有品味的门外汉不是真门外汉">我的
+push back 之一：蒋老板其实是”有品味的门外汉”，不是真门外汉</h3>
+<p>老冯的叙事有一个内在张力。他在 Silo 段写得清清楚楚：“老冯对 MinIO
+有些了解，并非两眼一抹黑地在聊天框里敲一句’帮我维护一下对象存储’。”——必须懂，才能验收。但蒋老板段他又写：“蒋老板本人应该并不熟悉
+Rust”，照样烧出了 graphdb / RustDB / rutomq /
+microsystem，还能上生产。</p>
+<p><strong>这两个立场在文章里没有和解，但其实是同一个事实的两面。</strong>
+蒋老板不是”不懂数据库”的门外汉，他懂的是另一层——<strong>他知道”主数据放
+S3、元数据放
+PostgreSQL”是数据服务未来的大方向</strong>，这个判断本身就是十几年架构师才能攒出来的。他用
+Codex 写代码，但他用的是老冯认可的方向写代码。<strong>他缺的是 Rust
+语法，他不缺的是品味。</strong></p>
+<p>老冯用”AGI
+机关枪”这个比喻把”门外汉也能产出来”浪漫化了，但蒋老板的成功是因为他其实不门外——他是用他的
+selection（知道什么值得做）换了 Agent 的
+execution（把代码烧出来）。<strong>真正稀缺的从来不是会写代码的人，是知道什么代码值得写的人。</strong>
+老冯在文末也承认了这点（“第一是洞察力”），但叙事重心却落在”机关枪门槛降低”上，这就把他的真正洞察藏在了副线里。</p>
+<h3 id="我的-push-back-之二绝大多数人还没进场是-selection-bias">我的
+push back 之二：“绝大多数人还没进场”是 selection bias</h3>
+<p>老冯用 Tibo 48.5 万关注者证明”早期窗口”。但 Tibo 是 OpenAI 内部 Codex
+高频用户样本，关注他的人本身就是 AI
+重度用户群里更活跃的那一小撮。<strong>用这个数推”10 亿人触达 vs 1500 万
+Agent
+用户”是对的，但用这个数推”早期窗口”会高估</strong>——真正的”绝大多数人”是
+80 亿减 1500 万，差距比”早期窗口”这四个字暗示的要大。</p>
+<p><strong>真正有意思的不是”早期窗口”，是”早期窗口里的层级”。</strong>
+这 1500 万里，能稳定打满一个最高档订阅的除掉好几倍；能同时跑多个 Agent
+做并行项目的再除掉好几倍；能把多个 Agent
+的产出组织起来形成产品、且有人用、能产生真实影响的，再除掉好几倍。这个漏斗不是线性的，是对数级的。<strong>OPC
+之所以让人羡慕，是因为它站在漏斗的最后几档，并且把上层的浪费成本自己消化了</strong>——订阅费是小的，回滚、兼容性、出事担责才是大头，全落在他一个人头上。</p>
+<h3
+id="我加的例子agent-给的是教科书答案工程师直觉介入才有方向">我加的例子：Agent
+给的是教科书答案，工程师直觉介入才有方向</h3>
+<p>从我的领域（Flink / Paimon / JVM 后端）出发看”AI 提效”是不均匀的。写
+CRUD、写 ETL job 模板、生成单元测试脚手架——AI
+写得比我快也比我齐整，这块已经被吃掉了。但往深处走几步就不一样：Flink 的
+Checkpoint 失败回滚路径、RocksDB 状态后端的参数调优、读 Paimon 源码理解
+LSM 树 compaction 触发条件——这些活的特点是上下文极大、需要工程直觉。</p>
+<p><strong>AI 能写出 RocksDB
+的示例配置，但它看不出你的写入模式是写多读少还是范围扫描为主</strong>。它能解释一遍
+<code>synchronized</code> 和 <code>ReentrantLock</code>
+的语义差别，但它看不出你线上 GC 日志里 CMS 退化标记和 Full GC
+的因果链。<strong>这不是”AI 不能做”，是 AI
+在没有工程师直觉介入时做不好。</strong> 老冯自己在 Silo
+上处理十余项安全问题（含认证绕过高危漏洞）的案例正是这个模式的现实样本——Agent
+写补丁、人做架构判断和回归验收。</p>
+<p><strong>这条路比”烧十把机关枪”慢，但它对 ladder
+第一格的人是可执行的</strong>。在 AI
+已经啃动的红海里拼烧代码的速度是送人头；在 AI
+还啃不动的深度工程里，把”知道什么值得做”和”知道烧出来的东西哪里可能有问题”叠在一起，是给
+average 工程师留的真正窗口。</p>
+<h2 id="一句话总结">一句话总结</h2>
+<p>老冯把”AGI
+机关枪”叙事推到极致，但最锋利的不是”门外汉也能烧”，而是”代码无限、信任不无限”和
+80/20 法则——稀缺的是 selection（知道什么值得做）和
+acceptance（知道哪里可能有问题），不是
+execution；蒋老板的”门外汉”其实是”有品味的门外汉”，这条路对 ladder
+第一格的人不可复制。</p>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-14</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>
