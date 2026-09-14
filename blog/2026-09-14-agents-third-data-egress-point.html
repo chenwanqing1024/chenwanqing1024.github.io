@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="冯若航把”本地
+AI”框定为政治账而非经济账。这篇认同他的核心论点，但把推论再往前一步：Agent
+不是模型问题的延续，而是突变——它把数据外泄从”事实”和”意图”两个维度扩展到了”动作”，并让”数据分级”这条建议在工程上变得不再可行。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>Agent 是第三个数据外泄点 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>Agent 是第三个数据外泄点</h1>
+            <p class="text-muted">
+                2026-09-14 · <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">本地
+AI</span> <span class="badge bg-secondary">数据主权</span> <span class="badge bg-secondary">MCP</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://vonng.com/ai/local-ai-movement/" target="_blank" rel="noopener">本地
+AI：算的是政治账，不是经济账</a> · 冯若航
+            </div>
+
+<h2 id="原文在说什么">原文在说什么</h2>
+<p>冯若航用这一周的三件事——Anthropic 9 月 10 日发的威胁情报报告、OpenAI
+纳维-斯托克斯证明那出狗血剧、同一天 200 刀 Pro
+档位暂停新订阅——拼出同一个判断：<strong>云端 AI
+不是便宜服务，是用数据换算力的生意</strong>。消费版订阅按 API 原价算有
+20 到 50
+倍的补贴，补贴的另一半来自你的对话数据被拿去训练。这套补贴模式冲 IPO
+之前会停，“击鼓传花”是必然的。</p>
+<p>由此推出他全文最锋利的论断：本地 AI
+<strong>算的不是经济账，是政治账</strong>。一台小十万的 Mac Studio 按
+token
+价算要六七年回本，纯算经济账永远算不平；但当对面天平上放的是制药公司三年的扩产计划、律所的案情、还没发布的产品规范，这个比较本身就是笑话。</p>
+<p>他给企业开的药方是”数据分级”——公开的当广告喂给云，保密的一个字节都别出局域网。判断很硬，落到工程层他没展开。</p>
+<p>最后，他给主权基础设施画了一张图：<strong>PostgreSQL + 对象存储 +
+本地模型</strong>。三者都在你手里，才是完整的你；少一样，议价权就缺一角。</p>
+<h2 id="我的看法">我的看法</h2>
+<p>冯若航的诊断我整体认同，<strong>但他把问题停留在”模型”这一层。我以为
+Agent
+不只是让问题更严重，而是让问题换了形状</strong>——它把数据外泄从两个维度扩展到了三个，并且让”数据分级”这条建议在工程上不再站得住。</p>
+<h3 id="三个变化agent-让问题变种而不是延伸">三个变化：Agent
+让问题变种而不是延伸</h3>
+<p><strong>第一，单次请求的爆炸半径变了。</strong> 聊天 prompt
+是个问题；Agent prompt 是个问题加工具 schema
+加检索回来的文档加上一轮工具调用的结果。Anthropic 报告里那个开发者把
+Telegram bot token、飞书 appSecret、Notion
+集成密钥贴进”国产编程助手”——这是聊天场景的泄露方式。但一个接了 MCP 的
+Agent 自己会读文件、grep 出 env var、决定调一下 webhook
+试试。<strong>你没贴任何东西。Agent 替你贴了。</strong>
+日志还是落在同一个地方。</p>
+<p><strong>第二，外泄点变成了运行时，不是查询。</strong>
+冯若航的框架里，数据库是事实的外泄点，模型是意图的外泄点。Agent
+是<strong>动作</strong>的外泄点。它读你的库、调你的
+API、替你发消息。被攻陷的 Agent 不需要 SQL
+注入或传唤令——它手里已经有凭证、schema
+和执行权限。数据泄露只是它”做事”的副产物。</p>
+<p><strong>第三，“数据分级”这条建议在这里失效了。</strong>
+分级对文档和聊天日志可行，对 Agent trace
+不可行——因为分级必须在每一次工具调用时动态发生。一个被要求”总结这通客户电话”的
+Agent 需要拿到客户记录，这条记录要不要发给云端模型？默认是发，因为 Agent
+prompt
+包含了它。你的数据分级政策说”不发”，但运行时没有强制手段。要落地这件事，你需要在调用层装一个策略引擎：<strong>这个调用放行、那个调用脱敏、这段文本送
+Claude、那段留在本地</strong>。这件事目前没人好好做，现有框架连”送出去的东西到底有哪些”都很难审计清楚。</p>
+<h3 id="一个反例开放权重不等于主权">一个反例：开放权重不等于主权</h3>
+<p>冯若航把开放权重模型当作”第二条供应链”——这是对的。但很多”本地
+AI”部署实际上是<strong>伪装的混合架构</strong>：本地模型接简单问题，难的回落（fallback）到托管的
+OpenAI 兼容端点。回落就是把数据送走的那一下。<strong>如果你跑不起
+frontier 模型，你拥有的不是主权，是路由策略。</strong> 路由策略在最不该
+fail open 的时刻 fail open。</p>
+<h3 id="把主权栈加一层">把主权栈加一层</h3>
+<p>冯若航的主权栈是三件套：PostgreSQL、对象存储、本地模型。我以为得加第四件——<strong>一个本地的
+Agent 运行时，在工具调用层而不是 prompt
+层强制”什么能出门、什么不能”</strong>。MCP 协议不做这件事。LangChain
+不做。多数 Agent
+框架连”我刚才到底把哪些东西送出去了”都没给你一份干净的审计。</p>
+<p>这不是否用云端 Agent
+的理由。窗口期是真的，补贴是真的，对开放工作（代码、文档、要发布的内容）来说，这套杠杆值得用足。<strong>陷阱是把”我有一台本地模型”等同于”我受保护”。</strong>
+模型是链条里的一环，Agent 运行时是剩下的所有环。</p>
+<h3 id="一个能落地的检验">一个能落地的检验</h3>
+<p>把任何一个 Agent 接到生产工具之前，跑一个具体任务，端到端抓
+trace。每一条 prompt、每一次
+retrieval、每一个工具调用，落到哪里去？如果答案是”一家我控制不了的
+SaaS”，那你暴露的方式正是冯若航警告的那种——<strong>只是现在暴露的还包括动作，不只是词句</strong>。</p>
+<h2 id="一句话总结">一句话总结</h2>
+<p>冯若航说本地 AI 是政治账；我以为 Agent
+让它变成了<strong>运维账</strong>。主权不是买台 Mac Studio
+就能拿到的，是要知道每一次工具调用落在防火墙哪一边，并且保留把关键调用留在本地的选项。</p>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-14</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>
