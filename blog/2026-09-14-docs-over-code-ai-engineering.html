@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="冯若航把 AI
+软件工程的四条核心做法中的第一条——文档驱动——从”代码的补充”重定位为”代码的输入、工作记忆与验收凭据”。认同文档前置的方向，但
+push back 两条：70-80% Token 用于 QC 的比例被简化、“每个 Issue
+一份设计文档”的边界没说清；并扩展到 MCP/schema/ADR 这条隐线。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>文档驱动：AI
+工程的护城河不在代码，在文档 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>文档驱动：AI 工程的护城河不在代码，在文档</h1>
+            <p class="text-muted">
+                2026-09-14 · <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">AI
+工程</span> <span class="badge bg-secondary">文档驱动</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://vonng.com/ai/sdd/" target="_blank" rel="noopener">文档驱动：AI
+软件工程的第一秘籍</a> · 冯若航
+            </div>
+
+<h2 id="原文在说什么">原文在说什么</h2>
+<p>冯若航把过去几个月用 AI
+做中大型软件工程的实践，归结为四条核心做法：文档驱动、对抗审查、暴力测试、复杂度惩罚。本文集中谈第一条——文档驱动，并把它拆成三个场景：</p>
+<p>第一，<strong>写代码之前</strong>。你不能对 Agent
+许一个”我要个跑在对象存储上的数据库”这种高层愿望就开工。中型项目值得花半天到一个上午打磨
+PRD——产品需求文档，至少把 User Story
+自己读一遍，确认”这是不是我要的东西”。他的原话是：“你可以不读代码，但不能不读需求文档。”</p>
+<p>第二，<strong>写代码过程中</strong>。Agent
+是”失忆的天才”——它没有部落知识，没有午饭局，没有 Code Review
+时那句”当年这么写是因为……“。它能依靠的只有三样：代码、测试、文档。所以要给
+Agent
+配工作记忆：一份完整的编年体原始记录，加一份定期整理的索引（AGENTS.md 或
+CLAUDE.md）。两层缺一不可。</p>
+<p>第三，<strong>交付和验收</strong>。单测、集成测试可以交给 Agent
+互相审查，但验收测试必须人工——因为这是拿你的信誉去背书。怎么验收？让
+Agent 交付的不只是代码，还必须包括这份代码的使用手册；然后照着手册把 Get
+Started 走一遍。</p>
+<p>冯若航把这个思路推到极致：每个项目都应该配一个伴生文档站，文档和代码是同等地位的交付物。为了把这件事做轻，他做了一个叫
+OINK 的 Hugo 主题，把”用 Markdown 一键起文档站”压到最低摩擦。他引的 Silo
+案例（一个 60 万下载、2500 Star 的 MinIO 分支，每个 Issue
+一份设计文档、每次变更都要做架构利弊权衡）是这套做法在公开场合的产出。</p>
+<h2 id="我的看法">我的看法</h2>
+<h3
+id="我认同的部分把文档从补充前置到输入是结构性变化不是工程美学">我认同的部分：把文档从”补充”前置到”输入”，是结构性变化，不是工程美学</h3>
+<p>“写代码之前先写文档”在传统软件工程里是老话，但冯若航把它升级了——文档不仅是
+PRD 的产出，而是 Agent
+的工作记忆和验收凭据。这不是文风问题，是结构性变化。</p>
+<p>我自己做数据湖仓有同感。Paimon 表的 schema、partition policy、TTL
+配置，如果不是写在 markdown 里而是只放在 SQL 注释里，Agent
+重写的时候一定会重新发明一遍——而且每次发明出来的都不一样，最后谁都不敢删。<strong>“文档是
+Agent 的工作记忆”不是比喻，是工程事实</strong>：Agent 的 context window
+是它的全部记忆，谁把上下文写明白，谁就能让 Agent
+稳定复现自己三个月前的判断。</p>
+<p>蒋老板那个反例（糊出 5 个数据库、1 个操作系统、1 个编译器 + 对象存储
+OLTP
+DB）也成立。不是说他写得不好，而是没有文档就意味着验收不可做——任何人（包括他自己）三个月后回来都搞不清楚当初为什么这么写。这是个关于”可演进性”的判断，不是关于”代码质量”的判断。</p>
+<h3 id="我的-push-back-之一70-80-token-用于-qc这个比例被简化了">我的
+push back 之一：70-80% Token 用于 QC，这个比例被简化了</h3>
+<p>文章里抛出一个非常具体的工程指标：“如果你追求的是工程质量，花掉的
+Token 至少应该有 70% 到 80% 用在 QC
+和测试上，而不是用在写代码上。”这个数字服务于”把质量提上去靠测试”的论点，写得很硬，但作为同行应该意识到这是一个简化。</p>
+<p>对一个<strong>全新项目的前期</strong>，PRD 和架构设计的 Token
+消耗可以远高于测试——光是否定备选方案这一项就够烧的；对一个<strong>已有项目的中期迭代</strong>，编码本身确实比测试便宜，但搜索、决策、跨模块依赖分析的成本绝对不低。我自己的体感更接近
+60-40 或 50-50，而且这个比例随项目阶段变化：早期设计阶段 Token 在
+PRD/架构上多，中后期 Token 在测试/重构上多。</p>
+<p>文章把它写成一个静态比例，可能是因为冯若航举的例子都是 Silo
+这种维护期长、外部用户多的基础设施项目——这种项目测试/QC
+占比天然高。读者如果照搬到内部工具或个人项目，会误判节奏。</p>
+<h3 id="我的-push-back-之二每个-issue-一份设计文档的边界作者没说清">我的
+push back 之二：“每个 Issue 一份设计文档”的边界，作者没说清</h3>
+<p>文章里反复强调”文档是交付物的一部分”、“每个 Issue
+都应该有一份设计文档”。这对于 Silo
+这种对外部用户开放的基础设施软件合理——基础设施的 wrong decision
+代价太大，必须留痕。</p>
+<p>但对内部工具、两三个人维护的辅助脚本、或者一份探索性 PoC，要求”每个
+Issue
+一份设计文档”是过度负担。文档是有维护成本的，写得多到没人读，等于没写。作者在文中加了”中型以上”的限定，但举例时一律拿的是大型开源项目，例子偏大。读者很容易照搬到错的项目上。</p>
+<p>我的看法是：<strong>文档驱动的强度应该跟项目的”wrong decision
+代价”成正比，跟”团队规模”成反比</strong>。Silo
+的代价是所有下游用户的可用性，所以值得；内部一次性的 ETL
+脚本，错了大不了重写，不值得。</p>
+<h3
+id="我加的扩展把文档驱动放到-mcp-时代看">我加的扩展：把”文档驱动”放到
+MCP 时代看</h3>
+<p>把”文档驱动”放到 MCP 这个上下文里会更清楚。MCP
+的本质是什么？是把工具的能力用结构化的 schema 和 description
+显式表达出来，让 Agent 能”理解”。这跟 markdown
+文档解决的是同一类问题：<strong>把”该被理解的内容”显式化</strong>。只不过
+MCP 写在协议里给机器读，markdown 写给人看。两者不冲突——好的 MCP server
+都同时有 markdown 用户文档，因为人也要验收。</p>
+<p>从这个角度看，“文档驱动”不一定意味着长篇
+markdown。它可以是一整条谱系： - <strong>schema</strong>（API、MCP
+工具、配置项） - <strong>test
+fixture</strong>（验收用例本身就是一种规约） - <strong>ADR /
+设计文档</strong>（架构决策记录） - <strong>commit message 里的
+why</strong> - <strong>AGENTS.md / CLAUDE.md</strong>（curated memory）
+- <strong>Session Log</strong>（raw memory）</p>
+<p>冯若航举的”会话日志”和”AGENTS.md”是这个谱系里的两种极端：前者是 raw
+memory，后者是 curated
+memory。中间还有很多种形态，每种都有适用场景。</p>
+<p>如果让我给”文档驱动”加一句话，我会说：<strong>文档驱动不是写长篇
+markdown，而是把”该被 Agent
+理解的内容”显式化，落到代码里、测试里、配置里、决策记录里、markdown
+里——任何一个能让 Agent 跨 Session 找回 Why 的地方都行</strong>。</p>
+<h2 id="一句话总结">一句话总结</h2>
+<p>AI Coding
+时代，工程质量的护城河不在代码，而在文档——但”文档”已经从长篇 markdown
+扩展到一切让 Agent 能”理解”该做什么的显式表达，包括
+schema、ADR、测试用例和会话日志。</p>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-14</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>
