@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="冯若航没宣布 RAG
+死亡，他把”作为架构的
+RAG”和”作为算子的向量召回”切开了——前者退场，后者降级。最硬的证据是
+Claude Code 选了 grep 加 glob，资本选了 PG
+而非向量库。文章把这个判断往前推一步：MCP
+让检索从流水线变成随手可调的工具，这才是 RAG
+退场的真正推手，不是窗口变大。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>向量 RAG 退场，Agent 多轮检索接班 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>向量 RAG 退场，Agent 多轮检索接班</h1>
+            <p class="text-muted">
+                2026-09-14 · <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">RAG</span> <span class="badge bg-secondary">向量检索</span> <span class="badge bg-secondary">PostgreSQL</span> <span class="badge bg-secondary">读文笔记</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://vonng.com/ai/rag-is-dead/" target="_blank" rel="noopener">RAG
+没死，但也快了</a> · 冯若航
+            </div>
+
+<h2 id="原文在说什么">原文在说什么</h2>
+<p>冯若航（vonng，Pigsty / pgvector 重度玩家）标题写得很巧——“RAG
+没死，但也快了”。正文里他做了一件更精确的事：<strong>把”作为架构的
+RAG”和”作为算子的向量召回”切开，前者退场，后者降级为默认算子</strong>。这个词的发明者
+Douwe Kiela（Contextual AI CEO）专门买了域名论证 RAG
+没死，但他自家首页把 RAG 字样撤了——这个词的处境，可见一斑。</p>
+<p>最硬的两处证据。一是 Claude Code 创造者 Boris Cherny 在 Latent Space
+亲口说：他们试过 RAG、本地向量库、各种搜索工具，最后落在 agentic search
+上，因为它”outperformed everything, by a lot”。Anthropic 后来把
+<code>CLAUDE.md</code> + <code>glob</code> + <code>grep</code> +
+渐进披露写进了方法论——<strong>地表最强的 Coding Agent，最后选了
+grep</strong>。二是资本投票：Databricks 收 Neon（10 亿美元）、Snowflake
+收 Crunchy Data（2.5 亿）、AWS 收 DuckLabs（DuckDB）——三年三家 PG /
+DuckDB 公司，一个向量库都没买；同期 Pinecone 在找下家。</p>
+<p>论据链条很清楚：4K 窗口逼出的”切片→embedding→向量库→Top-K→塞
+prompt”流水线，本质是应急方案。窗口到百万 token
+后约束没了，它自己还有三条先天病根——<strong>切片有损、Top-K
+不能说”没有”、相似不等于相关</strong>——一条 grep 加一个会多翻几轮的
+Agent，正好各治一条。活下来的 RAG
+已经不以向量为靶心，专用向量数据库的存在理由跟着走了一半。</p>
+<h2 id="我的看法">我的看法</h2>
+<h3
+id="认同的部分pipeline-被-mcp-解构比窗口变大更致命">认同的部分：pipeline
+被 MCP 解构，比窗口变大更致命</h3>
+<p>“向量召回从架构降级为算子”这个判断我完全同意。但我认为文章把原因归到”窗口变大”是表层归因——<strong>真正的推手是
+MCP</strong>。MCP
+没有标准化任何检索算法，它把”检索”从一条要专门搭的流水线变成了 Agent
+随手可调的工具。一旦检索可以和其他工具并列在同一个协议层调用，pipeline
+思维本身就崩了。Claude Code 选 agentic search 不是因为窗口够大——Claude
+Code 处理的是本地代码库，token
+量从来不是瓶颈——而是因为模型自己决定”该不该 grep
+该不该读全文”这件事，比把 Top-K 提前算好更对。</p>
+<p>我自己做 RAG demo 的体感也是：从 2023 年搭 Chroma 加 LangChain，到
+2025 年给 Agent 接一个 Postgres（同时挂 tsvector 加 BM25 和 pgvector
+加向量），复杂度是下降的，<strong>不是上升的</strong>。因为不需要再为”我应该用哪个
+chunk size”这个问题单独写一个评测脚本了。</p>
+<h3 id="push-back把向量-rag-退场等同于rag-退场过激了">Push back：把”向量
+RAG 退场”等同于”RAG 退场”过激了</h3>
+<p>文章的标题党把”RAG 没死”做成悬念，但正文自己承认中间档（20 万到几千万
+token）的 RAG 依然有用，形态是 hybrid retrieval + reranker +
+元数据过滤。这恰恰是我要 push back
+的地方——<strong>对企业知识库那种非结构化但又是高度精确的场景（错误码、合同条款、产品型号、人名），BM25
++ reranker 的组合比 grep 强</strong>。文章里那个”非结构化 grep
+不管用”的反驳它自己也答了，但答得不响：Claude Code 能用 glob/grep
+是因为代码本身是结构化文本、函数名变量名天然是关键字，<strong>把
+glob/grep 搬到企业知识库是另一回事</strong>。Hybrid
+不会消失，它只是不再以向量为核心。</p>
+<h3 id="加一个例子paimon-数据湖仓的平行故事">加一个例子：Paimon /
+数据湖仓的平行故事</h3>
+<p>文章最后把数据库重新定位为 Agent 的”状态平面”——LISTEN/NOTIFY
+是信号总线、<code>SKIP LOCKED</code> 是任务队列、PITR + PG 18 的 CoW
+克隆是回到过去和复制当下、ACID 是多 Agent
+共享状态的最省心方案。这个框架我完全买账——它和我在数据湖仓领域看到的故事是同一个结构：<strong>AI
+Native DB 不是新物种，是传统 DB 加 AI 能力</strong>。Neon
+的数字最杀：八成的数据库是 Agent 自动创建的，不是人建的。Agent
+需要的是事务、回滚、分支、审计，不是向量索引。<strong>没有身体的灵魂是幽灵，没有数据库的
+Agent 是聊天机器人</strong>——老冯这句写得狠但确实准。</p>
+<h2 id="一句话总结">一句话总结</h2>
+<p>向量 RAG 是 4K 窗口时代的应急方案，窗口大了它就该退场；活下来的不是
+RAG 这个词，是 grep + BM25 + Agent
+多轮检索的混合体——而数据库（不专指向量库）是这一切能跑起来的状态平面。</p>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-14</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>
