@@ -64,6 +64,11 @@
             </div>
             <div class="card-body">
                 <div class="mb-4">
+                    <h5 class="mb-1"><a href="2026-09-15-cost-optimization-engineering.html">Claude API 成本优化：从 prompt caching 到 model ladder 的 7 个 Pareto 工程模式</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">成本优化</span> <span class="badge bg-secondary">Pareto</span> </small></p>
+                    <p class="mb-1">把 claude-cookbooks/cost_optimization 的 1.2MB 主教程拆成 7 个工程模式：评测基线 / prompt caching / 输入 token 管理 / agent-loop 效率 / 输出 token 管理 / Batch API / model×effort ladder。每个模式给出一行定位 + 最小代码 + 工程踩坑提示，附 Pareto 选型表与&quot;哪类任务该用哪类杠杆&quot;对照。</p>
+                </div>
+                <div class="mb-4">
                     <h5 class="mb-1"><a href="2026-09-15-context-engineering-patterns.html">Context Engineering 实操：让 LLM 注意力预算花在刀刃上的 6 个工程模式</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
                     <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">Context Engineering</span> <span class="badge bg-secondary">Agent</span> </small></p>
                     <p class="mb-1">把 Anthropic Effective Context Engineering 文章拆成 6 个工程模式：Context Rot 与注意力预算、System Prompt 的 right altitude、Tools 的最小可用集、Just-in-time retrieval、长任务三件套（compaction / note-taking / sub-agents）、Hybrid 策略（upfront + JIT）。配 code 示例 + 面试可讲的设计取舍 + 落地 checklist。</p>
@@ -82,11 +87,6 @@
                     <h5 class="mb-1"><a href="2026-09-15-claude-cookbook-misc-engineering.html">Claude API 工程实战：从 claude-cookbooks/misc 提炼的 14 个最小可用模式</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
                     <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">LLM</span> </small></p>
                     <p class="mb-1">把 anthropics/claude-cookbooks 的 misc 目录拆成 14 个独立模式，按「成本/输出可控/质量保障/长上下文/工作流增强」五个主题分组，每条给出一行定位 + 最小代码 + 工程踩坑提示。所有代码对齐 anthropic-sdk-python ≥ 0.40 的当前接口。</p>
-                </div>
-                <div class="mb-4">
-                    <h5 class="mb-1"><a href="2026-09-15-claude-code-sandboxing-isolation.html">Claude Code 沙箱设计：文件系统 + 网络双重隔离的 5 个工程模式</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
-                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">安全</span> <span class="badge bg-secondary">Sandbox</span> </small></p>
-                    <p class="mb-1">把 Anthropic Claude Code Sandboxing 工程文章拆成 5 个工程模式：filesystem + network 双隔离缺一不可、OS 级 sandbox（bubblewrap / seatbelt）替代容器方案、proxy 化网络访问、scoped credential + 内容校验、Claude Code on the web 的 cloud sandbox。配数据（permission prompt 降 84%）+ 落地配置 + 面试可讲的安全模型取舍。</p>
                 </div>
             </div>
         </div>

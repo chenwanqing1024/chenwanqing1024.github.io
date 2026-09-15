@@ -64,6 +64,11 @@
             </div>
             <div class="card-body">
                 <div class="mb-4">
+                    <h5 class="mb-1"><a href="2026-09-15-madrigal-pharma-multi-agent-platform.html">Madrigal Pharma 多 Agent 平台：医药数据的&quot;看不见的归一化&quot;+ Skills 联邦制 + Trace 反哺 Eval</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">多 Agent</span> <span class="badge bg-secondary">医药 RAG</span> <span class="badge bg-secondary">Deep Agents</span> <span class="badge bg-secondary">工程实践</span> </small></p>
+                    <p class="mb-1">制药公司 Madrigal 用 LangChain / Deep Agents 搭多 Agent 平台，关键思想：把所有数据源归一化成一致的 tool interface（Agent 不关心数据从哪来）；modular skill 把单一用例变成平台；trace → eval dataset 是生产反馈的闭环。新用例从&quot;几周&quot;降到&quot;几小时&quot;。</p>
+                </div>
+                <div class="mb-4">
                     <h5 class="mb-1"><a href="2026-09-15-langgraph-three-years-patterns.html">LangGraph 3 年：什么时候用 graph / 什么时候用 harness / 什么时候用 loop——决策框架</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
                     <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">LangGraph</span> <span class="badge bg-secondary">工程哲学</span> <span class="badge bg-secondary">决策框架</span> <span class="badge bg-secondary">工程实践</span> </small></p>
                     <p class="mb-1">LangGraph 3 年的核心经验：什么时候把 Agent 表达为 graph（结构已知、路径确定）、什么时候用 agent harness（结构未知、靠模型推理）、什么时候用 loop（最简版本）。3 个关键 lesson：agent graph 通常不是 DAG、loop 就是简单 graph、动态 transition 重要。附决策框架 + 简历项目骨架。</p>
@@ -82,11 +87,6 @@
                     <h5 class="mb-1"><a href="2026-09-15-governed-agents-cost-control-compliance.html">Governed Agents 框架：把 LLM Gateway 当成 Agent 的 runtime control plane——5 层治理 + 简历级骨架</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
                     <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">LLM Gateway</span> <span class="badge bg-secondary">治理</span> <span class="badge bg-secondary">成本控制</span> <span class="badge bg-secondary">合规</span> <span class="badge bg-secondary">工程实践</span> </small></p>
                     <p class="mb-1">把 LLM Gateway 定位为 Agent 的 runtime control plane（不是简单的 model router）。5 个治理动作：identity / spend / model routing / context efficiency / guardrails。Govern / Decide / Protect / Observe / Assure 5 步运转框架。附完整简历项目骨架。</p>
-                </div>
-                <div class="mb-4">
-                    <h5 class="mb-1"><a href="2026-09-15-extended-thinking-engineering.html">Extended Thinking 实战：把 Sonnet/Opus 的深度推理变成工程能力</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
-                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">Reasoning</span> </small></p>
-                    <p class="mb-1">把 claude-cookbooks/extended_thinking 的 2 个 notebook 拆成 3 个工程模式：基础启用与 budget 调参 / thinking 与 tool_use 交错 / signature 续接与 streaming。每条给最小代码 + 工程踩坑提示，对齐 anthropic-sdk-python 当前接口。</p>
                 </div>
             </div>
         </div>

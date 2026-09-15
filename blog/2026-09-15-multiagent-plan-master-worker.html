@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="得物 MultiAgent
+平台这篇不写”什么是 Agent”，写的是”演示 Agent 和生产 Agent
+的距离”。核心是把 Plan 当作一等公民、把主/子 Agent 分层、把可靠性约束从
+prompt 层下沉到框架层——这三件事合在一起，决定了 Agent
+系统能不能上生产。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>Agent 项目的生产可靠性三角：Plan、主子分层与
+A2A - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>Agent 项目的生产可靠性三角：Plan、主子分层与 A2A</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">MultiAgent</span> <span class="badge bg-secondary">Plan-and-Execute</span> <span class="badge bg-secondary">工程落地</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://xie.infoq.cn/article/94655432fd44f6c59a2f0e615" target="_blank" rel="noopener">企业级
+MultiAgent 落地：Plan 模式与主子 Agent 协作｜得物技术</a> · 得物技术
+            </div>
+
+<h2 id="原文在说什么">原文在说什么</h2>
+<p>得物技术在做的是基于 AgentScope Java 的企业级 MultiAgent
+平台，覆盖研发、数据分析、知识问答三类场景。本文聚焦复杂任务怎么拆、怎么并行、怎么跨服务协作。</p>
+<p>作者开篇就把痛点摆得很清楚：ReAct
+循环在”分析一组数据、检索资料、生成报告并给出建议”这种多步骤任务上会暴露四个问题——前置缺失无法前置发现、过程藏在
+prompt 里没法审计、token
+消耗难以预估、工具失败没有恢复路径。Plan-and-Execute
+把”要做什么”和”怎么做”拆开：先生成结构化计划，再逐项执行。计划不再是
+prompt
+里的一句话，而是一个<strong>有状态、可持久化、能被前端观察</strong>的运行对象。</p>
+<p>Plan 的生命周期被切成五段：创建、Hint 注入、持久化与断点恢复、SSE
+过程可见、状态合法性约束。最关键的一条是 <strong>Hint
+是软约束，框架负责硬约束</strong>——模型可以新增或放弃任务，但必须留下可解释的状态变化；同一时刻只能有一个任务进行中、不能跳步。</p>
+<p>主/子 Agent 分层把职责物理隔离：主 Agent
+负责理解目标、分解任务、汇总结果；子 Agent
+是一类专业工人，配置声明式描述（name/description/tools/model），启动时创建独立实例再包装成工具给主
+Agent 调度。短任务同步等，耗时任务异步查，并发跑三个独立任务时主 Agent
+聚合即可。</p>
+<p>跨服务部分走 A2A 协议：发现层拿 Agent Card → 入口发首条消息拿
+contextId → 后续请求带标识延续上下文 →
+长任务流式回传。作者提醒了一个容易被忽略的坑——<strong>contextId
+必须与发起方身份绑定</strong>，否则任何调用方都能凭标识读别人会话；异步恢复时租户条件要重新注入数据访问层，不能信任调用方传来的快照。</p>
+<p>企业级保障部分给出了四个生产级的硬约束：ORM
+层强制租户条件（不是应用层判断，是数据层强制过滤）、双模式认证（JWT +
+SSO）+ API Key 开放接入、全链路追踪的多层调用树、SSE
+分层消息协议（PROCESSING 事件区分 ToolCall / SubAgentCall /
+Plan，前端能精确渲染每一步）。异常保护是四道防线：工具超时与重试、ReAct
+迭代上限、Plan 状态合法性约束、子 Agent 协作式中断传播。</p>
+<h2 id="我的看法">我的看法</h2>
+<p>文章最大价值不在 Plan 模式本身——Plan-and-Execute 是 2024
+年就有的老话题——而在<strong>它把可靠性约束从 prompt
+层下沉到框架层</strong>这件事。ReAct
+的根本问题是它把”做事的正确性”全押在 LLM 一次推理上，LLM
+跳步、漏步、卡死都只能靠 prompt
+补救。得物这篇的解法是把可观测、可中断、可恢复的边界画在框架里：Plan
+状态机在数据库，子 Agent 配置在启动器，租户条件在 ORM 拦截器，调用树在
+Trace 上下文。<strong>Agent 不再是 LLM 的附属品，而是运行在 LLM
+之上的有状态系统。</strong></p>
+<p>我认同文章大部分工程判断，但有一个 push
+back：<strong>“统一封装”是有上限的</strong>。文章把 Plan 工具集、主/子
+Agent 配置、SSE
+协议、多租户追踪全交给平台统一管，这在大型企业里是必要的，但代价是<strong>灵活性让位给一致性</strong>。我自己的经验里，最痛的反而是接
+MCP 那一段——任何 MCP 服务可以直接挂载为工具，但 MCP
+协议自己并不保证租户隔离和工具级权限。最后这层还是要每个团队自己补。文章没展开讲”哪些是平台责任、哪些是
+Agent 责任”的边界划分，这是它给我的最大未解之问。</p>
+<p>第二个 push back：<strong>子 Agent
+异步调度的”查询、取消、超时、回收”四件套写起来容易，做起来是分布式系统问题</strong>。文章假定子
+Agent 是进程内对象，跨服务走 A2A；但实际中 70% 的子 Agent 任务是
+CPU-bound 的 LLM 推理，30% 是 I/O-bound 的外部调用。CPU-bound
+任务的取消不是协作式的，是抢占式的——这要求框架支持 checkpoint
+重启而不只是协作中断。文章用”协作式中断”一笔带过，但实际工程中这是子
+Agent 异步系统能不能长期稳定的关键。</p>
+<p>我加一个工程细节：<strong>Plan
+的”持久化粒度”决定了一切</strong>。文章说”以会话为目录物理隔离”，这是租户隔离的细粒度。但如果你的
+Plan
+是秒级状态变化，每次都写盘就是性能瓶颈；如果不每次都写，断点恢复就有数据丢失风险。得物的解法是
+ORM 层强制注入租户标识——但 Plan
+状态变化的高频写盘和租户隔离的物理目录是冲突的（高频写盘需要共享存储，物理目录需要独立存储）。这块文章没说清楚，但实际做平台的人会卡在这里。</p>
+<h3 id="怎么落到-agent-项目">怎么落到 Agent 项目</h3>
+<p>如果让我基于这篇文章做一个<strong>Agent
+项目的核心架构</strong>，我会画成这样：</p>
+<p><strong>核心模块四件套：Plan 引擎、子 Agent 注册中心、Trace
+上下文、多租户拦截器。</strong></p>
+<ol type="1">
+<li><strong>Plan 引擎</strong>：Plan 不是字符串，是有状态对象（status:
+created/active/finished/abandoned，subtasks: [{id, status,
+deps}]）。状态变化进事件流，前端 SSE 订阅。后端存盘可以选 outbox +
+异步落盘，避免高频写盘。</li>
+<li><strong>子 Agent 注册中心</strong>：每个子 Agent
+是一个配置（name/description/tools/model/system_prompt），启动器懒加载实例。注册中心不存实例，只存配置——实例化在调用时。这解决”启动慢”和”配置漂移”两个常见坑。</li>
+<li><strong>Trace 上下文</strong>：用 OpenTelemetry 协议，每个 Plan
+任务是一个 Trace，每个子 Agent 调用是一个 Span。traceId 跨服务透传，A2A
+调用带上 traceparent header。</li>
+<li><strong>多租户拦截器</strong>：ORM 层用 Hibernate Filter / Prisma
+middleware / SQLAlchemy event 强制注入 tenant_id，不是应用层 if
+判断。</li>
+</ol>
+<p><strong>主 Agent 的 prompt 模板</strong>可以参考文章的三段式：①
+你可以创建/激活/完成/结束 Plan；② 当前 Plan 状态如下（动态注入）；③ 子
+Agent 工具列表（动态注入）。不要把 Plan 状态硬编码到 prompt 里。</p>
+<p><strong>面试时被问”Agent
+和传统程序的最大区别”</strong>——可以直接引用文章的核心论点：传统程序的可靠性在编译期和测试期，Agent
+的可靠性在运行时和框架层。一个生产 Agent 系统必须把”Plan 状态机、子
+Agent 隔离、Trace 多层调用、多租户硬约束”这四件事做出来，否则就是演示
+Agent。</p>
+<h2 id="一句话总结">一句话总结</h2>
+<p>演示 Agent 和生产 Agent 的距离，不在 LLM 多强，而在 Plan
+是不是一等公民、可靠性约束是不是在框架层、租户隔离是不是在数据层——这三件事做不出来，Agent
+永远只能跑 demo。</p>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>
