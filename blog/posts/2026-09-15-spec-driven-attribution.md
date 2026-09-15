@@ -38,6 +38,20 @@ Nitin Garg 在 InfoQ 上发了一篇带数据的研究笔记：spec-driven devel
 
 如果你的团队已经在做严格的数据契约，spec-driven AI 治理可以直接复用同一套 contract 模板；如果你的团队连 schema evolution 都还没管好，先别上 spec-driven AI 治理，把数据侧的活儿先做掉。
 
+## 落地实践
+
+把 Nitin 的框架拆成最小可用版本，可以直接照着做。
+
+**Spec baseline 分三层，每层责任明确。** 第一层 business requirements 只写规则、不写功能（"transfer 必须不创建也不销毁钱"），第二层 HLD 写组件边界和接口签名（这是静态 drift detection 的对照基线），第三层 LLD 写每条命名 invariant——每个 invariant 必须可被一条 test 验证、能被一行代码引用、能被一个 reviewer 一次性 cite。Nitin 给的 transfer 那四条（idempotent / atomic_on_fail / moves_funds / assets_conserved）正好对应四类 invariant：幂等、失败回滚、正向流动、守恒。一个服务 15–25 条 invariant 是甜区，再多 review 就开始偷工减料。
+
+**Drift detection 分三层做，别全押 LLM。** 静态层用 AST / 类型系统比 baseline，每条接口签名和参数类型做 diff——便宜、确定、能挡掉大部分粗错。语义层用 LLM-as-judge，把 baseline 当 system prompt，让模型判断代码是否违反某条 invariant——贵但能归因。运行层用 contract test 跑在真服务上，抓生产真实 drift。三层串起来，drift log 的最小 schema 至少包含 drift_id、baseline_version、violated_invariant、evidence_snippet、severity、reconciler。**没有 cited invariant 的 drift 不入 log**——这是 Nitin 实验里 0% 那一档的硬底线。
+
+**Reconciliation 必须有强制结局。** 每条 drift 三选一：改代码对齐 spec、改 spec 承认代码（带理由 + reviewer sign）、或者 reject 整次 generation。没有"我等下看"——unresolved drift 直接阻塞下一次 generation。Reconciler 字段必须填真名 + 时间戳，不是"team"。Nitin 强调的 RACI 里 Accountable 的"可被 bounced"在这一层落地。
+
+**复用既有的数据契约，别造第二份。** Paimon / Iceberg 的 table schema 当 HLD，partition spec + 主键约束当 LLD 的一部分，field-level 契约（type / nullable / pii / retention）从数据平台 sync 到 AI spec baseline，而不是手写第二份。Lineage 直接复用——表级血缘已经告诉你下游影响面，不用重新发明。这一步是把"团队已经在做数据治理"折现成"AI 治理也能上"的最低成本路径。
+
+**投入产出的临界点很容易算。** 一份 20 条 invariant 的完整 baseline 一次性写约 4–8 小时；后续每次需求变更更新 baseline 约 30 分钟；每次 review 多付 21 分钟（按 Nitin 数据）。判定临界点简单：**累计 reconcile drift 的总时间 > 写 spec 的时间，就值得写**。Nitin 的 targeting rule 用人话说就是这条。
+
 ## 一句话总结
 
 Spec-driven 真正值钱的是把 review 从"看着不对劲"变成"违反第几条 invariant"——但只对高约束、受监管、长寿命的系统值得付这 48 分钟的代价，简单任务上的收益大多是 reasoning 在冒充。
