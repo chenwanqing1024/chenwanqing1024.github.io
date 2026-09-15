@@ -12,6 +12,8 @@ ROOT = Path(__file__).resolve().parent.parent
 BLOG = ROOT / "blog"
 POSTS = BLOG / "posts"
 TEMPLATE = BLOG / "_template.html"
+PAGE_DIR = BLOG / "page"
+PER_PAGE = 5
 
 INDEX = """<!DOCTYPE html>
 <html lang="zh-CN">
@@ -82,6 +84,8 @@ INDEX = """<!DOCTYPE html>
             </div>
         </div>
 
+{pagination}
+
         <footer class="footer mt-auto py-3 bg-light">
             <div class="container">
                 <p class="text-muted">最后更新：{updated}</p>
@@ -133,8 +137,8 @@ def main():
         sys.exit(f"missing {POSTS}")
 
     posts = sorted(POSTS.glob("*.md"), key=lambda p: p.name, reverse=True)
-    entries = []
 
+    all_entries = []
     for post in posts:
         meta = frontmatter(post)
         slug = post.stem
@@ -144,15 +148,83 @@ def main():
              "--output", str(BLOG / f"{slug}.html")],
             check=True,
         )
-        entries.append(render(meta, slug))
+        all_entries.append(render(meta, slug))
         print(f"built {slug}.html")
 
     updated = max((str(frontmatter(p)["date"]) for p in posts), default="")
-    (BLOG / "index.html").write_text(
-        INDEX.format(entries="\n".join(entries) or EMPTY, updated=updated),
-        encoding="utf-8",
+    total = len(posts)
+    total_pages = max(1, (total + PER_PAGE - 1) // PER_PAGE)
+
+    # Remove stale paginated index files (e.g., when post count drops)
+    if PAGE_DIR.exists():
+        for p in PAGE_DIR.glob("*/index.html"):
+            n = int(p.parent.name)
+            if n > total_pages:
+                p.unlink()
+                print(f"removed stale page {n}")
+        for d in sorted(PAGE_DIR.glob("*"), reverse=True):
+            if d.is_dir() and not any(d.iterdir()):
+                d.rmdir()
+
+    for page_num in range(1, total_pages + 1):
+        start = (page_num - 1) * PER_PAGE
+        end = start + PER_PAGE
+        page_entries = all_entries[start:end]
+        pagination = render_pagination(page_num, total_pages)
+        if page_num == 1:
+            out = BLOG / "index.html"
+        else:
+            out = PAGE_DIR / str(page_num) / "index.html"
+            out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(
+            INDEX.format(
+                entries="\n".join(page_entries) or EMPTY,
+                updated=updated,
+                pagination=pagination,
+            ),
+            encoding="utf-8",
+        )
+        print(f"built index page {page_num} ({len(page_entries)} posts)")
+
+    print(f"done: {total} posts across {total_pages} page(s)")
+
+
+def page_href(target, current):
+    if target == current:
+        return "#"
+    if target == 1:
+        return "index.html" if current == 1 else "../../index.html"
+    return f"page/{target}/index.html" if current == 1 else f"../{target}/index.html"
+
+
+def render_pagination(current, total):
+    if total <= 1:
+        return ""
+    items = []
+    if current > 1:
+        items.append(
+            f'<li class="page-item"><a class="page-link" href="{page_href(current-1, current)}">« 上一页</a></li>'
+        )
+    else:
+        items.append('<li class="page-item disabled"><span class="page-link">« 上一页</span></li>')
+    for n in range(1, total + 1):
+        if n == current:
+            items.append(f'<li class="page-item active" aria-current="page"><span class="page-link">{n}</span></li>')
+        else:
+            items.append(f'<li class="page-item"><a class="page-link" href="{page_href(n, current)}">{n}</a></li>')
+    if current < total:
+        items.append(
+            f'<li class="page-item"><a class="page-link" href="{page_href(current+1, current)}">下一页 »</a></li>'
+        )
+    else:
+        items.append('<li class="page-item disabled"><span class="page-link">下一页 »</span></li>')
+    return (
+        '        <nav aria-label="分页">\n'
+        '            <ul class="pagination justify-content-center">\n'
+        + "\n".join(f"                {it}" for it in items) + "\n"
+        '            </ul>\n'
+        '        </nav>'
     )
-    print(f"built index.html ({len(posts)} posts)")
 
 
 if __name__ == "__main__":
