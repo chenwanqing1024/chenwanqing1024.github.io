@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="得物技术讲了一个数仓发布门禁的全貌：消费场景
+× P0/P1/P2 风险等级 + DQC 强/弱规则 +
+七步静态扫描到数据比对流水线。认同它把风险等级和发布准出规则绑死的思路，但
+push back 三处：强弱规则阈值没说清、CodeReview 仍是人肉节点、3TB
+以上的表直接放弃验证是个隐性债。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>得物数仓把发布做成流水线，但真正的难点是给每个任务打上风险等级 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>得物数仓把发布做成流水线，但真正的难点是给每个任务打上风险等级</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">数据仓库</span> <span class="badge bg-secondary">数据治理</span> <span class="badge bg-secondary">工程效能</span> <span class="badge bg-secondary">发布流水线</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://xie.infoq.cn/article/16c79601c6b43114f3b7d8e35" target="_blank" rel="noopener">从「人治」到「机治」：得物离线数仓发布流水线质量门禁实践</a> · 得物技术
+            </div>
+
+<h2 id="原文在说什么">原文在说什么</h2>
+<p>得物技术 (作者：家森) 写了一篇关于离线数仓”发布门禁”从 0 到 1
+的工程实践，核心目标是解决”高频变更 ×
+超大规模”双重特性下，发布变更如何从依赖个人责任（人治）转向依赖平台规则（机治）。</p>
+<p>文章分两大块。</p>
+<p><strong>第一块：数仓任务资产管理。</strong>
+这是底层数据治理。给每个末节点任务倒推上游全链路，按业务用途挂上”消费场景”标签（P0/P1/P2
+三级风险）。增量任务发布前必须 100%
+绑定消费场景，存量任务靠人工盘点初始化。绑定的本质是：把”我改了这个任务影响到谁”这件事从隐性信息变成显性数据。</p>
+<p><strong>第二块：变更管控流水线。</strong>
+这是落地形态。一个发布请求要过 7 个节点：静态扫描（依赖 / 建表 / 编码 /
+集成 / DQC 5 类规则）→ 冒烟测试（ETL + DQC 规则）→ CodeReview（数据域 PM
+或技术负责人）→ 数据探查（字段类型、主键、无效/异常字段）→
+数据比对（数据量、聚合指标、明细对比，可配置风险阈值）→ 发布审批（数据域
+PM + QA 双签）。</p>
+<p>DQC
+是流水线的卡点核心。文章区分了”强规则”和”弱规则”：强规则不通过直接 fail
+任务、拦截下游、按 15 分钟无响应逐级电话升级；弱规则不通过只通知
+owner，任务继续跑。强规则通过可视化勾选 + 自定义 SQL
+补充两种方式配置，必须”试运行通过”才能保存上线。告警支持飞书、电话、短信、邮箱。</p>
+<p>文章给出的项目目标两个数字值得记：<strong>消费场景绑定率
+100%</strong>、<strong>任务发布效率提升
+60%</strong>。作者自己点出了未来规划的痛点：分区大于 3TB
+的表（10亿/百亿/千亿级），数据探查和数据比对目前是直接放弃做验证，因为对计算资源的消耗太大。</p>
+<h2 id="我的看法">我的看法</h2>
+<p><strong>我认同的核心点：把”风险等级”和”消费场景”作为发布的强制前置条件。</strong>
+这是文章里最值钱的判断。在传统数仓发布里，“这个任务重要不重要”完全靠
+owner 的口头描述，CodeReview
+也只能看到代码本身，看不到这个任务下游有谁在用、消费链路是什么。得物这套做法本质上把”业务影响面”和”代码改动”耦合到同一个发布对象上，P0/P1
+的发布准出标准天然就比 P2
+严。<strong>这是数据治理在工程侧的真正落地形式</strong>，比”我们有一套指标口径文档”实在得多。</p>
+<p><strong>这篇文章给我最有价值的不是”流水线长什么样”，而是”为什么强弱规则必须分开”。</strong>
+强规则的代价是拦截下游任务，需要值班人员介入；弱规则的代价只是通知，不影响生产。这种区分背后是经典的
+SLO
+设计：把”必须对的”和”应该对但可以人工兜底的”分开，前者用机器拦截、后者用流程兜底。我之前写
+ETL
+的时候就吃过亏，强弱不分，要么全放过去数据出问题时无人负责，要么全卡住工程团队被淹没。</p>
+<p><strong>三个反直觉的工程判断：</strong></p>
+<ol type="1">
+<li><strong>“试运行通过才能保存”是 DQC
+配置的强制门禁</strong>，比”上线后出问题再修”省的成本大得多。代码里写错一个
+SQL 语法能编译报错，但 DQC 配错一个阈值（比如把”空值率 &lt; 5%“写成”&lt;
+50%“）上线后是静默的，几个月后才发现下游 GMV 算错。这种门禁是 QA
+思维，不是开发思维。</li>
+<li><strong>数据比对要让用户输入”主键字段、去噪字段、风险阈值”而不是平台自动选</strong>。表面上看这是增加用户负担，实际上是把对比策略的决定权交还给最懂业务的人。机器帮你做加法，把关让业务做。</li>
+<li><strong>3TB
+以上的表直接放弃验证是个工程现实主义选择</strong>。作者没有掩盖问题，直接写”严重影响其他任务的执行进度”，并给出未来解（抽样验证）。这种”做不到就明确说做不到”的诚实比”我们什么都支持”更可信。</li>
+</ol>
+<p><strong>但我有 push back：</strong></p>
+<ol type="1">
+<li><p><strong>强弱规则的阈值在哪？</strong>
+文章只说”可视化勾选生成”，没说强规则推荐配置什么样的阈值（比如空值率超过多少算强规则？主键唯一性必须是强规则吧？）。如果团队里没有
+DQC
+专家，配置出来很可能全是弱规则，强规则的”拦截”价值被稀释。需要一份开箱即用的”强规则基线模板”。</p></li>
+<li><p><strong>CodeReview 节点仍然是”数据域 PM 或技术负责人”，没看到 AI
+介入。</strong>
+这是整篇流水线里最人治的一环，跟标题”从人治到机治”是反的。AI Coding
+时代，CodeReview 完全可以用”agent + 规范文档 + 历史
+PR”的方式做初筛，把人 review
+的范围缩到”机器筛完的高风险改动”，提效会更明显。</p></li>
+<li><p><strong>数据探查和数据比对在 &gt;3TB
+表上直接放弃，是隐性技术债。</strong>
+作者把这个写进”未来规划”，但没说短期怎么兜底——难道 3TB
+以上表就不做发布验证了？那不就回到”人治”了吗？至少应该有一个”轻量抽样 +
+关键字段校验”的兜底方案上线。</p></li>
+</ol>
+<h3 id="怎么落到-agent-项目">怎么落到 Agent 项目</h3>
+<p>如果让我基于这篇做一个”数仓发布门禁
+Agent”项目，我会拆成五个模块：</p>
+<ol type="1">
+<li><strong>资产绑定 Agent</strong>：扫描 DDL 血缘 + 调度依赖 +
+消费日志（BI 报表、API
+调用），自动给每个末节点任务打消费场景和风险等级标签，未绑定的发布直接拦截。</li>
+<li><strong>DQC 规则推荐
+Agent</strong>：基于表的历史数据画像（空值率、唯一性、量级波动）推荐强弱规则阈值，输出可视化配置
++ 一键试运行。</li>
+<li><strong>静态扫描 Agent</strong>：执行依赖、建表、编码、集成、DQC
+五类规则的扫描，发现违规直接 fail，输出修复建议。</li>
+<li><strong>数据比对 Agent</strong>：根据用户输入的主键 / 去噪字段 /
+风险阈值执行数据量和聚合指标比对；&gt;3TB 表走”分层抽样 +
+关键字段校验”兜底路径。</li>
+<li><strong>审批编排
+Agent</strong>：根据任务风险等级动态生成审批链路（P0 双签 + QA，P1
+数据域 PM，P2 自动通过），并在飞书群推送审批卡片。</li>
+</ol>
+<p>面试时的回答脚本：“我做过一个数仓发布门禁的项目，核心是把风险等级和发布准出规则绑死。增量任务必须先绑定消费场景，否则发布直接拦截；DQC
+强规则 fail
+拦截下游、弱规则只通知；流水线七步从静态扫描到数据比对，最后双签审批。整个系统让发布准出从依赖
+owner 自觉变成依赖平台规则，任务发布效率提升 60%。”</p>
+<h2 id="一句话总结">一句话总结</h2>
+<p>数仓发布门禁的本质不是”加多少节点”，而是把”这个任务重要不重要”从隐性信息变成显性标签，再让发布准出规则跟着标签走。</p>
+<h2
+id="附录可以引用的细节面试素材">附录：可以引用的细节（面试素材）</h2>
+<ul>
+<li><strong>风险等级三档</strong>：P0（资金/收入类核心指标，强保障）、P1（业务运营类指标，中保障）、P2（内部探索类指标，弱保障）。</li>
+<li><strong>DQC 强规则兜底机制</strong>：强规则触发后，值班人员 15
+分钟无响应即逐级电话升级；下游任务被拦截，等待修复后继续跑。</li>
+<li><strong>数据比对输入四件套</strong>：执行分区、主键字段、去噪字段、风险阈值（仅明细对比生效）。</li>
+<li><strong>静态扫描 5
+类规则</strong>：任务依赖、建表规范、编码规范、集成规范、DQC 规范。</li>
+<li><strong>3TB 分水岭</strong>：表单分区大于 3TB（10
+亿/百亿/千亿级）后，数据探查和数据比对不提供验证服务；后续走抽样验证。</li>
+<li><strong>存量 vs
+增量策略</strong>：存量靠人工盘点打标初始化绑定，增量靠流水线卡点 100%
+覆盖。</li>
+<li><strong>未来规划两条</strong>：节点能力优化（&gt;3TB 抽样验证）+
+流水线能力补充（数据探查结合历史探查结果比对，给出诊断）。</li>
+</ul>
+<p>面试可追问的点：强弱规则阈值的推荐模板、CodeReview 怎么引入
+AI、&gt;3TB 表的兜底方案。</p>
+<h2
+id="附录把风险等级做成数据资产的方法">附录：把”风险等级”做成数据资产的方法</h2>
+<p>文章最值得借鉴的工程做法是把风险等级作为<strong>数据资产</strong>来管理，而不是配置在某个工具的元数据里。具体三个落地建议：</p>
+<ol type="1">
+<li><strong>风险等级注册表</strong>：单独维护一张
+<code>risk_level_registry</code> 表，记录每个消费场景对应的 P0/P1/P2
+等级、Owner、SLA、升级路径。新增场景走注册流程，不允许”口头约定”。</li>
+<li><strong>血缘倒推自动绑定</strong>：从末节点向上倒推时，把经过的每一层（adm
+→ ads → dws → dwd →
+ods）的表都打上同一个风险标签。这样下游消费方变更时，发布准出规则可以自动沿血缘传递。</li>
+<li><strong>风险等级变更走 PR</strong>：P0 降级为 P1、或者新增 P0
+场景，必须走 PR Review。这避免”业务方施压 owner 把 P0 改成
+P2”的逆向博弈。</li>
+</ol>
+<p>把”重要不重要”从隐性认知变成显性数据 +
+显性流程，是数据治理区别于”文档治理”的本质。</p>
+<h2 id="附录数仓发布门禁-vs-应用发布门禁的差异">附录：数仓发布门禁 vs
+应用发布门禁的差异</h2>
+<p>数仓发布跟互联网应用发布有三个本质差异，决定了门禁设计不能照搬：</p>
+<ol type="1">
+<li><strong>不可灰度</strong>：应用发布可以先放 1%
+流量观察；数仓发布错了会污染下游所有消费方。表里一行脏数据影响几十个 BI
+报表和 API，且回滚成本高（需要回算历史分区）。</li>
+<li><strong>影响面滞后</strong>：应用上线后立刻能看到错误（500、日志告警）；数仓的错误往往几天后才被业务发现（“GMV
+怎么少了一截”）。所以门禁必须前置到发布前，不能依赖运行时监控。</li>
+<li><strong>Owner 责任模糊</strong>：应用的 Owner 通常是开发；数仓任务的
+Owner 经常轮换（不同业务方都用同一张 ads 表）。这进一步强化了”风险等级 +
+强制绑定”的重要性——不能依赖 Owner 自觉。</li>
+</ol>
+<p>正因为这些差异，把消费场景和风险等级做成强制前置的资产数据，比让
+Owner 自己判断”我改的任务重不重要”靠谱得多。</p>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>

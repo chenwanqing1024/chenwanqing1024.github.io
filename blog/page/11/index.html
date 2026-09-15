@@ -64,52 +64,52 @@
             </div>
             <div class="card-body">
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="2026-09-15-klarna-customer-support-multi-agent.html">Klarna AI Assistant：85M 用户、70% 自动化、80% 解决提速——3 个早期 multi-agent 工程决策</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
-                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">Klarna</span> <span class="badge bg-secondary">LangGraph</span> <span class="badge bg-secondary">早期 multi-agent</span> <span class="badge bg-secondary">工程实践</span> </small></p>
-                    <p class="mb-1">Klarna AI Assistant 用 LangGraph + LangSmith 服务 85M 月活用户，70% 重复任务自动化、解决时间 -80%、效果等同 700 个全职员工。3 个早期 multi-agent 决策：controllable routing、context-aware dynamic prompt、test-driven prompt iteration。LangChain 因此设计了 meta-prompting。</p>
+                    <h5 class="mb-1"><a href="2026-09-15-claude-code-development-flow.html">Claude Code 核心功能：对话流、Plan、子代理 — 读《AI编程实践》</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude Code</span> <span class="badge bg-secondary">AI编程</span> <span class="badge bg-secondary">对话流设计</span> <span class="badge bg-secondary">Plan模式</span> <span class="badge bg-secondary">子代理</span> <span class="badge bg-secondary">MCP</span> </small></p>
+                    <p class="mb-1">得物技术团队对 Claude Code 在企业级场景的深度实践总结：对话流设计（语义鸿沟/约束衰减/目标偏移）、Plan 模式（三步法 WBS 拆分）、四角色子代理（架构师/审查员/实现者/前端生成器）、CLAUDE.md 控制在 200 字、SKILL + MCP 沉淀复用。</p>
                 </div>
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="2026-09-15-hermes-agent-buried-workflow.html">Hermes Agent 改造埋点流程：把 AI 边界画在&quot;判断前&quot;，人在判断后</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
-                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">数据研发</span> <span class="badge bg-secondary">工作流编排</span> <span class="badge bg-secondary">工程落地</span> </small></p>
-                    <p class="mb-1">这篇不讲&quot;AI 自动接需求&quot;，讲怎么把 AI 边界画在&quot;判断前&quot;——Agent 负责把材料、历史、候选方案、系统预演和风险证据组织起来，人负责业务语义、指标口径、敏感字段、生产放行。核心是单 Agent 编排 + 多能力模块（固化流程契约），把可复用 SKILL 作为团队作业制度。</p>
+                    <h5 class="mb-1"><a href="2026-09-15-claude-code-best-practices.html">Claude Code 实战：把 Coding Agent 用出 10x 效率的 6 个工程模式</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">Claude Code</span> <span class="badge bg-secondary">Agent</span> </small></p>
+                    <p class="mb-1">把 Anthropic Claude Code Best Practices 官方文档拆成 6 个工程模式：Verify 工作流（测试 / build / screenshot 是 must-have）、Explore→Plan→Code→Commit 四段、CLAUDE.md 极简主义、Permission + Sandbox + Auto mode 三层防御、Context 主动管理（/clear / /compact / subagent）、Parallel Sessions + Fan-out + Adversarial Review 扩展模式。配具体命令 + 失败模式 + 面试可讲的设计取舍。</p>
                 </div>
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="2026-09-15-harness-thinking-fullstack-sdd.html">Harness 思维 + 全栈 SDD 读文笔记：给 AI 一个模仿对象，比让他自由发挥更省事</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
-                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Harness 思维</span> <span class="badge bg-secondary">SDD</span> <span class="badge bg-secondary">Codebase Indexing</span> <span class="badge bg-secondary">Subagent</span> <span class="badge bg-secondary">全栈 AI 开发</span> </small></p>
-                    <p class="mb-1">得物技术 作者盖伦 讲全栈 AI 开发中 Harness 思维 + 多仓工作区 + SDD 流程 + 多 Agent 并行的实践；核心反直觉判断：AI 写代码采纳率低的真正原因是没给模仿对象，不是模型不够强。</p>
+                    <h5 class="mb-1"><a href="2026-09-15-claude-agent-sdk-engineering.html">Claude Agent SDK 实战：从 One-Liner 到 K8s 部署的 5 个工程模式</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">Agent SDK</span> <span class="badge bg-secondary">MCP</span> </small></p>
+                    <p class="mb-1">把 claude-cookbooks/claude_agent_sdk 目录的 9 个 notebook 提炼成 5 个工程模式：最小上手 / 生产治理 / MCP 集成 / 多 tier 部署 / 动态工作流规模化，每个模式给出一行定位 + 最小代码 + 工程踩坑提示。</p>
                 </div>
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="2026-09-15-harness-design-gan-evaluator.html">Harness 设计实战：Generator-Evaluator 模式的 6 个工程教训</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
-                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">Harness</span> <span class="badge bg-secondary">Agent 架构</span> </small></p>
-                    <p class="mb-1">把 Anthropic 长时 Agent Harness 设计文章拆成 6 个工程教训：Context Anxiety 与 Reset 的必要性、Self-Evaluation 偏差、GAN 启发的 Generator-Evaluator、Sprint 契约与文件 handoff、Evaluator 调优要花几轮、Harness 是活系统（每次升级模型要重审）。每个模式配定位 + 数据 + 工程落地。</p>
+                    <h5 class="mb-1"><a href="2026-09-15-building-effective-agents-patterns.html">Building Effective Agents 拆解：Workflows vs Agents 的 6 个工程取舍</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">Workflow</span> </small></p>
+                    <p class="mb-1">把 Anthropic Building Effective Agents 拆成 6 个工程取舍：workflows vs agents 的边界（确定路径 vs 自主决策）、5 个 workflow 模式（prompt chaining / routing / parallelization / orchestrator-workers / evaluator-optimizer）、3 个核心原则（simplicity / transparency / well-crafted ACI）、customer support + coding agent 两个工程落地参考、prompt engineering your tools 的元教训。配代码示例 + 面试可讲的设计决策。</p>
                 </div>
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="2026-09-15-governed-agents-cost-control-compliance.html">Governed Agents 框架：把 LLM Gateway 当成 Agent 的 runtime control plane——5 层治理 + 简历级骨架</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
-                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">LLM Gateway</span> <span class="badge bg-secondary">治理</span> <span class="badge bg-secondary">成本控制</span> <span class="badge bg-secondary">合规</span> <span class="badge bg-secondary">工程实践</span> </small></p>
-                    <p class="mb-1">把 LLM Gateway 定位为 Agent 的 runtime control plane（不是简单的 model router）。5 个治理动作：identity / spend / model routing / context efficiency / guardrails。Govern / Decide / Protect / Observe / Assure 5 步运转框架。附完整简历项目骨架。</p>
+                    <h5 class="mb-1"><a href="2026-09-15-auto-mode-defense-architecture.html">Claude Code Auto Mode：用两层防御替代人工审批的 6 个工程模式</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">安全</span> <span class="badge bg-secondary">Agent</span> </small></p>
+                    <p class="mb-1">把 Anthropic Auto Mode 工程文章拆成 6 个可落地的工程模式：审批疲劳的实证、两层防御架构（PI probe + transcript classifier）、三档 tier 决策、Reasoning-Blind Classifier、Subagent 双向闸门、Deny-and-Continue。配自评数据（0.4% FPR / 17% FNR）和工程落地做法。</p>
                 </div>
             </div>
         </div>
 
         <nav aria-label="分页">
             <ul class="pagination justify-content-center">
-                <li class="page-item"><a class="page-link" href="../5/index.html">« 上一页</a></li>
+                <li class="page-item"><a class="page-link" href="../10/index.html">« 上一页</a></li>
                 <li class="page-item"><a class="page-link" href="../../index.html">1</a></li>
                 <li class="page-item"><a class="page-link" href="../2/index.html">2</a></li>
                 <li class="page-item"><a class="page-link" href="../3/index.html">3</a></li>
                 <li class="page-item"><a class="page-link" href="../4/index.html">4</a></li>
                 <li class="page-item"><a class="page-link" href="../5/index.html">5</a></li>
-                <li class="page-item active" aria-current="page"><span class="page-link">6</span></li>
+                <li class="page-item"><a class="page-link" href="../6/index.html">6</a></li>
                 <li class="page-item"><a class="page-link" href="../7/index.html">7</a></li>
                 <li class="page-item"><a class="page-link" href="../8/index.html">8</a></li>
                 <li class="page-item"><a class="page-link" href="../9/index.html">9</a></li>
                 <li class="page-item"><a class="page-link" href="../10/index.html">10</a></li>
-                <li class="page-item"><a class="page-link" href="../11/index.html">11</a></li>
+                <li class="page-item active" aria-current="page"><span class="page-link">11</span></li>
                 <li class="page-item"><a class="page-link" href="../12/index.html">12</a></li>
                 <li class="page-item"><a class="page-link" href="../13/index.html">13</a></li>
                 <li class="page-item"><a class="page-link" href="../14/index.html">14</a></li>
                 <li class="page-item"><a class="page-link" href="../15/index.html">15</a></li>
-                <li class="page-item"><a class="page-link" href="../7/index.html">下一页 »</a></li>
+                <li class="page-item"><a class="page-link" href="../12/index.html">下一页 »</a></li>
             </ul>
         </nav>
 

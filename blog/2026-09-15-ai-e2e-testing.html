@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="得物技术把线上运营真实操作日志作为测试用例种子，用
+Midscene + Qwen2.5-VL-72B
+多模态模型做元素定位和断言，搭出四阶段流程（智能用例生成→灵活执行触发→AI
+驱动执行→平台化数据运营）。核心选型：Midscene 胜在 JS 技术栈 + Puppeteer
+兜底，browser-use 败在 Python 栈不匹配。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>读文笔记：AI 驱动的 E2E
+测试——从运营行为到自动化用例 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>读文笔记：AI 驱动的 E2E
+测试——从运营行为到自动化用例</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">E2E
+测试</span> <span class="badge bg-secondary">Midscene</span> <span class="badge bg-secondary">Qwen2.5-VL</span> <span class="badge bg-secondary">AI
+测试</span> <span class="badge bg-secondary">自动化</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://xie.infoq.cn/article/09cab824a2559519f5e72e4fa" target="_blank" rel="noopener">AI驱动：从运营行为到自动化用例的智能化实践｜得物技术</a> · 得物技术
+            </div>
+
+<h2 id="原文在说什么">原文在说什么</h2>
+<p>得物技术为了解决”后台页面大量迁移（Vue → React →
+全栈）后的回归测试资源紧张”问题，用 AI 把运营的真实操作日志转化成自动化
+E2E 测试用例。背景里有明确的数字：业务侧页面经历多轮迁移，QA
+手工翻译用例成本数人天/模块。</p>
+<p><strong>核心选型：Midscene（JS）+ Qwen2.5-VL-72B。</strong> 备选
+browser-use（Python）。Midscene 胜出的三个原因：</p>
+<ol type="1">
+<li><strong>JS 技术栈匹配：</strong>
+与前端工程现有工具链协同，降低接入与维护成本；</li>
+<li><strong>能力与扩展：</strong> 支持 DOM + 视觉多模态，可在需要时用
+Puppeteer/Playwright
+补充确定性、可编排的自动化逻辑，覆盖模型不稳定或不适用的环节；</li>
+<li><strong>工程化与定制：</strong>
+定制与扩展路径清晰，便于按业务拆解控制流、做兜底与回归。</li>
+</ol>
+<p>browser-use 同样支持 DOM+视觉多模态，但基于 Python
+技术栈，引入额外学习成本。两者都有 Token 消耗与成本问题。</p>
+<p><strong>四阶段流程：</strong></p>
+<ol type="1">
+<li><strong>智能用例生成（阶段一）：</strong>
+输入是监控系统中内部运营操作日志链接，引擎解析原始日志、过滤无效操作（快速连续点击、心跳事件）、识别有业务意义的原子操作序列（“访问某列表页”→“点击’新建’按钮”→“在表单
+A 输入’X’”→“在表单 B 选择’Y’”→“点击’提交’按钮”），转换为 Midscene
+可识别的结构化测试脚本，每个步骤包含操作类型、元素描述、操作值、可选断言。用例入库时分配唯一
+ID 并标记为”已生成”。</li>
+<li><strong>灵活执行触发（阶段二）：</strong>
+人工触发（测试人员手动勾选用例）或自动触发（定时任务 + CI/CD
+事件驱动）。任务进入待执行队列后 push
+到后台执行服务，支持异步化与削峰填谷。</li>
+<li><strong>AI 驱动执行（阶段三）：</strong>
+后台服务启动无头浏览器，注入 Midscene 智能驱动 + Qwen-VL 视觉模型 +
+代码覆盖率插桩。每步执行：截图 + DOM 状态发给 Qwen-VL → AI
+结合屏幕画面和步骤指令理解意图 → 定位目标元素 → 执行原子操作 →
+记录结果/截图/单步覆盖率。最后合并覆盖率、持久化、更新状态。</li>
+<li><strong>平台化数据运营（阶段四）：</strong> 页面维度看板（PV/UV +
+用例数 + 成功率趋势 +
+代码覆盖率）、用例管理列表（按业务域/负责人/成功率/标签筛选 +
+人工打标）、执行详情下钻（步骤回放 + 错误堆栈 + 截图 +
+代码块覆盖）、资产优化（识别低价值用例）。</li>
+</ol>
+<p><strong>核心指标：</strong>
+测试页面代码覆盖率（页面用例运行的代码行数 / 关联代码总行数 ×
+100%）、步骤执行成功率（成功步骤数 / 总步骤数 × 100%）。</p>
+<p><strong>核心优势：</strong>
+用真实运营行为做种子，覆盖的是”真有人用”的路径，不是 QA
+自己想象的高覆盖路径。PV
+越高的页面用例越优先铺——这是一个业务驱动的优先级模型。</p>
+<h2 id="我的看法">我的看法</h2>
+<p><strong>我认同：</strong> 用线上真实操作日志做测试种子比 QA
+手工翻译有量级优势。中等规模模块手工翻译要数人天，自动化 pipeline
+是小时级。背后假设是”用户实际点过的路径就是最有回归价值的路径”——这个假设比”QA
+设计用例覆盖业务需求”更接地气，因为 QA
+容易遗漏真实用户的非常规操作（比如连续点击、异常输入、误触取消）。</p>
+<p><strong>这篇文章给我最有价值的不是 Midscene 选型，而是”AI 决策 +
+确定性兜底”的双轨架构。</strong> Midscene
+做视觉决策（看到啥点啥），Puppeteer 做精准控制（已知 ID/XPath 时直接走
+DOM）。这不是简单的”AI 测试”，而是把 AI 限制在”易变 UI +
+模糊元素”场景，在”稳定流程 + 确定性操作”场景保留传统自动化。这避免了”全
+AI 化”带来的不可预测性。</p>
+<p><strong>反直觉的工程判断：</strong></p>
+<ol type="1">
+<li><p><strong>“测试覆盖率”这个指标本身需要重新定义。</strong>
+文章用的是”页面用例运行代码行数 / 关联代码总行数”——这不是传统意义上的
+branch coverage 或 line coverage，而是”用例触达的代码广度”。AI E2E
+测试的覆盖率统计天然适合这个口径，因为它模拟的是真实用户路径，不是单元测试的代码路径。</p></li>
+<li><p><strong>Midscene 胜出的真正原因是 JS 技术栈匹配，不是 AI
+能力强。</strong> 同样基于 VLM 的能力，browser-use 也能做到。但
+browser-use 是 Python 栈，得物的前端工程是 JS，跨语言协作成本会抵消 AI
+带来的收益。这个选型逻辑非常”工程”而不是”AI”。</p></li>
+<li><p><strong>PV/UV
+与测试优先级的耦合是产品决策，不是技术决策。</strong> 高 PV
+页面优先铺用例、优先治理——这意味着测试资源跟着业务热度走，而不是跟着代码变更频率走。背后的逻辑是”高
+PV 页面出问题影响用户最多，所以测试覆盖要最高”。</p></li>
+</ol>
+<p><strong>但我有 push back：</strong></p>
+<ol type="1">
+<li><p><strong>Token 成本没有量化。</strong> Midscene 调用
+Qwen2.5-VL-72B
+的单次成本、单条用例的完整执行成本、月度运营成本——这些数字都没有。一个
+72B 多模态模型调一次 API 的费用比传统 DOM
+自动化高两个数量级，文章回避了这个核心 ROI 问题。</p></li>
+<li><p><strong>失败用例的自愈能力没有涉及。</strong> AI
+元素定位解决了”按钮位置变了”的问题，但没解决”用例逻辑过时了”的问题。比如”购物车
+→ 结算 → 支付”流程从 3 步变成 5 步，AI 能改定位但不能改流程。这个 gap
+文章没有讨论。</p></li>
+<li><p><strong>真实运营操作日志的隐私和合规风险没说。</strong>
+运营日志里可能包含用户真实数据（点击的订单号、搜索的关键词），日志作为测试种子意味着用户数据进入测试环境。这个合规链路没讨论——是否做了脱敏、是否区分了运营
+vs 真实用户日志、是否符合数据安全规范。</p></li>
+</ol>
+<h3 id="怎么落到-agent-项目">怎么落到 Agent 项目</h3>
+<p>面试被问”如何用 AI 做 E2E 测试”时的回答框架：</p>
+<ul>
+<li><strong>用例种子模块：</strong>
+接线上监控（PV/UV、用户行为日志），按 PV 优先级筛选 Top N
+页面，过滤无效操作（连续点击/心跳事件），作为用例生成输入；</li>
+<li><strong>AI 执行引擎：</strong> Midscene（JS）+ Qwen2.5-VL-72B
+做视觉决策，Puppeteer 做 DOM 确定性兜底；调用次数统计 + 成本打点；</li>
+<li><strong>覆盖率与指标模块：</strong> 用”用例触达代码行数 /
+关联代码总行数”作口径（业务触达广度而非代码分支覆盖）；按页面聚合 PV/UV
+和质量指标；</li>
+<li><strong>运营驾驶舱：</strong> 整体数据看板（PV/UV + 用例数 +
+成功率趋势 + 覆盖率）+ 用例详情（监控系统链接绑定 + 人工打标）+
+执行详情（步骤 + 截图 + 单步覆盖率 + 失败堆栈）；</li>
+<li><strong>合规与隐私模块：</strong> 区分运营日志 vs
+真实用户日志、数据脱敏、测试环境隔离、审计链路。</li>
+</ul>
+<h3 id="工程落地实践">工程落地实践</h3>
+<p><strong>分阶段里程碑</strong>：v0.1 接 PV/UV 筛选 + 人工筛选 Top-20
+页面做用例种子 → v0.5 用 Midscene + Puppeteer 双驱动跑通单页面执行 +
+截图回放 → v1.0 加 VLM 模型（Qwen2.5-VL-72B）做视觉决策 + 失败自愈 →
+v1.5 上运营驾驶舱（PV/成功率趋势 + 失败归因）→ v2.0
+接覆盖率口径（用例触达代码行数 /
+关联代码总行数）。每个阶段必须有”成功率”基线，否则 AI
+自动化引入的隐性波动无法被发现。</p>
+<p><strong>关键数据契约</strong>：<code>TestCase(page_id, steps[], assertions[])</code>
++ <code>StepResult(screenshot, latency, vlm_decision)</code> +
+<code>CoverageReport(case_id, touched_lines[])</code>。三件套进数仓做长期分析（哪些页面成功率下降、哪些
+VLM 决策反复出错）。</p>
+<p><strong>常见踩坑 + 兜底</strong>：(1) VLM 决策成本失控 → 用 Puppeteer
+做 DOM 确定性兜底，VLM 只处理”找不到元素”等异常；(2) 截图过大撑爆 token
+→ 截图前先 resize 到 1024px + 关键元素区域裁剪；(3) 操作日志含真实数据 →
+数据脱敏在采集时做，测试环境用影子表；(4) UI 重构后老用例全挂 →
+用例分两层（操作步骤稳定 + 元素定位自动适配），元素定位走 AI
+视觉匹配；(5) 成功率假阴性 → 失败自动重跑一次 +
+失败分类器（网络/超时/业务）。</p>
+<h2 id="一句话总结">一句话总结</h2>
+<p>E2E 测试自动化的本质不是”用 AI 写测试脚本”，而是”用线上真实行为做种子
++ 多模态 AI 做执行 +
+确定性框架做兜底”——把测试资源跟着业务热度而不是跟着代码变更走。</p>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>

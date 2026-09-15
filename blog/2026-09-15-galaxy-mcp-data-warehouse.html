@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="得物技术把 Claude Code
+集成进内部数仓平台 Galaxy，提出’认知运行时 ×
+执行运行时’解耦架构和’规范化 I/O’契约；落地 6
+个场景（视觉埋点、OneData、周报、策略孵化、智能测试、Spark UI
+调优），提效 3-10 倍。认同 SDD 是真正稳定的底座，但 push back 三处：MCP
+工具原子化粒度没说清、Spec-to-Code 的版本管理缺位、Vibe Coding 与 SDD
+的边界没量化。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>Galaxy MCP 把数仓 Agent 化，但真正的护城河是规范化的
+I/O - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>Galaxy MCP 把数仓 Agent 化，但真正的护城河是规范化的
+I/O</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">MCP</span> <span class="badge bg-secondary">数据仓库</span> <span class="badge bg-secondary">AI
+工程化</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://xie.infoq.cn/article/a8d1ab65257591a1a0fc71e05" target="_blank" rel="noopener">Claude在得物App数仓的深度集成与效能演进</a> · 得物技术
+            </div>
+
+<h2 id="原文在说什么">原文在说什么</h2>
+<p>得物技术 (作者：博温) 写了一篇关于 Claude Code
+在电商数仓深度集成的长文，核心论点是：<strong>Code LLM
+引入数仓不是工具替换，而是研发范式演进</strong>。文章从架构定位到 6
+个落地场景，把”AI 怎么进数仓”这件事拆得很细。</p>
+<p><strong>架构层面提出三个核心判断：</strong></p>
+<ol type="1">
+<li><strong>研发权责边界</strong>：人工决策环节（数据权限、口径确认）和自动化执行环节（DDL、DQC
+规则）必须分离，前者由人拍板，后者交给 LLM。</li>
+<li><strong>内部工具 Agentic 演进</strong>：从被动 SaaS（人找功能）转向
+Agentic 工作流（意图驱动 +
+LUI），工具价值从”功能丰富度”转向”任务结果交付”。</li>
+<li><strong>认知运行时 × 执行运行时解耦</strong>：LLM
+处理非结构化需求解析、AST
+操作、元数据（不碰物理数据）；Spark/Flink/ClickHouse
+处理物理算力调度。这是文章里最有架构感的判断。</li>
+</ol>
+<p><strong>基础设施：Galaxy MCP</strong>。基于 Model Context
+Protocol，给 Claude Code 暴露 HTTP Streamable 接口 + Bearer Token
+鉴权，把 Galaxy 数据平台（表结构、日志、API）变成 Agent 可调用的
+Tools。这是”给大模型装上手和眼”。</p>
+<p><strong>落地的 6 个场景，都遵循”规范化 I/O”模式（Spec-Driven
+Development, SDD）：</strong></p>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>场景</th>
+<th>规范化输入</th>
+<th>规范化输出</th>
+<th>实测提效</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>智能视觉埋点</td>
+<td>多模态 UI 截图</td>
+<td>结构化 JSON 埋点方案</td>
+<td>10 人日 → 5 人日</td>
+</tr>
+<tr class="even">
+<td>AI OneData 建模</td>
+<td>血缘 CSV</td>
+<td>标准 DDL + 建模文档</td>
+<td>60 人日 → 16 人日（74%↑）</td>
+</tr>
+<tr class="odd">
+<td>智能周报生成</td>
+<td>SQL 结果集 + Prompt 规范</td>
+<td>预渲染 Markdown + 业务叙事</td>
+<td>公式正确率 100%</td>
+</tr>
+<tr class="even">
+<td>策略孵化中心</td>
+<td>业务目标 + 特征库</td>
+<td>端到端策略流水线</td>
+<td>10 人日 → 1-2 人日</td>
+</tr>
+<tr class="odd">
+<td>智能测试</td>
+<td>PRD + DQC 规则</td>
+<td>批量校验 SQL</td>
+<td>测试覆盖率大幅提升</td>
+</tr>
+<tr class="even">
+<td>Spark UI Skill</td>
+<td>Spark UI 日志</td>
+<td>调优建议</td>
+<td>数小时 → 分钟级</td>
+</tr>
+</tbody>
+</table>
+<p><strong>最值的细节是智能周报的双路径设计</strong>：Python 路径用 LLM
+把规范编译成确定性计算模块（Spec-to-Code）跑 WoW/YoY，LLM
+路径只做语义叙事不碰数字。<strong>这是把 LLM
+的不确定性严格限制在语义层、把数值精度锁定在代码层</strong>。规范文档充当
+Single Source of Truth，研发阶段编译成 Python，运行时约束 LLM 输出。</p>
+<p>Prompt 工程的系统化也很到位：Prompt 纳入 Git 版本控制 + Code Review +
+模块化拆解（Role / Task / Constraints / Template）。</p>
+<h2 id="我的看法">我的看法</h2>
+<p><strong>我认同的核心点：规范化 I/O 才是稳定底座，AI Coding
+是表层。</strong> 文章最有价值的判断不是”AI 能写多少 SQL”，而是”AI
+输出的稳定性来源于规范的约束程度”。这跟我自己写 Agent
+的经验完全一致——Prompt 不写死输出 schema，agent 跑十次十次不同；写死
+schema，跑十次至少有八次格式稳定，剩下的两次靠 retry + 校验兜底。SDD
+不是为了”让 AI 更聪明”，是为了”让 AI 的输出可被下游消费”。</p>
+<p><strong>这篇文章给我最有价值的不是”Galaxy MCP
+怎么建”，而是”双路径周报架构”。</strong> 这是少数让我拍桌子的设计：让
+LLM 编译确定性代码（Spec-to-Code）、让确定性代码跑数、让 LLM
+只做语义叙事。三者职责分得很干净：<strong>LLM
+不算数字、代码不写文案、规范文档是唯一可信源</strong>。这种架构可以原样搬到
+RAG、指标看板、报告生成任何需要”数字 + 解释”的场景。</p>
+<p><strong>三个反直觉的工程判断：</strong></p>
+<ol type="1">
+<li><strong>“AI 越像人，越不适合数仓”。</strong> 数仓场景下 LLM
+的”自由发挥”是负债不是资产。文章用”Vibe
+Coding”这个准确的负面词（无约束自然语言开发）戳穿了一个常见幻觉——很多人以为
+AI Coding
+就是”像人一样写代码”，但数仓恰恰需要的是”不像人的、严格按规范走的”AI。</li>
+<li><strong>Prompt 必须当配置文件管理，进 Git、做 Code Review。</strong>
+这是”提示词工程系统化”的最朴素也最重要的工程实践。Prompt
+不是临场发挥的字符串，是认知运行时的”配置文件”，其地位等同于数据库连接串。</li>
+<li><strong>认知运行时不应直接触碰物理数据。</strong>
+这个边界划得很关键。LLM 在元数据 + AST
+上操作就够了，物理数据扫描交给执行引擎。这不仅是性能考虑，更是合规考虑——核心业务数据不过模型。</li>
+</ol>
+<p><strong>但我有 push back：</strong></p>
+<ol type="1">
+<li><strong>Galaxy MCP 暴露的 Tools 原子化粒度没说清。</strong>
+文章提到”高度结构化的工具”但没列具体清单（比如”读表结构”是一个 tool
+还是拆成”读 schema / 读列注释 / 读分区信息”三个 tool？）。粒度太粗 agent
+调不准，太细 token
+浪费、组合爆炸。这是个非常重要的工程决策，被一句”高度结构化”略过了。</li>
+<li><strong>Spec-to-Code 生成的 Python 模块的版本管理没说。</strong>
+周报架构里”规范变更只需更新一处，两条路径同步收敛”听起来很美，但实际工程里
+Spec 改了 → Spec-to-Code
+重新编译的产物怎么管理？跟规范版本绑定？还是要单独发版？如果 Spec 改了但
+Python 模块没及时重编，会出 bug。文章没提这块。</li>
+<li><strong>“Vibe Coding 与 SDD 的边界”没量化。</strong>
+什么时候该自由发挥、什么时候该规范约束？文章默认”数仓场景必须
+SDD”，但实际工作中总有些一次性 ad-hoc
+分析不适合写规范。这种边界的判断标准没给出来，团队落地时会陷入”什么都要规范”的过度工程。</li>
+</ol>
+<h3 id="怎么落到-agent-项目">怎么落到 Agent 项目</h3>
+<p>如果让我基于这篇做一个”数仓 AI Copilot”项目，我会拆成五个模块：</p>
+<ol type="1">
+<li><strong>Spec 仓库模块</strong>：把 OneData 建模规范、DQC
+规则、Prompt 模板、Python 计算模块都纳入 Git 管理，建立 Spec → Code
+的双向链接和版本绑定。</li>
+<li><strong>Galaxy MCP 网关</strong>：基于 MCP 协议暴露元数据 API（读
+schema / 列注释 / 分区信息 / 血缘），每个 tool 的入参出参严格 schema
+化。</li>
+<li><strong>认知 Runtime Agent</strong>：负责自然语言 → AST →
+规范输出，跑在元数据层不碰物理数据。</li>
+<li><strong>执行 Runtime
+Adapter</strong>：把生成物的代码片段（DDC、SQL、Python）路由到
+Spark/Flink/ClickHouse 引擎执行，结果回流。</li>
+<li><strong>双路径报告架构</strong>：所有”数字 + 解释”类需求强制走
+Spec-to-Code（Python 计算）+ LLM 叙事的双路径，LLM 不直接算数字。</li>
+</ol>
+<p>面试时的回答脚本：“我做过一个数仓 AI Copilot
+项目，核心是把认知运行时（LLM 处理 AST
+和元数据）和执行运行时（Spark/Flink 算力）解耦。最值钱的不是 AI 能写多少
+SQL，而是’规范化 I/O’契约：所有场景的输入是结构化模板或 JSON，输出是 DDL
+/ SQL / 预渲染 Markdown；LLM
+的不确定性严格限制在语义层，数值精度锁定在代码层。周报场景下 LLM
+把规范编译成 Python 跑
+WoW/YoY，自己只做业务叙事，避免’1+1=3’的计算幻觉。”</p>
+<h2 id="一句话总结">一句话总结</h2>
+<p>数仓 Agent
+化的稳定性不来自模型变强，而来自把”模糊输入”和”自由输出”用规范契约强行收口——SDD
+才是真正的护城河，MCP 只是管道。</p>
+<h2 id="附录6-个场景的提效数据面试素材">附录：6
+个场景的提效数据（面试素材）</h2>
+<table>
+<colgroup>
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>场景</th>
+<th>输入</th>
+<th>输出</th>
+<th>提效前</th>
+<th>提效后</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>智能视觉埋点</td>
+<td>多模态 UI 截图</td>
+<td>结构化 JSON 埋点方案</td>
+<td>10 人日</td>
+<td>5 人日（50%↓）</td>
+</tr>
+<tr class="even">
+<td>AI OneData 建模（34 表 6 粒度）</td>
+<td>血缘 CSV</td>
+<td>标准 DDL + 文档</td>
+<td>60 人日</td>
+<td>16 人日（74%↓）</td>
+</tr>
+<tr class="odd">
+<td>智能周报生成</td>
+<td>SQL 结果集 + 规范</td>
+<td>预渲染 Markdown + 业务叙事</td>
+<td>公式错误频发</td>
+<td>计算 100% 准确</td>
+</tr>
+<tr class="even">
+<td>策略孵化中心</td>
+<td>业务目标 + 特征库</td>
+<td>端到端策略流水线</td>
+<td>10 人日</td>
+<td>1-2 人日（5×↑）</td>
+</tr>
+<tr class="odd">
+<td>智能测试</td>
+<td>PRD + DQC 规则</td>
+<td>批量校验 SQL</td>
+<td>人工抽测</td>
+<td>机器全量校验</td>
+</tr>
+<tr class="even">
+<td>Spark UI Skill</td>
+<td>Spark UI 日志</td>
+<td>调优建议</td>
+<td>数小时</td>
+<td>分钟级</td>
+</tr>
+</tbody>
+</table>
+<h2
+id="附录双路径周报架构最值的设计">附录：双路径周报架构（最值的设计）</h2>
+<pre><code>规范文档 (Single Source of Truth)
+    ├─→ 研发阶段: LLM 编译为 Python 计算模块 (Spec-to-Code)
+    └─→ 运行时: 同一份规范作为约束契约传入 LLM 驱动叙事输出
+
+路径一 (Python 计算层):
+  LLM 编译的 Python 模块 → 确定性运算 (WoW/YoY/渠道贡献度/量级格式化)
+  → 输出预渲染的 Markdown 文本片段（不含原始数值）
+
+路径二 (LLM 叙事层):
+  接收结构化文本 → 跨模块趋势判断 + 业务归因叙述
+  (唯一任务：语义叙事，不做数学运算)</code></pre>
+<p>核心边界：<strong>LLM
+不算数字、代码不写文案、规范文档是唯一可信源</strong>。</p>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>

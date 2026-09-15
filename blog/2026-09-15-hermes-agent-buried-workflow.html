@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="这篇不讲”AI 自动接需求”，讲怎么把
+AI 边界画在”判断前”——Agent
+负责把材料、历史、候选方案、系统预演和风险证据组织起来，人负责业务语义、指标口径、敏感字段、生产放行。核心是单
+Agent 编排 + 多能力模块（固化流程契约），把可复用 SKILL
+作为团队作业制度。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>Hermes Agent 改造埋点流程：把 AI
+边界画在”判断前”，人在判断后 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>Hermes Agent 改造埋点流程：把 AI
+边界画在”判断前”，人在判断后</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">数据研发</span> <span class="badge bg-secondary">工作流编排</span> <span class="badge bg-secondary">工程落地</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://xie.infoq.cn/article/4c234f7c862ddd0d2baa7cdcc" target="_blank" rel="noopener">从埋点需求到规则资产：Hermes
+Agent 重构得物数仓工作流</a> · 得物技术
+            </div>
+
+<h2 id="原文在说什么">原文在说什么</h2>
+<p>得物这篇讲的是数仓埋点需求承接的工程现实——最消耗数据承接方的是<strong>把分散的信息重新拼起来</strong>：需求文档里的动作到底要不要采集，历史上有没有类似点位，指标口径有没有被下游使用，新增字段要改哪几层表，发布前又该由谁确认。</p>
+<p>作者选了 Hermes Agent 而不是 OpenClaw，因为 Hermes
+有三个原生能力对得上这类流程痛点：<strong>持续在线、持久记忆、技能沉淀</strong>。</p>
+<p>在 Hermes
+之上，把一次埋点需求承接拆成四个可追踪工程构件：<strong>工作区</strong>（每个需求独立空间，集中存放需求文档、历史讨论、评审结论、交付产物）、<strong>看板</strong>（状态机流转：进入→设计→预演→评审→交付，每步有责任人）、<strong>规则
++
+长期记忆</strong>（把”老同学才知道”的判断写成可执行检查清单）、<strong>结构化工具接口
++ 预演 +
+人工确认点</strong>（高风险动作走结构化接口，写入生产前先预演、再等人放行）。</p>
+<p><strong>核心判断</strong>：让 AI
+直接给最终结论确实快，但这种快不让人放心——数仓链路里的错误通常是依据没找全、假设没说清、风险没暴露，最后带着”看起来完整”的方案进评审或生产。<strong>所以
+Hermes Agent
+的边界是把问题整理到足够可判断</strong>——它负责组织材料、历史、候选方案、系统预演和风险证据；人负责业务语义、指标口径、敏感字段、下游影响和生产放行。</p>
+<p>选型思路：不把能力拆成一组互相独立的智能体（MultiAgent），而是选择”<strong>单
+Agent 编排 + 多能力模块 + 看板确认点</strong>”。Hermes
+保持统一上下文、负责调度阶段；能力模块承接稳定动作、负责把工具调用、输入约束、输出产物、停顿条件固化下来。</p>
+<p><strong>固化流程契约</strong>——每个能力模块的输入、动作边界、输出产物、失败处理、经验回写。只有这些契约稳定，Hermes
+才不会因为提示词换一种说法就改变检查重点。</p>
+<p><strong>可复用能力模块</strong>——不是只服务一次埋点需求，而是把素材采集、历史检索、变更预演、发布确认、经验沉淀抽成可复用的流程模块。换事实源和工具接口后，同一套机制能迁移到指标发布、配置变更、数据质量排查。<strong>可复用的
+SKILL 就是这套机制的核心载体</strong>。</p>
+<p>端到端工作流示例（业务要”稳定查看昨天各体裁发布量”）：如果只让模型直接写
+SQL，很容易把物理字段、业务发生日期、默认过滤混在一起——Hermes
+的做法是<strong>先固化事实，再预演风险，最后把需要人判断的点推到看板确认</strong>。</p>
+<h2 id="我的看法">我的看法</h2>
+<p>我认同作者把”AI
+边界画在判断前”的判断。这篇文章给我最有价值的不是架构本身，而是几个反直觉的工程判断：</p>
+<p>第一，<strong>单 Agent + 多能力模块 vs 多 Agent
+编排</strong>是经典选择。文章选了前者，理由是同一类需求换个问法输出结构和检查重点就会漂；如果拆成多个独立智能体，统一上下文就丢了。<strong>多
+Agent 适合异构任务（一个对话含多个领域），单 Agent +
+模块化适合流程化任务（一类需求反复出现）</strong>。</p>
+<p>第二，<strong>固化流程契约比写好 prompt
+更重要</strong>。能力模块的输入、动作边界、输出产物、失败处理、经验回写——这五件事固化下来，prompt
+怎么写都不会偏。这是软件工程里”契约优于配置”的范式应用到 LLM 场景。</p>
+<p>第三，<strong>看板确认点是流程可治理的关键</strong>。状态机流转（进入→设计→预演→评审→交付）+
+每步有责任人，把”AI 自动跑完”变成”AI 跑一半、人接力”。这是 #17（API
+安全审计）的”通用 Agent + 业务 Skill”思路的进一步细化——Skill
+里有显式的”高风险动作必须人确认”。</p>
+<p>但我有 push back：</p>
+<p>第一，<strong>“持续在线、持久记忆、技能沉淀”三个能力是 Hermes
+原生，不是通用 Agent
+框架的能力</strong>。这篇文章的方法论可迁移，但具体工具可能迁移不了——你用
+Claude Code + Memory Engine 也能搭出类似系统，但开发量不小。</p>
+<p>第二，<strong>流程契约的版本管理没说</strong>。能力模块的”输入、动作边界、输出产物”会演化，跟代码一样需要
+git 化。否则改几次就成了”屎山”。</p>
+<p>第三，<strong>看板确认点的人力成本被低估</strong>。每个需求 5
+个状态流转、每步要人确认——这等于把 AI
+提速的部分都赔回去了。实际工程里要根据风险等级分流：高风险走全流程，低风险走自动化跳过。</p>
+<h3 id="怎么落到-agent-项目">怎么落到 Agent 项目</h3>
+<p>核心模块五件套：<strong>单 Agent
+编排器、能力模块注册中心、看板状态机、规则资产库、结构化工具接口</strong>。</p>
+<ol type="1">
+<li><strong>单 Agent 编排器</strong>：不要为每个场景写 MultiAgent；用单
+Agent + 模块化思维。</li>
+<li><strong>能力模块注册中心</strong>：每个模块固化输入、动作、输出、失败、回写——五个契约字段。</li>
+<li><strong>看板状态机</strong>：状态流转 +
+责任人——这是流程可治理的命门。</li>
+<li><strong>规则资产库</strong>：把”老同学才知道”的判断沉淀为可执行规则，配合长期记忆。</li>
+<li><strong>结构化工具接口</strong>：高风险动作必须走结构化接口 + 预演 +
+人确认。</li>
+</ol>
+<p><strong>面试时被问”AI 怎么落地到数据/数仓场景”</strong>——直接答”单
+Agent 编排 + 多能力模块 +
+看板确认”。<strong>真正的工程能力不在架构</strong>，而在：AI
+边界画在哪里、能力模块契约怎么固化、人工确认点怎么放——把这三件事做出来，AI
+才从”自动 demo”变成”可治理流程”。</p>
+<h2 id="一句话总结">一句话总结</h2>
+<p>把 AI 边界画在判断前——Agent
+负责整理材料和组织证据，人负责业务语义和生产放行；流程可治理的关键不是
+LLM 多强，而是状态机、契约固化、确认点这三个软件工程套路。</p>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>

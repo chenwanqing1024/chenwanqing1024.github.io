@@ -64,42 +64,42 @@
             </div>
             <div class="card-body">
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="2026-09-15-klarna-customer-support-multi-agent.html">Klarna AI Assistant：85M 用户、70% 自动化、80% 解决提速——3 个早期 multi-agent 工程决策</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
-                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">Klarna</span> <span class="badge bg-secondary">LangGraph</span> <span class="badge bg-secondary">早期 multi-agent</span> <span class="badge bg-secondary">工程实践</span> </small></p>
-                    <p class="mb-1">Klarna AI Assistant 用 LangGraph + LangSmith 服务 85M 月活用户，70% 重复任务自动化、解决时间 -80%、效果等同 700 个全职员工。3 个早期 multi-agent 决策：controllable routing、context-aware dynamic prompt、test-driven prompt iteration。LangChain 因此设计了 meta-prompting。</p>
+                    <h5 class="mb-1"><a href="2026-09-15-agent-paid-media-workspace-five-lessons.html">LangChain 自己的 Paid Media Agent：把 Agent 当新员工，给电脑、配任务、用代码代替推理</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">LangChain</span> <span class="badge bg-secondary">Deep Agents</span> <span class="badge bg-secondary">工程实践</span> </small></p>
+                    <p class="mb-1">LangChain 内部 6 个月把付费投放占比从 0 拉到 20%，CPL 降 30%，分析报告从 18 分钟 / $3 降到 85 秒 / 1/40 成本。核心思想：把 Agent 当知识工作者——给沙箱 + 软件 + 业务 wiki；用代码做确定性计算，让模型只做判断；子 Agent 隔离 context 但隔离不止是 context。</p>
                 </div>
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="2026-09-15-hermes-agent-buried-workflow.html">Hermes Agent 改造埋点流程：把 AI 边界画在&quot;判断前&quot;，人在判断后</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
-                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">数据研发</span> <span class="badge bg-secondary">工作流编排</span> <span class="badge bg-secondary">工程落地</span> </small></p>
-                    <p class="mb-1">这篇不讲&quot;AI 自动接需求&quot;，讲怎么把 AI 边界画在&quot;判断前&quot;——Agent 负责把材料、历史、候选方案、系统预演和风险证据组织起来，人负责业务语义、指标口径、敏感字段、生产放行。核心是单 Agent 编排 + 多能力模块（固化流程契约），把可复用 SKILL 作为团队作业制度。</p>
+                    <h5 class="mb-1"><a href="2026-09-15-advanced-tool-use-three-features.html">高级 Tool Use 三大特性：Tool Search、Programmatic Calling、Tool Examples 的 5 个工程模式</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">Tool Use</span> <span class="badge bg-secondary">MCP</span> </small></p>
+                    <p class="mb-1">把 Anthropic Advanced Tool Use 工程文章拆成 5 个工程模式：Tool Search Tool 让 Claude 按需加载（节省 85% token，accuracy 从 49% → 74%）、Programmatic Tool Calling 让代码代替推理做编排（token 降 37%、accuracy 提升 5 个百分点）、Tool Use Examples 替代 schema 模糊（accuracy 从 72% → 90%）。每个模式给定位 + 代码 + 落地边界。</p>
                 </div>
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="2026-09-15-harness-thinking-fullstack-sdd.html">Harness 思维 + 全栈 SDD 读文笔记：给 AI 一个模仿对象，比让他自由发挥更省事</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
-                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Harness 思维</span> <span class="badge bg-secondary">SDD</span> <span class="badge bg-secondary">Codebase Indexing</span> <span class="badge bg-secondary">Subagent</span> <span class="badge bg-secondary">全栈 AI 开发</span> </small></p>
-                    <p class="mb-1">得物技术 作者盖伦 讲全栈 AI 开发中 Harness 思维 + 多仓工作区 + SDD 流程 + 多 Agent 并行的实践；核心反直觉判断：AI 写代码采纳率低的真正原因是没给模仿对象，不是模型不够强。</p>
+                    <h5 class="mb-1"><a href="2026-09-14-vector-rag-retires.html">向量 RAG 退场，Agent 多轮检索接班</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-14 <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">RAG</span> <span class="badge bg-secondary">向量检索</span> <span class="badge bg-secondary">PostgreSQL</span> <span class="badge bg-secondary">读文笔记</span> </small></p>
+                    <p class="mb-1">冯若航没宣布 RAG 死亡，他把&quot;作为架构的 RAG&quot;和&quot;作为算子的向量召回&quot;切开了——前者退场，后者降级。最硬的证据是 Claude Code 选了 grep 加 glob，资本选了 PG 而非向量库。文章把这个判断往前推一步：MCP 让检索从流水线变成随手可调的工具，这才是 RAG 退场的真正推手，不是窗口变大。</p>
                 </div>
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="2026-09-15-harness-design-gan-evaluator.html">Harness 设计实战：Generator-Evaluator 模式的 6 个工程教训</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
-                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">Harness</span> <span class="badge bg-secondary">Agent 架构</span> </small></p>
-                    <p class="mb-1">把 Anthropic 长时 Agent Harness 设计文章拆成 6 个工程教训：Context Anxiety 与 Reset 的必要性、Self-Evaluation 偏差、GAN 启发的 Generator-Evaluator、Sprint 契约与文件 handoff、Evaluator 调优要花几轮、Harness 是活系统（每次升级模型要重审）。每个模式配定位 + 数据 + 工程落地。</p>
+                    <h5 class="mb-1"><a href="2026-09-14-token-not-real-bottleneck.html">Token 不是真瓶颈，深度工程才是窗口</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-14 <span class="badge bg-secondary">AI 教育</span> <span class="badge bg-secondary">读文笔记</span> <span class="badge bg-secondary">工程成长</span> </small></p>
+                    <p class="mb-1">冯若航把蒋炎岩&quot;没 Token 就退学&quot;的截图升格成&quot;Token 是新实验耗材、ladder 被 AI 整把抽掉&quot;的时代判断。认同 ladder 变形与作品集趋势，但 push back 三处：真稀缺的不是 Token 钱，是带场景的训练；ladder 没消失，是变形了；给 average 的人留的窗口在 AI 啃不动的深度工程，不在&quot;开十个订阅&quot;。</p>
                 </div>
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="2026-09-15-governed-agents-cost-control-compliance.html">Governed Agents 框架：把 LLM Gateway 当成 Agent 的 runtime control plane——5 层治理 + 简历级骨架</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
-                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">LLM Gateway</span> <span class="badge bg-secondary">治理</span> <span class="badge bg-secondary">成本控制</span> <span class="badge bg-secondary">合规</span> <span class="badge bg-secondary">工程实践</span> </small></p>
-                    <p class="mb-1">把 LLM Gateway 定位为 Agent 的 runtime control plane（不是简单的 model router）。5 个治理动作：identity / spend / model routing / context efficiency / guardrails。Govern / Decide / Protect / Observe / Assure 5 步运转框架。附完整简历项目骨架。</p>
+                    <h5 class="mb-1"><a href="2026-09-14-ten-years-after-ai.html">十年之后</a></h5>
+                    <p class="text-muted mb-1"><small>2026-09-14 <span class="badge bg-secondary">AI</span> <span class="badge bg-secondary">未来</span> <span class="badge bg-secondary">随笔</span> </small></p>
+                    <p class="mb-1">从 2036 年往回看——AI 时代的真正变化不在能力跃迁，而在社会吸收的速度。我们 2026 年关于 Agent、白领失业、AGI 的预测，几乎全错了。错的部分比对的部分更值得讲。</p>
                 </div>
             </div>
         </div>
 
         <nav aria-label="分页">
             <ul class="pagination justify-content-center">
-                <li class="page-item"><a class="page-link" href="../5/index.html">« 上一页</a></li>
+                <li class="page-item"><a class="page-link" href="../13/index.html">« 上一页</a></li>
                 <li class="page-item"><a class="page-link" href="../../index.html">1</a></li>
                 <li class="page-item"><a class="page-link" href="../2/index.html">2</a></li>
                 <li class="page-item"><a class="page-link" href="../3/index.html">3</a></li>
                 <li class="page-item"><a class="page-link" href="../4/index.html">4</a></li>
                 <li class="page-item"><a class="page-link" href="../5/index.html">5</a></li>
-                <li class="page-item active" aria-current="page"><span class="page-link">6</span></li>
+                <li class="page-item"><a class="page-link" href="../6/index.html">6</a></li>
                 <li class="page-item"><a class="page-link" href="../7/index.html">7</a></li>
                 <li class="page-item"><a class="page-link" href="../8/index.html">8</a></li>
                 <li class="page-item"><a class="page-link" href="../9/index.html">9</a></li>
@@ -107,9 +107,9 @@
                 <li class="page-item"><a class="page-link" href="../11/index.html">11</a></li>
                 <li class="page-item"><a class="page-link" href="../12/index.html">12</a></li>
                 <li class="page-item"><a class="page-link" href="../13/index.html">13</a></li>
-                <li class="page-item"><a class="page-link" href="../14/index.html">14</a></li>
+                <li class="page-item active" aria-current="page"><span class="page-link">14</span></li>
                 <li class="page-item"><a class="page-link" href="../15/index.html">15</a></li>
-                <li class="page-item"><a class="page-link" href="../7/index.html">下一页 »</a></li>
+                <li class="page-item"><a class="page-link" href="../15/index.html">下一页 »</a></li>
             </ul>
         </nav>
 

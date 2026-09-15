@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="得物技术 (魏无涯) 用 AGENTS.md +
+Hook + Skill 三层结构做’组件复用优先’Agent。认同’AI
+适合被放进清晰流程里工作’的核心判断，但 push back 三处：AGENTS.md
+容量上限没说、Hook 触发模式维护成本没量化、’流程控制器 vs
+能力包’的边界没给标准。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>复用优先 Skill 三层架构：AI Coding
+的工程纪律比模型能力更重要 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>复用优先 Skill 三层架构：AI Coding
+的工程纪律比模型能力更重要</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">Skill</span> <span class="badge bg-secondary">Claude
+Code</span> <span class="badge bg-secondary">工程实践</span> <span class="badge bg-secondary">AGENTS.md</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://xie.infoq.cn/article/f77e3f370a93e6b765f3606ff" target="_blank" rel="noopener">立正请站好：一个组件复用
+Skill 的工程化实践｜得物技术</a> · 得物技术
+            </div>
+
+<h2 id="原文在说什么">原文在说什么</h2>
+<p>得物技术 (作者：魏无涯) 写了一篇关于”组件复用优先
+Skill”的工程化实践，<strong>立论起点非常工程化</strong>：组件库臃肿不是搜索问题，是思考顺序问题——AI
+写代码时默认”新建一个”而不是”先查复用”，这种思维惯性的伤害是复利型的。</p>
+<p><strong>核心设计：AGENTS.md + Hook + Skill
+三层结构</strong>（这是文章最有架构感的部分）：</p>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>层</th>
+<th>职责</th>
+<th>解决的问题</th>
+<th>关键实现</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>AGENTS.md</strong></td>
+<td>放基础上下文（常驻）</td>
+<td>AI 根本不知道你有这套机制</td>
+<td>“组件复用优先”规则 + 组件索引入口 + 扫描后流程</td>
+</tr>
+<tr class="even">
+<td><strong>Hook</strong></td>
+<td>路由增强（提高触发概率）</td>
+<td>AI 知道有 skill，但不一定想起来用</td>
+<td>Claude Code 的 UserPromptSubmit + additionalContext 注入</td>
+</tr>
+<tr class="odd">
+<td><strong>Skill</strong></td>
+<td>提供流程和工具（真正执行）</td>
+<td>AI 想用了，但执行过程不稳定</td>
+<td>SKILL.md + find-component.js 统一入口</td>
+</tr>
+</tbody>
+</table>
+<p><strong>关键认知转变</strong>：作者引用 Vercel 在 agent
+评测里的发现——<strong>AGENTS.md（被动上下文）比
+Skills（主动触发）在稳定性上表现更好</strong>。默认 skill
+触发并没有提升通过率，加入显式指令后才明显改善。这把”skill
+触发率低”的根因从”AI 笨”转向”agent 执行有决策成本”。</p>
+<p><strong>Skill 落地的 5 个工程化细节：</strong></p>
+<ol type="1">
+<li><strong>统一入口收敛</strong>：SKILL.md 明确规定 Agent 必须调用
+<code>find-component.js</code>，不做”先算 scope → 查 CSV → 排序 → 补扫 →
+记
+usage”的分散调用。本质是把多个业务动作聚合成一个业务动作”查一下有没有可复用组件”。</li>
+<li><strong>范围解析策略</strong>：<code>resolve-scope.js</code>
+实现”当前应用 → 根级共享 → 全量”的三层 scope
+fallback，不做”全仓库乱搜”。先看”我这个业务应用里有没有”，再看”全局共享有没有”。</li>
+<li><strong>多因素加权匹配</strong>：<code>match-component.js + fuzzy-match.js</code>
+用组合评分（不只字符串包含），加 NO_MATCH_SCORE_THRESHOLD
+低分阈值过滤——AI 拿到低质量候选很容易”将错就错”。</li>
+<li><strong>索引构建流水线化</strong>：<code>run-scan.js → index-manager → enrich</code>，不是一次性脚本。配置启用
+Agent 模式，<strong>不走规则引擎降级</strong>，强制 Agent 完成 enrich
+步骤。</li>
+<li><strong>使用行为反馈</strong>：<code>usage-tracker</code>
+记录查找命中，团队偏好逐步学习，不需要复杂训练就能提升推荐质量。</li>
+</ol>
+<p><strong>“让 AI 流程化”的 3 条原则</strong>：</p>
+<ol type="1">
+<li>基础上下文进 AGENTS.md（或 Hook 注入），减少 agent 决策点。</li>
+<li>Skill 提供工具函数给 AI 调，不只写说明文档。find-component.js
+定义固定 JSON 输出 schema（ok / matches / noMatch / scanTriggered / hint
+/ error），提升 AI 执行稳定性。</li>
+<li>显式告诉 AI 调哪些函数，把分散逻辑聚合到一个入口。</li>
+</ol>
+<p><strong>最后的认知转变</strong>：“写 skill 不是给 AI 增加能力，而是给
+AI 增加’默认工作方式’。Skill 不只是 capability bundle，也是 workflow
+controller。”</p>
+<h2 id="我的看法">我的看法</h2>
+<p><strong>我认同的核心点：流程控制器 &gt; 能力包。</strong>
+这是文章最值的洞察。多数团队把 skill 当”工具集”，给 AI 加更多 tool、更多
+function、更多 API 入口，结果 AI 还是按自己习惯乱来。<strong>真正能让 AI
+行为稳定的不是给它更多能力，是限制它的默认决策路径</strong>——“在写代码前必须先调
+find-component.js”这条规则比”我们有一个组件索引库”有效 10 倍。这跟”Code
+Review 比 Coding 重要”、“测试比实现重要”是一脉相承的工程哲学。</p>
+<p><strong>这篇文章给我最有价值的不是三层结构本身，而是引用 Vercel
+评测的”AGENTS.md 优于 Skills”那个反直觉发现。</strong> 我们做 Agent
+总以为”显式 skill 触发”比”被动上下文”高级，但 Vercel
+的实验数据反过来了——<strong>被动上下文的稳定性更高，因为 agent
+不用做”要不要触发
+skill”的决策</strong>。这指向一个反直觉的设计原则：<strong>减少 agent
+的决策点，比增加 agent 的能力更影响稳定性</strong>。这跟我做 RAG
+时的经验一致——把规则写死在 system prompt，比依赖 agent
+自己判断要不要调检索工具稳定得多。</p>
+<p><strong>三个反直觉的工程判断：</strong></p>
+<ol type="1">
+<li><strong>“统一入口” &gt; “模块化 API”。</strong>
+软件工程教科书讲模块化、高内聚低耦合，但 AI Coding
+场景下完全反过来——把多个内部步骤聚合成一个外部入口（“查一下有没有可复用组件”）比暴露多个原子
+API（“读索引 / 排序 / 补扫”）效果好。AI
+不会漏步骤、不会搞错顺序、不会传错参数。<strong>这是为 AI 设计的
+API，不是为人设计的 API</strong>。</li>
+<li><strong>“NO_MATCH_SCORE_THRESHOLD” 比”召回率”更重要。</strong>
+多数推荐系统的优化目标是召回率，但 AI Coding 场景下，“AI
+拿到低质量候选后将错就错”的代价远大于”漏掉一个真正可复用的组件”。宁可不召回（让
+AI 新建），不要错召回（让 AI 强行复用错的组件）。阈值过滤是给 AI
+用的护栏。</li>
+<li><strong>“usage-tracker”是最便宜的反馈机制。</strong>
+不需要复杂训练，不需要强化学习，只需要”用过的组件记一笔”，就能逐步学习团队偏好。这是”用使用数据反哺推荐”的最小可行实现，比上一套
+ML 系统实在得多。</li>
+</ol>
+<p><strong>但我有 push back：</strong></p>
+<ol type="1">
+<li><strong>AGENTS.md 的容量上限没说。</strong> AGENTS.md
+是常驻上下文（每轮对话都加载），内容越多单次调用成本越高、越可能让 agent
+注意力分散。文章说”目的不是塞满文档”，但没说实际控制在多少行 / 多少
+token。团队落地时容易”加着加着就超了”，最终 AGENTS.md
+变成又一个腐烂的文档。</li>
+<li><strong>Hook
+触发模式（关键词匹配”组件复用/封装组件/查组件”）的维护成本没量化。</strong>
+Hook 写死了一组关键词，但 PM
+和开发的实际用语会演进（“看一下老代码”、“有没有类似的功能”、“这个之前做过吗”）。关键词集合怎么维护？谁来更新？半年后会不会变成无人维护的僵尸规则？这块没说。</li>
+<li><strong>“流程控制器 vs 能力包”的边界没给标准。</strong> 文章最后说
+skill
+不只是能力包也是流程控制器，但什么时候该做能力包、什么时候该做流程控制器？标准是什么？如果团队对每个
+skill 都加流程控制，会变成过度工程；如果不加，又退回到”AI
+自由发挥”。这个判断标准没说清。</li>
+</ol>
+<h3 id="怎么落到-agent-项目">怎么落到 Agent 项目</h3>
+<p>如果让我基于这篇做一个”团队 AI Coding 规范
+Agent”项目，我会拆成五个模块：</p>
+<ol type="1">
+<li><strong>AGENTS.md 规范仓库</strong>：把团队所有”复用优先 / 命名规范
+/ 提交规范 / Review 规范”等基础规则收敛成结构化 Markdown 进
+Git，控制单文件 ≤ 500 行，每条规则带 owner 和示例。</li>
+<li><strong>Hook 路由层</strong>：用 Claude Code 的 UserPromptSubmit +
+additionalContext 做关键词路由；关键词集合定期复盘（季度评审）；超过 50
+个关键词就拆 Hook。</li>
+<li><strong>Skill 工具集</strong>：每个 Skill 提供统一入口 JS（如
+find-component.js / check-style.js / validate-test.js），固定 JSON 输出
+schema；不做模块化 API 暴露。</li>
+<li><strong>索引流水线</strong>：所有索引/配置类资源按”scan → manager →
+enrich”流水线持续维护，不做一次性脚本；启用 Agent
+模式不走规则降级。</li>
+<li><strong>usage-tracker +
+反馈回路</strong>：所有查找/调用记录使用行为，定期 review top 误召回
+case，调整评分权重。</li>
+</ol>
+<p>面试时的回答脚本：“我做过一个 AI Coding 流程化的项目，核心是
+AGENTS.md + Hook + Skill 三层架构。AGENTS.md
+放基础规则（常驻上下文），Hook 做关键词路由（提高触发概率），Skill
+提供统一入口的工具函数（执行稳定）。最关键的认知是’流程控制器 &gt;
+能力包’——给 AI 加 10 个 tool 不如限制它的默认决策路径。Vercel
+的评测数据也支持：被动上下文的稳定性比主动 skill 触发更高，因为 agent
+不用做’要不要触发’的决策。”</p>
+<h2 id="一句话总结">一句话总结</h2>
+<p>AI Coding
+工程化的核心不是给模型更多能力，而是用规范、Hook、统一入口把 agent
+的默认决策路径收窄——工程纪律比模型能力更影响产出稳定性。</p>
+<h2
+id="附录三层结构的职责分工面试素材">附录：三层结构的职责分工（面试素材）</h2>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>层</th>
+<th>核心机制</th>
+<th>解决的问题</th>
+<th>关键工具</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>AGENTS.md</td>
+<td>常驻上下文（每轮加载）</td>
+<td>AI 根本不知道你有这套机制</td>
+<td>Markdown 规则文档</td>
+</tr>
+<tr class="even">
+<td>Hook</td>
+<td>关键词路由 + 上下文注入</td>
+<td>AI 知道有 skill，但不一定想起来用</td>
+<td>UserPromptSubmit + additionalContext</td>
+</tr>
+<tr class="odd">
+<td>Skill</td>
+<td>工具函数 + JSON 输出 schema</td>
+<td>AI 想用了，但执行过程不稳定</td>
+<td>SKILL.md + find-component.js</td>
+</tr>
+</tbody>
+</table>
+<h2 id="附录5-个工程化实现细节">附录：5 个工程化实现细节</h2>
+<ol type="1">
+<li><strong>统一入口收敛</strong>：SKILL.md 强制 Agent 必须调
+<code>find-component.js</code>，不做”先算 scope → 查 CSV → 排序 → 补扫 →
+记 usage”的分散调用。</li>
+<li><strong>范围解析策略</strong>：<code>resolve-scope.js</code>
+实现”当前应用 → 根级共享 → 全量”的三层 scope
+fallback，模仿人类工程师”先看我的应用有没有 →
+再看全局有没有”的查找习惯。</li>
+<li><strong>多因素加权匹配</strong>：<code>match-component.js + fuzzy-match.js</code>
+组合评分，加 <code>NO_MATCH_SCORE_THRESHOLD</code> 低分阈值过滤，避免 AI
+将错就错。</li>
+<li><strong>索引构建流水线</strong>：<code>run-scan.js → index-manager → enrich</code>，不是一次性脚本；Agent
+模式不走规则引擎降级，强制 Agent 完成 enrich。</li>
+<li><strong>usage-tracker
+反馈</strong>：记录查找命中，逐步学习团队偏好，不需要复杂训练就能提升推荐质量。</li>
+</ol>
+<h2 id="附录vercel-实验的核心结论反直觉发现">附录：Vercel
+实验的核心结论（反直觉发现）</h2>
+<ul>
+<li>默认 skill 触发没有提升 agent 通过率。</li>
+<li>加入显式指令后明显改善。</li>
+<li>AGENTS.md（被动上下文）方案比 Skills（主动触发）表现更稳定。</li>
+<li>原因：agent 执行有”决策成本”，被动上下文减少了 agent 的决策点。</li>
+</ul>
+<h2
+id="附录find-component.js-的固定-json-输出-schema">附录：find-component.js
+的固定 JSON 输出 schema</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;ok&quot;</span><span class="fu">:</span> <span class="kw">true</span><span class="fu">,</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;matches&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="er">...</span><span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;noMatch&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="er">...</span><span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;scanTriggered&quot;</span><span class="fu">:</span> <span class="kw">true</span><span class="fu">,</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;hint&quot;</span><span class="fu">:</span> <span class="st">&quot;...&quot;</span><span class="fu">,</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;error&quot;</span><span class="fu">:</span> <span class="kw">null</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p>固定 schema 的好处：AI 拿到结构化结果后能稳定执行后续动作（直接复用 /
+强制新建 / 触发扫描），不需要做”理解非结构化输出”的二次判断。</p>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>

@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="得物技术用 10 天、217 条指令、2754
+次工具调用、25546 行净增代码跑完一个企业级中后台；核心是把 AI
+编程的规范性拆成三层：rules 约束层（禁止什么）、code-design
+示范层（标准产出长什么样）、ui-design 视觉层（HTML
+设计稿作为锚点）。再加上两个 MCP：接口文档直连（调用 21 次覆盖 39
+个接口）、飞书云文档直读。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>读文笔记：Spec Coding
+三层规范体系——约束、示范、视觉 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>读文笔记：Spec Coding
+三层规范体系——约束、示范、视觉</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">AI
+编程</span> <span class="badge bg-secondary">Claude
+Code</span> <span class="badge bg-secondary">Spec
+Coding</span> <span class="badge bg-secondary">规范体系</span> <span class="badge bg-secondary">工程师能力</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://xie.infoq.cn/article/0d88c523628cd4761c188f926" target="_blank" rel="noopener">AI编程能力边界探索：基于
+Claude Code 的 Spec Coding 项目实战｜得物技术</a> · 得物技术
+            </div>
+
+<h2 id="原文在说什么">原文在说什么</h2>
+<p>得物技术用 10 天时间，借助 Claude Code
+跑完了一个完整企业级中后台（表格、表单、卡片列表、数据看板），交付了
+25546 行净增代码、提效 36%。文章的重点不是”AI
+能写代码”，而是规范体系的设计——所有数据来自 109 个 <code>.jsonl</code>
+会话文件的整体统计。</p>
+<p><strong>工具调用分布（2754 次）：</strong> AI 自主完成 738
+次文件读取、550 次代码编辑、662 次终端命令执行、208 次 TodoWrite
+任务进度标记。几乎覆盖了一个研发日常工作的全部动作类型。</p>
+<p><strong>三层规范结构（核心）：</strong></p>
+<ul>
+<li><strong>第一层 约束层 <code>.claude/rules/</code>：</strong> 7 个 md
+文件约束 AI 不能做什么。<code>ts.md</code>（禁止
+any、使用可选链）、<code>code-names.md</code>（kebab-case/camelCase/PascalCase）、<code>comment.md</code>（JSDoc、<code>@ai-context</code>、<code>@ai-rules</code>
+文件头）、<code>lint.md</code>（单引号、文件末尾换行）、<code>style.md</code>（Tailwind
+CSS、less）、<code>pages.md</code>（constants/services/hooks/components
+分层）、<code>service.md</code>（<code>fetch{Name}Api</code> 命名 +
+<code>UniversalResp&lt;T&gt;</code> 泛型）。</li>
+<li><strong>第二层 示范层 <code>.claude/code-design/</code>：</strong> 6
+个完整模板。<code>pro-table</code>（搜索/分页/批量操作/行操作）、<code>pro-form</code>（创建/编辑双模式
++
+字段验证）、<code>editable-pro-table</code>（行内编辑/添加/保存/删除）、<code>drawer</code>（标准打开/关闭逻辑）、<code>compontent</code>（含
+README + Props 定义 + 使用示例）、<code>utils</code>。让 AI “参考
+<code>pro-table</code> 生成知识治理列表页”
+时直接继承整套模式，一次成稿不用多轮调整。</li>
+<li><strong>第三层 视觉层 <code>.claude/ui-design/</code>：</strong>
+HTML 设计稿作为视觉锚点（knowledge-spaces.html / search-strategy.html /
+space-detail.html）。AI 读取 HTML 中的结构和样式信息后，UI
+与设计意图吻合度明显高于纯文字描述。</li>
+</ul>
+<p><strong>两个 MCP 工具解决信息断层：</strong></p>
+<ul>
+<li><strong>接口文档 MCP：</strong> AI 按 URL
+自动拉取完整接口文档——入参字段、出参结构、枚举值、必填项标注。累计调用
+21 次，覆盖 39 个接口。后端未生效时还能同步生成 mock
+数据。<code>interface.ts</code> 类型定义质量”无需人工校对”。</li>
+<li><strong>飞书云文档 MCP：</strong> AI
+直接读取飞书云文档内容（PRD、设计说明、技术文档），省去”打开→复制→粘贴”的心智成本。</li>
+</ul>
+<p><strong>4 个典型案例：</strong></p>
+<ol type="1">
+<li><strong>AI 扮演产品经理：</strong> Rules
+植入”首席产品专家”Persona，把 AI
+从”急于执行”模式切换为”先想清楚”模式；</li>
+<li><strong>AI 扮演 UI 设计师：</strong> Rules 定义设计规范，对话式生成
+HTML 文件作为高保真原型，而非源码；</li>
+<li><strong>SDD 驱动”定时任务管理”模块：</strong> 6
+个接口零联调返工，人工指令 &lt; 10 条，AI 代码占比
+100%；同日额外交付两个完整模块，3 个模块单日开发完成，人效提升 3
+倍；</li>
+<li><strong>首页重构：</strong> 9 组 34 个子任务（grep 确认归属 →
+按新分层迁移 → 更新 import → tsc 检查 → 冒烟验证），AI
+全程独立执行，人工干预 &lt; 5 条指令。<code>useChat</code> 从 20+
+方法拆为 3 个单职责 hook，<code>ChatInterface</code> 从 17 个 props
+缩减至 6-8 个。</li>
+</ol>
+<p><strong>AI 失效三模式：</strong> 规范真空（AI
+自填”合理默认值”）、信息孤岛（看不到会话外状态）、任务目标模糊（把”该问人的问题”当执行问题）。</p>
+<h2 id="我的看法">我的看法</h2>
+<p><strong>我认同：</strong> 文章把”AI 编程”重新定义为”AI
+是顶级执行者，人维护确定性空间的边界”。这个比喻很准——AI
+极度服从（执行规范不打折扣）、无限耐心（34
+个任务不嫌烦）、没有内部业务常识（不知道上周接口换过版本）。理解了”AI
+不知道什么”比”AI 能做什么”更重要。前端构建排障那次 4 小时 7
+会话就是典型案例：AI 每次分析都正确，问题在于”问题的结构性特征超出了 AI
+的信息范围和反馈机制”。</p>
+<p><strong>这篇文章给我最有价值的不是三层规范本身，而是”约束层只是规范，不是能力”这个认知。</strong>
+只有 rules 时，AI 知道”不能用什么”但不知道”该用什么”；加入 code-design
+示范层和 ui-design 视觉层后，AI
+才有了对齐的锚点。规则是负面清单，模板和设计稿是正面参考，两者缺一不可。这个洞察直接影响了我的项目结构——单纯堆
+<code>.cursorrules</code> 不够，必须配上 reference 代码和 design
+token。</p>
+<p><strong>反直觉的工程判断：</strong></p>
+<ol type="1">
+<li><p><strong>CLAUDE.md / rules / code-design
+是放项目里的，不是放个人配置里的。</strong> 文章把规范放在
+<code>.claude/rules/</code> 和 <code>.claude/code-design/</code>
+下，意味着这些规范跟着项目走、跟着代码一起
+review、跟着团队成员复用——而不是某个人的”AI 使用心得”留在
+<code>~/.claude/</code> 里。这是把 AI 规范纳入工程治理的关键。</p></li>
+<li><p><strong>HTML 设计稿作为视觉锚点比 PNG/Sketch
+文件更有效。</strong> AI 能”读”HTML
+里的结构和样式信息（class、布局、间距），但读不了图片里的像素位置。<code>ui-design/*.html</code>
+直接在浏览器打开预览，又作为 AI 的视觉参考，一份文件当两份用。</p></li>
+<li><p><strong>AI 排障的瓶颈不在 AI
+的分析能力，在”信息的结构性边界”。</strong> 那次 4 小时 7
+会话的构建排障，AI 每次分析都正确，问题在于”AI
+没有部署环境的真实状态、没有日志、没有历史变更记录”。给 AI 装上 Log MCP
+/ 监控 MCP 比升级 Claude 模型版本更能解决这类问题。</p></li>
+</ol>
+<p><strong>但我有 push back：</strong></p>
+<ol type="1">
+<li><p><strong>“提效 36%”这个数字没给基线。</strong>
+是和”纯人工开发”比，还是和”AI 辅助但不写 spec”比？和哪个对照组比决定了
+36% 是高估还是低估。InfoQ 类文章经常省略对照组，需要警惕。</p></li>
+<li><p><strong>三层规范的前期成本没有量化。</strong> 写 7 个 rules + 6
+个模板 + 4 个 HTML
+设计稿，前期投入多少人工小时？如果一次性项目这个投入不划算。文章没说”项目在第几天回本”，意味着读者无法判断什么时候值得这么搞。</p></li>
+<li><p><strong>缺少”什么场景 Spec Coding 不适用”的边界讨论。</strong>
+文章只说了”小颗粒对话框即扫即改、中颗粒 Rules/Skills、中大颗粒
+OpenSpec”，但没具体给失败案例——比如”我们尝试用 Spec Coding 做一个 XXX
+项目，结果失败了，因为 YYY”。没有反面案例的方法论是不完整的。</p></li>
+</ol>
+<h3 id="怎么落到-agent-项目">怎么落到 Agent 项目</h3>
+<p>面试被问”如何给 AI 编程搭规范体系”时的回答框架：</p>
+<ul>
+<li><strong>约束层（rules）：</strong> <code>ts.md</code> /
+<code>lint.md</code> / <code>service.md</code>
+三件套起步，覆盖语法、风格、接口命名；放在 <code>.claude/rules/</code>
+跟项目走，跟着 PR review；不要放个人 <code>~/.claude/</code> 里；</li>
+<li><strong>示范层（code-design）：</strong> 抽出项目里出现 ≥3
+次的页面模式（CRUD 列表、表单页、详情页），做成可复用模板；让 AI 用
+<code>参考 .claude/code-design/{模板名} 生成 {新页面}</code>
+的指令调用；</li>
+<li><strong>视觉层（ui-design）：</strong> 把 Figma 稿转 HTML，存进
+<code>.claude/ui-design/</code>；HTML 既是人类预览源，也是 AI
+视觉参考（AI 能读 HTML class/布局/间距，不能读 PNG 像素）；</li>
+<li><strong>MCP 信息通道：</strong> 接口文档 MCP（拉 URL
+自动获字段/枚举/必填项）+ 飞书云文档 MCP（直读 PRD）+ 日志/监控
+MCP（解决”信息孤岛”失效模式）；</li>
+<li><strong>失效兜底：</strong>
+对”信息孤岛”类问题（部署、监控、日志），专门建 debug Skill
+而不是依赖通用 Claude 模型；对”规范真空”场景，强制要求先补 rule
+再写代码。</li>
+</ul>
+<h3 id="工程落地实践">工程落地实践</h3>
+<p><strong>分阶段里程碑</strong>：D1-D2 起草
+<code>ts.md</code>/<code>lint.md</code>/<code>service.md</code> 三件套
+rules（每条规则带正反例）→ D3-D5 抽 3-5 个页面模板入
+<code>.claude/code-design/</code> → D6-D7 把 Figma 稿转 HTML 入
+<code>.claude/ui-design/</code> → D8+ 接 MCP（接口文档 + 飞书云文档 +
+日志）。每个阶段结束都要写”踩坑日志”沉淀进 rules。</p>
+<p><strong>关键目录契约</strong>：<code>.claude/rules/</code>（强制路径，跟项目走，禁止放
+<code>~/.claude/</code>） + <code>.claude/code-design/</code>（文件名 =
+模式名，调用指令 = <code>参考 {路径} 生成 {新页面}</code>） +
+<code>.claude/ui-design/</code>（HTML 源，AI 可读
+class/布局）。三层目录是规范体系的物理骨架，缺一不可。</p>
+<p><strong>常见踩坑 + 兜底</strong>：(1) AI 不读 rules → 在
+<code>settings.json</code> 里强制 <code>attachRules: true</code>；(2)
+模板泛滥 → 每个新模板要求”出现 ≥3 次”才准入；(3) Figma 转 HTML 失真 →
+强制保留设计稿原始 layer name，AI 用 layer name 做语义匹配；(4) 规范过期
+→ rules 文件带 <code>last_reviewed</code> 字段，CI 扫描 90
+天未更新自动标 stale；(5) 多人协作覆盖 → rules 进 PR review，冲突按”项目
+owner 有最终决定权”。</p>
+<h2 id="一句话总结">一句话总结</h2>
+<h2 id="一句话总结-1">一句话总结</h2>
+<p>Spec Coding 的本质不是”AI 写代码”，而是”用三层规范（约束 + 示范 +
+视觉）+ MCP 信息通道把不确定性消除在执行之前”——AI
+在确定性空间里高速执行，人维护和扩展那个确定性空间的边界。</p>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>

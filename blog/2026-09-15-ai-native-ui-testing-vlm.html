@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="得物 ai_uitester 用 VLM
+作为执行引擎，把『截图→理解→执行』作为闭环。三大能力：用例平台 JSON
+自动转化 Pipeline（树展平+LLM 增强+断点续传）、AI
+智能调试（失败分类器+置信度机制+三真实自愈案例）、VLM
+驱动的跨平台统一（同一 JSON 三端通用）。置信度阈值
+0.5，『宁可不点击也不点错』是关键铁律。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>读文笔记：AI Native UI 测试——VLM
+跨平台统一与自愈 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>读文笔记：AI Native UI 测试——VLM 跨平台统一与自愈</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">AI
+Native</span> <span class="badge bg-secondary">VLM</span> <span class="badge bg-secondary">UI
+测试</span> <span class="badge bg-secondary">自愈</span> <span class="badge bg-secondary">跨平台</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://xie.infoq.cn/article/9816317343dcd94280d9e8d16" target="_blank" rel="noopener">AI
+UITester：AI Native 的 UI 自动化测试新范式｜得物技术</a> · 得物技术
+            </div>
+
+<h2 id="原文在说什么">原文在说什么</h2>
+<p>得物 ai_uitester 把 UI
+测试从”基于元素定位”重新定义为”基于视觉理解”。核心是 VLM
+作为执行引擎，“截图→理解→执行”闭环替代传统 Appium/Selenium 的”找
+ID/XPath 再点击”。</p>
+<p><strong>三大能力：</strong></p>
+<p><strong>能力一：用例平台数据自动转化。</strong>
+内部测试用例平台导出的 JSON
+是多层树形结构（目录+用例节点，数百个节点、上百条用例、最大深度十余层）。自动化
+Pipeline 6 阶段：树结构展平 → 用例解析 → 去重 → LLM 增强（核心）→ 持久化
+→ 版本归档。LLM
+增强模块把”描述性用例”（如”某列表正常展示，可滑动查看更多”）转化为”可执行脚本”（App/Tap/Wait/Assertion/Swipe
+步骤）。支持并行增强与断点续传，模块级 Wiki 预加载避免重复调用。Wiki
+知识库是嵌入 ai_uitester 多个核心模块的基础设施层，被 5 大场景消费。</p>
+<p><strong>能力二：AI 智能调试与用例自愈。</strong>
+失败先用规则引擎分流：device/timeout/network 走自动换机或重试；business
+失败才进 AI 诊断。AI 诊断输入：✓✗○ 标注步骤 + 错误信息 + 失败截图 + Wiki
+知识；输出：diagnosis + confidence + complete_steps +
+resume_from_index。<strong>置信度阈值 0.5</strong>——&gt; 0.5
+自动应用修复并替换执行步骤，&lt; 0.5 弹出人工审核（Accept/Reject +
+倒计时超时自动 Reject）。</p>
+<p><strong>三个真实自愈案例：</strong></p>
+<ol type="1">
+<li>UI 变更按钮位置移动（confidence
+0.9）：原始”点击底部工具栏按钮”失败，修复为”点击页面顶部功能菜单栏对应按钮”；</li>
+<li>进入页面需要额外操作（confidence
+0.8）：点击入口未进目标页面，插入等待 + 再次点击；</li>
+<li>冷启动弹窗遮挡后续步骤（confidence 0.9）：AI
+诊断洞察中间步骤虽标记为 ✓
+但实际未产生预期效果，标记”前置步骤失效”回退到步骤 2，启动 App
+后插入条件 Action 处理弹窗。</li>
+</ol>
+<p><strong>置信度铁律：</strong> (1) MatchedText
+必须从截图中逐字符复制，不允许脑补；(2) 宁可不点击也不点错。</p>
+<p><strong>能力三：VLM 驱动的跨平台统一。</strong> VLM
+看到的是像素级截图（不是 DOM），所以同一套指令三端通用、天然免疫 UI
+变更、所见即所得。统一 API
+接口（操作/断言/查询/等待）屏蔽底层平台差异。底层驱动根据设备类型自动选择（Appium/Hypium/自研），上层代码完全无感知。</p>
+<p><strong>BaseAIDriver 核心循环：</strong>
+“截图→大模型解析→决策执行→记录日志→重新截图”，最多 20
+轮，点击配套置信度校验。开启深度思考模式后，模型获得子目标分解、进度跟踪（✓/→/○
+可视化）、前后截图对比三项能力。</p>
+<p><strong>架构取舍：</strong></p>
+<ul>
+<li>为什么”逐步执行”而非”一次规划”？UI
+测试的核心挑战是状态不确定性——每步操作后屏幕变化，预先规划基于过时信息。代价是单次最多
+20 轮 LLM 调用。</li>
+<li>为什么自愈返回完整步骤列表而非增量 Diff？增量 Diff
+在多次修复后索引偏移，完整列表更可靠，代价是 Token
+消耗更大但避免”修复引入新 Bug”。</li>
+</ul>
+<p><strong>五层降级匹配：</strong> 精确匹配 → 去除优先级后缀 → 去除括号
+→ LLM 语义匹配 →
+跳过并缓存。“宁缺毋滥”原则：错误知识比无知识更有害。</p>
+<h2 id="我的看法">我的看法</h2>
+<p><strong>我认同：</strong> “AI Native 方案的假设是 UI 一定会变，所以让
+AI
+理解变化并适应变化”——这是测试哲学的根本转变，从”抵抗变化”到”拥抱变化”。传统方案和
+AI 辅助方案的隐含假设都是”UI 不变”，所以需要人维护定位器；一旦接受 UI
+一定会变这个前提，整个测试架构就重写了。这是文章给我最大的范式冲击。</p>
+<p><strong>这篇文章给我最有价值的不是 VLM
+本身，而是”逐步执行”vs”一次规划”的判断。</strong> UI
+测试的核心挑战是状态不确定性——每步操作后屏幕变化，预先规划会基于过时信息。所以
+ai_uitester 选最多 20
+轮的”逐步执行”，每步重新截图重新决策。这个决策的反面是”一次规划 +
+重试”——后者更省
+Token，但每次重试都在错误的基础上规划，越走越偏。状态不确定性是 UI
+测试的根本特征，决定了执行模型的选择。</p>
+<p><strong>反直觉的工程判断：</strong></p>
+<ol type="1">
+<li><p><strong>置信度阈值 0.5
+不是拍脑袋数字，是”通过即正确”的实测调优。</strong>
+阈值过高则大量操作被拒绝、执行效率低；阈值过低则误点风险上升。文章明确说”经过大量实测调优，在准确率和覆盖率之间取得平衡”。UI
+测试的特殊性在于”点错位置比没点危害大得多”——置信度阈值本质是”宁可漏点不可误点”的产品决策。</p></li>
+<li><p><strong>完整步骤列表优于增量 Diff 的决策很反直觉。</strong> 增量
+Diff 省 Token，但多次修复后索引偏移、修复引入新 Bug
+是常见问题。完整列表虽然 Token
+消耗大，但每次修复都是”全量替换”，不会出现”修复 A 坏了 B”。Token
+成本可以靠缓存和去重优化，逻辑正确性无法靠优化补救。</p></li>
+<li><p><strong>失败分类器把 80% 的失败在规则层就处理掉，AI 诊断只处理
+20% 的业务失败。</strong> device/timeout/network
+走自动换机或重试，根本不进 AI 诊断。这是”用规则过滤噪音、用 AI
+处理信号”的经典分层设计——AI 调用次数 = 总失败数 ×
+业务失败率。如果不做这一步分层，AI 调用成本会爆炸。</p></li>
+</ol>
+<p><strong>但我有 push back：</strong></p>
+<ol type="1">
+<li><p><strong>最多 20 轮的逐步执行，单次用例成本没有量化。</strong>
+一条用例平均跑多少轮？月度 Token 成本是多少？与传统 Appium
+方案的成本对比？这些数字都没有，“AI Native”在 ROI
+上的说服力打了折扣。对于预算敏感的团队，这套方案能不能落地要打个问号。</p></li>
+<li><p><strong>VLM 模型选型没说。</strong> 文中提到 Qwen2.5-VL-72B
+是另一篇文章的能力二，本篇 ai_uitester 用的是哪个 VLM？GPT-4V 还是 Qwen
+还是 Gemini？不同 VLM
+的截图理解准确率差异很大，不说模型就没法复现也无法评估替换成本。</p></li>
+<li><p><strong>“五层降级匹配”具体在哪一层触发没说。</strong>
+比如”精确匹配”和”去除优先级后缀”的判断逻辑是什么？“LLM
+语义匹配”调用的是哪个模型？“跳过并缓存”缓存的是结果还是失败原因？Pipeline
+缺了关键的实现细节，复现时只能猜。</p></li>
+</ol>
+<h3 id="怎么落到-agent-项目">怎么落到 Agent 项目</h3>
+<p>面试被问”如何设计 AI Native 的测试系统”时的回答框架：</p>
+<ul>
+<li><strong>用例生成模块：</strong> 用例平台 JSON 自动转化
+Pipeline（树展平 + LLM 增强 + Wiki 预加载 + 断点续传 +
+五层降级匹配），LLM 把描述性用例转化为可执行步骤；同一模块的用例共享
+Wiki 缓存避免重复调用；</li>
+<li><strong>执行引擎模块：</strong> VLM 作为执行引擎，统一 API
+屏蔽平台差异，底层驱动自动选择（Appium/Hypium/自研），<code>BaseAIDriver</code>
+实现”截图→理解→执行”循环最多 20 轮；</li>
+<li><strong>失败分类与自愈模块：</strong> 规则引擎先分流（设备/超时/网络
+vs 业务），业务失败才进 AI 诊断；置信度阈值 0.5
+决定自动应用还是人工审核；自愈返回完整步骤列表而非增量 Diff；置信度铁律
+= MatchedText 逐字符复制 + 宁可不点不错点；</li>
+<li><strong>知识库模块：</strong> Wiki 知识库嵌入 Pipeline / 增强 / 诊断
+/ 匹配多个模块，“宁缺毋滥”原则贯穿；五层降级匹配（精确→去后缀→去括号→LLM
+语义→跳过缓存）；</li>
+<li><strong>跨平台抽象模块：</strong> VLM 看截图不看 DOM，同一 JSON
+三端通用；深度思考模式给模型子目标分解 + 进度可视化 +
+前后对比能力。</li>
+</ul>
+<h3 id="工程落地实践">工程落地实践</h3>
+<p><strong>分阶段里程碑</strong>：v0.1 用例平台 JSON 接入 + 树展平
+Pipeline（无 LLM，纯规则）→ v0.5 加 LLM 增强（Wiki 预加载 + 断点续传）→
+v1.0 接 VLM 执行引擎（<code>BaseAIDriver</code> + 三平台驱动）+ 最多 20
+轮循环 → v1.5 上失败分类器（规则先分流 + 业务失败进 AI 诊断）→ v2.0
+加跨平台统一执行（同 JSON
+三端跑）。每阶段必须有”用例转化成功率”和”执行成功率”两条基线。</p>
+<p><strong>关键数据契约</strong>：<code>TestCaseJson(steps[], assertions[])</code>
++ <code>WikiCache(module_id, summary, last_updated)</code> +
+<code>FailureClass(category, confidence, fix_suggestion)</code>。三件套进数仓做长期分析（哪些模块
+LLM 增强效果最好、哪些失败分类高频出现）。</p>
+<p><strong>常见踩坑 + 兜底</strong>：(1) LLM 增强成本失控 → Wiki
+缓存强制复用 + 同模块用例共享；(2) VLM 决策置信度低 → 阈值 0.5
+是分水岭，低于阈值强制人工审核（“宁可不点不错点”是铁律）；(3)
+失败自愈引入新 bug → 自愈返回完整步骤列表而非
+Diff，避免”看起来修了但其实更糟”；(4) 截图分辨率影响 VLM 准确率 →
+强制统一缩放到 1080p，元素区域单独裁剪；(5) 跨平台差异 → VLM 看截图不看
+DOM，强制底层驱动不暴露 DOM API 给上层。</p>
+<h2 id="一句话总结">一句话总结</h2>
+<p>AI Native UI 测试的本质不是”用 VLM
+替代元素定位”，而是”以截图→理解→执行闭环替代基于 DOM 的查找-点击模型 +
+置信度机制 + 完整步骤自愈 +
+失败分类规则引擎”——这是测试哲学从”抵抗变化”到”拥抱变化”的根本转变。</p>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>

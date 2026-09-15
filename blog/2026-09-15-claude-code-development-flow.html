@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="得物技术团队对 Claude Code
+在企业级场景的深度实践总结：对话流设计（语义鸿沟/约束衰减/目标偏移）、Plan
+模式（三步法 WBS
+拆分）、四角色子代理（架构师/审查员/实现者/前端生成器）、CLAUDE.md
+控制在 200 字、SKILL + MCP 沉淀复用。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>Claude Code 核心功能：对话流、Plan、子代理 —
+读《AI编程实践》 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>Claude Code 核心功能：对话流、Plan、子代理 —
+读《AI编程实践》</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">Claude
+Code</span> <span class="badge bg-secondary">AI编程</span> <span class="badge bg-secondary">对话流设计</span> <span class="badge bg-secondary">Plan模式</span> <span class="badge bg-secondary">子代理</span> <span class="badge bg-secondary">MCP</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://xie.infoq.cn/article/dafc6cdfdc797bf7eff98a0d6" target="_blank" rel="noopener">AI编程实践：从Claude
+Code实践到团队协作的优化思考｜得物技术</a> · 得物技术
+            </div>
+
+<h2 id="原文在说什么">原文在说什么</h2>
+<p>得物技术团队（作者稚归）分享了 Claude Code 在企业级 Spring Boot +
+MyBatis-Plus 工程中的工程化落地经验，覆盖六大模块。</p>
+<p><strong>一、对话流设计方法论（核心）。</strong> 把人类编程思维翻译成
+AI 可理解的结构化交互。三个关键机制：(1) 语义鸿沟 — 自然语言模糊 vs
+代码精确（“安全”≠“登录校验”，实际需要 RBAC + 脱敏 + 数据权限）；(2)
+约束衰减 — 早期设定 MyBatis-Plus + BaseMapper，后面被 AI 偷偷改成 JPA
+Repository；(3) 目标偏移 — 多轮后忘了 DTO
+转换规范。提出”三阶段对话模型”：需求定义（用户故事+验收标准）、边界明确（必须遵守/建议参考的分级技术约束）、迭代反馈（分模块实现
++ 关键节点暂停）。</p>
+<p>文章给出了两个完整示例的需求定义阶段：新商户成长任务分配（5
+条验收标准覆盖任务池筛选 / 操作人校验 / 负载上限检查 / 飞书通知 /
+操作日志）和商家数据权限查询（6 条覆盖查询维度 / 分页 / 数据范围过滤 /
+敏感字段脱敏 / 权限校验 /
+操作日志）。边界明确阶段又给出技术约束（SpringBoot 分层架构 +
+MyBatis-Plus + BaseEntity + Result<T> + <span class="citation"
+data-cites="Permission">@Permission</span> 注解 + FeishuClient
+复用）、数据库约束（必须包含 created_at/updated_at/is_deleted 字段 +
+ocs_ 前缀 + 蛇形命名 + 高频字段建索引）、建议参考（任务状态流转 /
+异步处理方式 / 范围查询逻辑）三层结构。</p>
+<p><strong>二、Plan 模式。</strong> 用 WBS
+工作分解结构思想，把”实现拜访任务系统”拆成 M1–M12 共 12
+个模块，标注复杂度（Low/Medium/High），给出数据存储（MySQL/ES）、查询方案、外部集成（飞书审批/日历/OSS）三列表，再做
+P0–P3 四级优先级排序，最后给出五个阶段的实现建议。文章给了完整 markdown
+文本示例：M1 任务创建（Medium）、M2 飞书审批（High）、M3
+日程同步（Medium）、M4 任务列表查询（Medium）、M5 任务详情（Low）、M6
+任务统计（Low）、M7 结果提交（Medium）、M8 任务分配（High）、M9
+任务触达（Medium）、M10 ES 同步（Medium）、M11 Excel 导入（High）、M12
+状态变更（Low）。</p>
+<p><strong>三、CLAUDE.md 系统提示词。</strong> 从 5000 字百科全书精简到
+200 字以内的”护栏”结构。新手错误是塞太多项目知识，AI
+要么忽略要么顾此失彼；有效做法是针对 AI
+常见错误模式做针对性提示。文章给出了三模块结构（角色定位 + 工作约束 +
+产出标准）。</p>
+<p><strong>四、SKILL + MCP。</strong> SKILL 把单次 Prompt
+沉淀为可复用组件（如团队内部 ES SDK 调用方式）；MCP（Model Context
+Protocol）让 AI 动态访问外部数据源。文中提到集成飞书 MCP
+服务器，能自动生成技术方案文档、读取
+PRD、同步数据到多维表格。最适合封装为 SKILL 的场景：(1)
+复杂工具使用指南（ES 接入 / Redis 缓存更新策略）；(2)
+常见错误处理模板（分布式锁冲突处理 / 数据库乐观锁重试机制）。</p>
+<p><strong>五、子代理（SubAgent）协作。</strong> 借鉴 MetaGPT
+思想，构建四个专业化子代理：技术方案架构师（输出技术方案文档）、代码审查专家（架构合规/规范/稳定性）、代码实现专家（按蓝图实现
++
+单元测试）、前端页面生成器（低代码平台规范）。所有子代理通过共享”技术方案文档”（共享白板）协作，每个只修改与自己角色相关的部分。协作流程：整体规划阶段（架构师产出技术方案
++ 子代理对齐）→ 单模块迭代阶段（实现专家按模块开发 + 审查专家把关 +
+前端生成器配页面）。</p>
+<p><strong>六、人机协作的最佳平衡点。</strong> 明确”人类主导，AI 辅助” —
+人类负责需求分析/架构设计/质量把控，AI
+负责代码实现/文档生成/基础验证。文章把工作内容分为三类：AI
+接管（重复编码 / 文档生成）、人机协作（架构设计 /
+复杂调试）、人类主导（业务决策 / 创新方案）。</p>
+<h2 id="我的看法">我的看法</h2>
+<p><strong>我认同：</strong>
+文章最大的价值不在具体功能罗列，而在揭示了三个 AI 编程失败的真实根因 —
+语义鸿沟、约束衰减、目标偏移。这三个诊断比任何技巧都更基础。我尤其认同”CLAUDE.md
+控制在 200
+字以内”这个反共识：大部分团队的失败不是约束不足，是约束过载反而失焦。</p>
+<p><strong>这篇文章给我最有价值的不是 X，而是 Y：</strong> 不是 Plan
+模式的十二模块示例（那种你抄不来），而是<strong>“必须遵守 vs
+建议参考”的分级约束</strong>。这是让 AI 在长对话里不跑偏的核心机制 —
+你必须告诉 AI 哪些是死命令、哪些只是参考，否则 AI
+会把所有约束当成”软建议”然后随机丢弃。</p>
+<p><strong>反直觉的工程判断：</strong></p>
+<ol type="1">
+<li><p><strong>对话流设计 &gt; 提示词工程。</strong>
+文章反复强调，对话设计是结构化的工程方法（用户故事 + 验收标准 + 分级约束
++ 分模块验证），不是写一个超级 prompt。这是”prompt
+是工程而非魔法”的典型表达。</p></li>
+<li><p><strong>子代理的协作模式比单 Agent 更接近真实团队。</strong>
+四角色分工 + 共享白板文档（不是共享内存）是关键 —
+这避免了主上下文过度膨胀，也避免了”一个 AI
+全干”导致的注意力漂移。</p></li>
+<li><p><strong>MCP 让 AI 有了”感官”。</strong> 飞书 MCP、日志平台
+MCP、数据库 MCP — 每接入一个就是给 AI 多装一个感官。这比让 AI 学 Prompt
+重要得多。</p></li>
+</ol>
+<p><strong>但我有 push back：</strong></p>
+<ol type="1">
+<li><p><strong>三阶段对话模型的样本偏差。</strong>
+文章示例（新商户成长任务、商家数据权限）都是<strong>需求明确、验收标准可枚举</strong>的场景。真实业务里大量需求是”老板一句话”或者”对标竞品做一下”，根本没有结构化输入。文章没讨论<strong>当需求本身就是混沌时该怎么办</strong>
+— 这是企业 AI 落地最常见的卡点。</p></li>
+<li><p><strong>四角色子代理的协作开销被低估。</strong>
+文章写”先整体规划，再迭代实现”像敏捷 Sprint + Daily
+Scrum，听起来很美。但实际每个子代理都要读技术方案文档、只改自己那块、再回传
+—
+<strong>这中间的协调成本、上下文序列化成本、被卡住时的等待成本</strong>，文章完全没量化。当模块数到
+M12 这种量级，子代理间的协议会成为新瓶颈。</p></li>
+<li><p><strong>“人类主导，AI 辅助”的理想化。</strong>
+文章结语说”最有价值的开发者是最会引导 AI
+的人”，听起来政治正确。但实际里<strong>引导 AI 比写代码更需要领域知识 +
+架构判断 +
+业务意图</strong>，对很多初级工程师来说门槛反而更高。文章没说怎么训练这种能力，也没说组织上怎么激励”愿意做引导者的人”。</p></li>
+</ol>
+<h3 id="怎么落到-agent-项目">怎么落到 Agent 项目</h3>
+<p>假设让我基于这篇做一个<strong>“AI
+辅助需求评审系统”</strong>，会拆成五个模块：</p>
+<ol type="1">
+<li><strong>需求解析器</strong>：接收非结构化需求（一句话 / 会议纪要 /
+飞书文档），用 LLM 反向生成”用户故事 +
+验收标准”草案，自动标注模糊点。</li>
+<li><strong>结构化约束存储</strong>：把”必须遵守/建议参考”的双层约束模型落到
+YAML Schema，AI 对话开始前加载到 system prompt。</li>
+<li><strong>多 Agent 评审 Pipeline</strong>：参考子代理模式，架构师
+Agent 检查扩展性、审查员 Agent 检查安全/规范、实现者 Agent
+估算工时（每个 Agent 独立上下文 + 共享评审文档）。</li>
+<li><strong>计划分解器（Plan Generator）</strong>：用 WBS 思想把需求拆成
+M1–Mn 模块，给出复杂度标签 + 依赖图 + 实现阶段（对应 Plan 模式）。</li>
+<li><strong>对话上下文生命周期管理</strong>：用 CLAUDE.md +
+自动记忆（MEMORY.md 200
+行）管理跨会话约束，定期压缩、归档已完成的子任务。</li>
+</ol>
+<p><strong>面试回答脚本（30 秒版）：</strong>”AI
+编程的最大瓶颈不是模型能力，而是对话设计 — 用结构化需求 + 分级约束 + 多
+Agent 协作，把 AI
+从’实习生’变成’按规范施工的执行者’。我在做的需求评审系统，正是把’三阶段对话模型’反向工程成可自动化的工作流。”</p>
+<p><strong>延伸阅读：</strong> 文章作者稚归还提到 Claude Code 的 SKILL
+机制在团队内部被用作”SDK 调用范式” — 比如团队内部 ES 查询 SDK 封装成
+SKILL 后，新人调用 ES 不再需要读 50 页文档，直接在 Claude Code 里 invoke
+SKILL 就能按最佳实践写代码。这是把”团队隐性知识”显性化的工程化路径。</p>
+<h2 id="一句话总结">一句话总结</h2>
+<p>AI 编程真正的工程化，靠的不是更强的 prompt，而是结构化的对话设计 +
+分级约束 + 多 Agent 共享白板 — 把 AI 当成需要 SOP
+的执行者，而不是无所不知的神。</p>
+<p><strong>写给未来的工程师：</strong> 这篇文章的隐藏结论是 — <strong>AI
+编程范式的成熟度，等于团队把”AI
+当成新员工”的成熟度</strong>。你需要写入职手册（CLAUDE.md）、需要拆解
+WBS 任务（Plan 模式）、需要设立跨角色协作（子代理）、需要沉淀
+SOP（SKILL）。所有这些，都是你带新员工入职要做的事。当你的团队不再区分”AI
+工程师”和”人类工程师”的入职流程时，AI 编程才算真正落地。</p>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>

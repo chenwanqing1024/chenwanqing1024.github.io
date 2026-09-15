@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="把得物推荐评测平台拆成 3
+个核心模块:Prompt 可视化+人机漏斗校验闭环、CAS 抢占+三阶段 offset
+的分布式调度、LLM
+并发控制+模型分级控本。关键数字:单周百万级审计需求下节省 91%
+成本、一致性水位稳定 92%。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>推荐评测平台拆解：人机协作 + CAS 调度 + Agent
+巡检的演进路线 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>推荐评测平台拆解：人机协作 + CAS 调度 + Agent
+巡检的演进路线</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">推荐系统</span> <span class="badge bg-secondary">评测平台</span> <span class="badge bg-secondary">LLM
+评测</span> <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">工程化</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://xie.infoq.cn/article/7c199bfc24c7505524280055b" target="_blank" rel="noopener">推荐系统体验的数字化突破：得物自动化评测平台的技术实践｜AICon
+文章整理</a> · 得物技术
+            </div>
+
+<h2 id="原文在说什么">原文在说什么</h2>
+<p>得物技术「水月」在 AICon 2026
+上海演讲整理的这篇文章，背景是<strong>推荐系统的新颖性、相关性等主观体验维度长期处于「测不出来」的黑盒</strong>。CTR/CVR
+等硬指标实时可观测，但发现性指标反馈周期长，传统靠人工审计成本巨高、单周百万级需求完全撑不住。得物用一年时间搭了一套「推荐评测平台」，把主观体验量化成可实时监控的数据水位差，核心数据：<strong>单周算力成本控制到万元级、相比传统人工模式节省
+91%、评测一致性水位 92% 以上、反馈周期从周级压到小时级</strong>。</p>
+<p>平台三大模块：</p>
+<p><strong>模块一：可视化 Prompt 工程 +
+人机协作校验基建（模型层）</strong> - <strong>Prompt
+版本管理</strong>：评测 prompt
+抽象为独立配置资产，按相关性、新颖性等维度独立调优，支持热更新（无需发版，秒级同步）。
+- <strong>评测员配置矩阵</strong>：解耦模型供应商，业务同学可以自由选
+Qwen3-Max
+等不同量级模型作为「评测员」，实时观测并发能力、准确率、与人工一致性水位。
+- <strong>人机协作在线校验流</strong>：调 Prompt 后一键抓历史真实 case
+做小规模盲测；双列视图让专家对比 AI 打分 vs
+人工打分；构建「产品专家定义标准 → AI 高频执行放大 →
+人工漏斗式校验」的闭环。</p>
+<p><strong>模块二：百万级吞吐的分布式调度（工程层）</strong> -
+<strong>CAS 无锁抢占</strong>：调度核心用 Compare-And-Swap
+抢占机制而不是传统分布式锁，每分钟扫一次待执行实例，用一条原子 SQL
+完成「抢锁」（依赖 MySQL 行级锁保证多节点竞争只有一个 rowcount=1）；30
+分钟心跳超时自动接管，无外部 Redis/ZooKeeper 依赖。 - <strong>三阶段
+offset
+断点续传</strong>：任务在任意阶段中断，重启后从断点精确续跑，不重复评测、不产生空洞。
+- <strong>LLM 并发控制</strong>：ThreadPoolExecutor +
+动态限流，并发度通过配置中心热更新；多模态评测用单次多模态请求替代多次图片请求（降
+Token 消耗）。</p>
+<p><strong>模块三：微观控本</strong> -
+<strong>按需触发</strong>：只对核心策略变更触发全量评测，日常用抽样。 -
+<strong>模型分级</strong>：高一致性要求场景用大模型、兜底场景用小模型。
+- <strong>并发复用</strong>：同一评测对象的多个维度共享一次 LLM
+调用的上下文。</p>
+<p>最终未来形态是<strong>全天候 Agent 自动巡检</strong>：从手动触发 →
+大盘调度 → 自主巡检，主动发现策略漂移和体验退化。</p>
+<hr />
+<h2 id="我的看法">我的看法</h2>
+<p>我认同：<strong>「主观指标不可量化」本身是个伪命题</strong>。新颖性、相关性这些维度之所以长期黑盒，不是因为不可量化，而是因为传统方式靠人工标注成本太高、反馈太慢。LLM
+当评测员这件事最大的价值不是「AI 比人聪明」，而是「AI
+比人工便宜几个数量级」——传统人工模式审计 100 万条 case
+需要一个团队干一个月，平台压到万元级算力成本 +
+小时级反馈，这才是真正能改变研发节奏的事。</p>
+<p>这篇文章给我最有价值的不是 91%
+节省这种结果数字，而是<strong>「产品专家定义标准、AI
+高频执行放大、人工漏斗式校验」的闭环设计</strong>。LLM
+评测最大的风险是「AI 自信地给错答案」，单独用 AI
+评估一致性会随时间漂移；但完全靠人工又回到成本问题。这套分工里 AI 负责
+95% 的常规打分，人工只复核 5% 拿不准的
+case（漏斗），平衡了一致性和成本。</p>
+<h3 id="三个反直觉的工程判断">三个反直觉的工程判断</h3>
+<ol type="1">
+<li><p><strong>「评测一致性 =
+用大模型」是错的</strong>。原文明确说「一致性稳定在 92%」，不是 99%
+也不是 100%。LLM 评测本身就是有噪声的工程任务，强行追求 100%
+一致性成本不可承受。<strong>正确做法是把评测一致性当作 SLO</strong>（如
+92%），低于阈值报警 + 触发人工复核，而不是追求绝对准确。</p></li>
+<li><p><strong>「分布式调度 = 用
+Redis/ZooKeeper」是错的</strong>。得物反过来用 MySQL 行级锁做 CAS
+抢占，每分钟一条原子 SQL 完成抢锁，30
+分钟心跳超时自动接管。这种「退一步用数据库做调度」的设计在中小规模（百万级任务）反而比引入
+Redis
+锁更稳：少一个外部依赖、少一种故障模式。<strong>选型不是越新越好，而是越稳越好</strong>。</p></li>
+<li><p><strong>「Prompt 改了发版就行」是错的</strong>。Prompt
+抽象为独立配置资产 + 热更新是平台核心能力。这意味着业务同学能独立调
+Prompt
+而不依赖发版，把「调评测标准」这件事的产品迭代周期从「按周」压到「按小时」。这其实是软件工程里<strong>配置外置</strong>原则的延伸：把高频变化的策略逻辑从代码里抽出来。</p></li>
+</ol>
+<h3 id="但我有-push-back">但我有 push back：</h3>
+<ol type="1">
+<li><p><strong>「91%
+成本节省」的对比基准没说清楚</strong>。是和「同等规模人工审计」比，还是和「上一代自研平台」比？如果是前者，节省
+91% 是理所当然（人工一个月 vs
+算力几小时）；如果是后者，技术含量才显现。文章没有披露自研前平台的成本结构，91%
+这个数字的含金量被稀释了。</p></li>
+<li><p><strong>「Qwen3-Max
+等不同量级模型」的选型逻辑缺失</strong>。什么场景用
+Qwen3-Max、什么场景用小模型？评测一致性 vs 推理成本的最优 trade-off
+怎么算？文章给了模型分级但没给阈值——是「一致性必须 &gt;90%
+才用大模型」还是「涉及安全/资损的 case
+才用大模型」？这是工程落地最关键的问题。</p></li>
+<li><p><strong>「Agent 自主巡检」的演进路线被讲成 PPT
+没讲技术</strong>。从「手动触发 → 大盘调度 → 自主巡检」听上去合理，但
+Agent 怎么「主动发现问题」？是基于规则（指标阈值）还是基于 LLM
+推理（推断「这个策略可能有问题」）？Agent 的 action space
+是什么（触发回滚？告警？自动调参？）？这些不展开就是空话。</p></li>
+</ol>
+<h3 id="怎么落到-agent-项目">怎么落到 Agent 项目</h3>
+<p>如果让我基于这篇做一个「内容平台自动化评测 Agent」，5 个模块：</p>
+<ol type="1">
+<li><p><strong>评测标准层</strong>：把内容质量拆成相关性 / 新颖性 /
+时效性 / 表达清晰度 4 个独立维度，每个维度一个 Prompt 模板 + 一个 ground
+truth 小样本集（50 条），Prompt 走配置中心热更新。</p></li>
+<li><p><strong>评测员路由层</strong>：按维度路由到不同模型——相关性/新颖性用大模型（Qwen3-Max
+之类）、时效性用规则匹配（提取日期 +
+与当前时间比较）、表达清晰度用中等模型（Qwen2.5-7B）。每次评测调用记录「输入
+/ 输出 / 模型 / Token / 耗时」四元组。</p></li>
+<li><p><strong>一致性监控层</strong>：每周抽样 500 条让 3
+个评测员同时打分 + 人工 50 条标准答案，计算 Fleiss
+Kappa（三方一致性系数）。Kappa &lt; 0.8
+报警，触发人工复核流程。</p></li>
+<li><p><strong>分布式调度层</strong>：用 MySQL 行级锁做 CAS 抢占，10
+分钟一次心跳，断点续传分「召回 / 评测 / 汇总」三阶段
+offset。配置中心控制并发度（高峰期 50、低峰期 10）。</p></li>
+<li><p><strong>Agent 巡检层</strong>：每天凌晨跑一次全量复测 +
+指标趋势分析（7 天滑动均值 ± 2σ），发现异常 case 自动归类（Topic X 下降
+vs 全局下降）发飞书告警，附 10 条最差 case 让运营人工处置。</p></li>
+</ol>
+<p><strong>面试答题脚本</strong>：「评测平台我做过最骄傲的不是节省了成本，而是把评测反馈周期从一周压到了一小时。核心是把
+LLM 评测当成 SLO 而不是 KPI——一致性稳定在 92% 就接受漂移，但用 Kappa
+系数监控漂移，低于阈值自动触发人工复核。这个思路后来被我们用在内容审核、推荐相关性、广告质量评估三个系统上，都是同一套基建。」</p>
+<hr />
+<h2 id="一句话总结">一句话总结</h2>
+<p>推荐评测平台的核心是「用 AI
+替代人工审计、用工程化调度控住成本、用一致性 SLO 平衡漂移」——91%
+成本节省不是靠 AI 模型强，而是靠「产品定义标准、AI
+高频执行、人工漏斗复核」的三段式分工。</p>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>

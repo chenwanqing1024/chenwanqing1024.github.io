@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="这篇不讲”AI 排查告警”，讲怎么用
+ReAct Agent 把”打开三个平台拼凑数据”这种 20 分钟的体力活压到 4
+分钟。核心是 SupervisorAgent + 四个 <span class="citation"
+data-cites="Tool">@Tool</span>（queryLogs / queryMetrics / queryTrace /
+queryEndpointErrors）+ 工具超时隔离 + 幻觉控制四道闸。结论验收 Agent +
+多轮交叉验证才是让 AI 排查能上生产的工程关键。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>告警排查 Agent 不是替代运维：把 20 分钟的拼凑工作压到 4
+分钟 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>告警排查 Agent 不是替代运维：把 20 分钟的拼凑工作压到 4
+分钟</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">LLM
+Agent</span> <span class="badge bg-secondary">告警排查</span> <span class="badge bg-secondary">ReAct</span> <span class="badge bg-secondary">工程落地</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://xie.infoq.cn/article/d45338880b32d1a60b8c83512" target="_blank" rel="noopener">用
+LLM Agent 重构告警排查流程｜得物技术</a> · 得物技术
+            </div>
+
+<h2 id="原文在说什么">原文在说什么</h2>
+<p>得物这篇讲的是告警排查的工程现实——告警来了，第一反应是打开日志平台搜关键词、切
+APM 看监控曲线、去链路追踪系统找 trace
+详情，三个平台来回切换，最后发现只是上游 GC
+抖动导致的瞬间超时。这类告警排查通常需要 10-30
+分钟，主要耗时不在分析本身，而在频繁登录不同平台、拼凑分散数据。</p>
+<p>Troubleshooter 是得物做的 LLM 排查 Agent，中位数排查耗时从 20
+分钟降到 4.4 分钟，覆盖 11 个服务和 10+ 种告警类型。</p>
+<p>架构核心是<strong>告警接入与排查执行解耦</strong>——接入层只负责接收和持久化，排查由独立调度器异步触发。Agent
+框架选 Spring AI Alibaba 而不是自建 ReAct
+循环，主要是省事——框架已内置推理循环、工具拦截器、模型拦截器。</p>
+<p>SupervisorAgent 的核心设计不是”调大模型”，而是<strong>四个 <span
+class="citation" data-cites="Tool">@Tool</span> 方法</strong>：</p>
+<pre><code>@Tool queryLogs       — 按优先级查询日志（traceId &gt; exceptionName &gt; endpoint &gt; keywords）
+@Tool queryMetrics     — 查 10 维度（QPS/RT/错误率/CPU/内存/GC/百分位RT/Top10）
+@Tool queryTrace       — 查分布式调用链 Span 树
+@Tool queryEndpointErrors — 无 traceId 时按接口路径查错误日志，正则提取 traceId</code></pre>
+<p>执行逻辑：动态构建 instruction（策略匹配 + 兜底策略）→ 构建
+ReactAgent → <strong>最多 2 次 LLM 内容重试 + 1 次验收</strong>。</p>
+<p>四个工具的工程细节非常具体：</p>
+<ul>
+<li><code>queryLogs</code> 按 traceId &gt; exceptionName &gt; endpoint
+&gt; keywords 优先级分批查询，<strong>LogDeduplicator
+防同一请求的多条日志重复占据分析窗口</strong></li>
+<li><code>queryMetrics</code> 支持 10 个维度，LLM
+根据告警类型自主决定查哪些维度——OOM 查 GC+内存+CPU 全维度，接口 RT
+突增查 QPS+RT+百分位</li>
+<li><code>queryTrace</code> 把 Span 树渲染为格式化文本给 LLM</li>
+<li><code>queryEndpointErrors</code> 有防护逻辑：endpoint 为根路径 “/”
+时<strong>直接拒绝执行</strong>（匹配所有请求的查询不具备排查意义）</li>
+</ul>
+<p><strong>动态策略组装</strong>：按
+<code>(service_name, alert_type)</code>
+从数据库精确匹配排查策略，未匹配时用内置兜底策略。运维人员可<strong>通过前端页在线编辑策略内容，无需改代码</strong>——这把策略的所有权和迭代权交到运维手里。</p>
+<p><strong>工具超时隔离</strong>用 <code>ToolExecutor</code>
+包装，Future.get(timeout) +
+独立线程池。超时时返回降级消息（“指标查询超时，继续使用已有信息”），<strong>LLM
+基于已有证据继续推进，不因单工具超时导致整个排查中断</strong>。</p>
+<p>幻觉控制是这篇文章的工程灵魂，分四道闸：</p>
+<ol type="1">
+<li><strong>规则格式校验</strong>（零 LLM 调用）：毫秒级检查 5
+个必要章节和指标表格格式</li>
+<li><strong>独立验收
+Agent</strong>：检查结论明确性、核心判定合理性、根因证据链、建议可执行性</li>
+<li><strong>多轮交叉验证</strong>：queryLogs 与 queryTrace
+交叉、queryLogs 与 queryMetrics 交叉、时间线一致性校验</li>
+<li><strong>重试机制</strong>：格式问题不消耗重试配额；内容问题最多 2
+次；验收 Agent 异常时宽容通过</li>
+</ol>
+<p>排查可观测性：每次排查在文件系统创建独立目录（按事件
+ID），LoggerInterceptor + ToolInterceptor 记录所有 LLM
+输入输出和工具调用返回——<strong>让运维能看到 AI
+每一步在做什么</strong>。</p>
+<h2 id="我的看法">我的看法</h2>
+<p>我认同作者把”四个 <span class="citation"
+data-cites="Tool">@Tool</span> + SupervisorAgent + 验收
+Agent”作为告警排查 Agent
+架构起点的判断。但这篇文章给我最有价值的不是架构本身，而是几个反直觉的工程判断：</p>
+<p>第一，<strong>LLM 排查不等于构造 prompt
+丢给大模型</strong>。很多人误以为”AI 排查”= prompt engineering，实际是
+LLM <strong>无法凭空知道你的服务当前
+QPS、错误日志、调用链</strong>。没有工具的 LLM 排查就是闭眼开车。这跟
+#17 的”通用 Agent + 业务 Skill”是同一个范式——业务能力封装在工具里，LLM
+只负责推理。</p>
+<p>第二，<strong>工具超时隔离是单点故障的对冲</strong>。日志平台、APM
+不一定稳定，一个工具超时整个流程就崩，是最差的设计。文章用
+<code>Future.get(timeout)</code> + 降级消息，让 LLM
+在已有证据上推进，这是分布式系统设计里<strong>部分失败 (partial failure)
+处理</strong>的经典套路——LLM 排查流程跟微服务调用链是一回事。</p>
+<p>第三，<strong>幻觉控制要分层</strong>。纯靠 prompt
+防幻觉是死路。文章给的四道闸——格式校验、验收
+Agent、交叉验证、重试机制——其实是软件测试的”单元测试 + 集成测试 +
+系统测试 + 重试”映射到 LLM 场景。<strong>LLM
+输出不稳定是落地最大风险，必须用软件工程方法对冲</strong>。</p>
+<p>但我有 push back：</p>
+<p>第一，<strong>“中位数 20 分钟降到 4.4 分钟”</strong>
+这个数字要谨慎看——告警排查的中位数受告警类型分布影响很大。如果你的告警大多是
+GC 抖动、网络抖动这种”自愈型”告警，AI
+排查的提速最明显；如果是复杂的内存泄漏、依赖冲突，AI
+提速有限。文章没拆告警类型分布。</p>
+<p>第二，<strong>多轮交叉验证的边界没说</strong>。交叉验证是查询耗时翻倍——<code>queryLogs</code>
+和 <code>queryTrace</code>
+交叉要查两次。文章没说交叉验证的触发条件，是无条件交叉还是有可疑结论才交叉？前者成本高，后者容易漏。</p>
+<p>第三，<strong>策略数据库在线编辑</strong>是好设计但没版本控制。运维改了策略后想回滚怎么办？没有
+git 化的策略管理，编辑次数多了就成了”屎山”——比代码屎山更难治理。</p>
+<h3 id="怎么落到-agent-项目">怎么落到 Agent 项目</h3>
+<p>核心模块五件套：<strong>Supervisor Agent + Tool 注册中心 + 验收 Agent
++ 策略数据库 + 可观测文件系统</strong>。</p>
+<ol type="1">
+<li><strong>Supervisor Agent</strong>：Spring AI Alibaba / LangGraph /
+LlamaIndex 都行，关键是<strong>工具调用 + 验收循环 +
+重试机制</strong>。</li>
+<li><strong>Tool 注册中心</strong>：每个工具一个 <span class="citation"
+data-cites="Tool">@Tool</span>
+方法，统一封装超时、降级、日志。<strong>关键反模式：让 LLM
+直接看到所有平台原生 API</strong>——应该包一层领域语义。</li>
+<li><strong>验收 Agent</strong>：独立 LLM 评估结论的合理性，比主 LLM
+更便宜、更快、约束更强。</li>
+<li><strong>策略数据库</strong>：<code>(service_name, alert_type)</code>
+→ 排查策略，<strong>支持在线编辑 + git 版本化</strong>。</li>
+<li><strong>可观测文件系统</strong>：每次排查一个独立目录，记录 LLM
+输入/输出和工具调用——让运维能”复盘 AI 决策”。</li>
+</ol>
+<p><strong>面试时被问”LLM 怎么落地到运维场景”</strong>——直接答”四个 Tool
++ 验收 Agent + 工具超时 +
+交叉验证”。<strong>真正的工程能力不在架构本身</strong>，而在于：工具超时降级、验收
+Agent 设计、幻觉控制分层、策略可治理——把这四件事做出来，LLM
+才从”会说话的 demo”变成”能用的工具”。</p>
+<h2 id="一句话总结">一句话总结</h2>
+<p>告警排查 Agent 的核心不是 LLM
+多强，而是工具的领域封装、超时降级、验收 Agent、交叉验证——LLM
+推理只是中间环节，真正决定能不能上生产的是这套工程护栏。</p>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>

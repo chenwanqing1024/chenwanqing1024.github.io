@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="这篇不讲”AI 客服”，讲智能客服
+Agent 怎么从 Single-Agent → Multi-Agent → Harness 架构演进，以及 PE
+自动化 + DPO 训练数据飞轮。核心是 Harness 把跨场景复用做出来，PE
+自动化流水线让 Prompt 持续优化，DPO 训练让模型学会”正确决策”。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>智能客服 Agent：从 Single-Agent 到 Harness 架构 +
+数据飞轮 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>智能客服 Agent：从 Single-Agent 到 Harness 架构 +
+数据飞轮</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">智能客服</span> <span class="badge bg-secondary">Multi-Agent</span> <span class="badge bg-secondary">Harness</span> <span class="badge bg-secondary">DPO</span> <span class="badge bg-secondary">工程落地</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://xie.infoq.cn/article/a93ce781167688a3b61d5364e" target="_blank" rel="noopener">从”机械应答”到”服务伙伴”：得物高可控智能客服的
+Agent 工程实践｜AICon 演讲整理</a> · 得物技术
+            </div>
+
+<h2 id="原文在说什么">原文在说什么</h2>
+<p>得物这篇讲智能客服 Agent 的架构演进。传统结构（意图分类 + NER +
+对话管理 + FAQ 召回 + 重排的流水线）有四个上限：① 无法处理多步骤任务 ②
+SOP 人工维护成本高 ③ 多模型运维成本高 ④ 会话拟人度不够。</p>
+<p>Agent 智能客服的挑战：场景复杂长尾 case 的 PE 优化成本高、长 Context
+多轮能力不足、对齐人工拟人化不足、多轮半双工下消息控制困难。</p>
+<p><strong>架构演进三阶段</strong>：</p>
+<p><strong>第一阶段：Single-Agent（单 Prompt）</strong>——基于
+Qwen，问题明显：单一 Prompt 难以覆盖多场景。</p>
+<p><strong>第二阶段：Multi-Agent（渐进式披露）</strong>——采用 AutoGen 的
+Multi-Agent 架构，通过 <code>SelectorGroupChat</code>
+模式实现动态调度，<strong>解决率提升明显</strong>。</p>
+<p><strong>跨场景 Harness
+架构</strong>——为解决跨场景复用问题，进一步演进至 Harness
+架构，核心能力包括场景配置、Skill 复用、统一调度。</p>
+<p><strong>数据飞轮 = PE 自动化 + 模型训练</strong>。</p>
+<p><strong>PE 自动化流水线</strong>：人工 Prompt Engineering
+痛点是时间成本高、多 case 引发 Prompt 冲突与歧义、Token
+成本和指令遵循能力有限。流水线流程：① 对比数据抽取（LLM 抽取转人工 case
+中 Agent 回复 Bad 和人工回复 Good） ② PE 修改建议（LLM 分析 Prompt
+修改建议） ③ 人工 Review 标注可行性 ④ 离线跑测 ⑤ 上线实验积累数据。</p>
+<p><strong>DPO 模型训练飞轮</strong>——通过 LLM-as-a-Judge
+搜集回流数据并重新训练，让模型学会”正确决策”。</p>
+<h2 id="我的看法">我的看法</h2>
+<p>我认同作者把”Single → Multi → Harness”作为客服 Agent
+架构演进路径的判断。这篇文章给我最有价值的不是架构本身，而是几个工程判断：</p>
+<p>第一，<strong>架构演进反映业务复杂度</strong>。从 Single-Agent 到
+Multi-Agent 是因为单 Prompt 装不下多场景；从 Multi-Agent 到 Harness
+是因为多智能体之间的复用不够。<strong>架构不是设计出来的，是被业务逼出来的</strong>——这是很健康的演进。</p>
+<p>第二，<strong>PE 自动化流水线比 Prompt Engineering
+本身更重要</strong>。人工调 prompt
+是时间黑洞且容易冲突，<strong>流水线化</strong>让”调 prompt”变成”LLM
+提建议 + 人工 Review + 离线跑测 +
+上线实验”的工程化流程。这跟传统软件开发的”代码 review + CI/CD +
+灰度发布”是同一个范式。</p>
+<p>第三，<strong>DPO 训练数据飞轮是让客服 Agent
+学会业务的根本路径</strong>。LLM-as-a-Judge + 人类反馈 +
+持续训练，让模型从”会说话”变成”会做客服”——这不是 prompt
+能解决的，必须训练。</p>
+<p>但我有 push back：</p>
+<p>第一，<strong>Harness 架构的具体设计没说</strong>。Harness 跟 #22 的
+Instinct 系统、#4 的 EP-Harness、#18 的多仓管理 Harness
+是不是一回事？得物内部有没有统一的 Harness
+抽象？还是每个场景单独设计？这关系到架构的可复用性。</p>
+<p>第二，<strong>LLM-as-a-Judge 的偏差问题</strong>。用 LLM
+当裁判评估另一个 LLM
+的回复——这种”自己评自己”的方法有循环偏差。文章没说怎么避免。</p>
+<p>第三，<strong>DPO 训练的成本与效果没说</strong>。客服场景的 DPO
+训练数据规模、训练频率、效果指标——这些是工业落地最关心的数字。</p>
+<h3 id="怎么落到-agent-项目">怎么落到 Agent 项目</h3>
+<p>核心模块五件套：<strong>Harness 平台、PE 自动化流水线、LLM-as-a-Judge
+评估器、DPO 训练飞轮、A/B 实验框架</strong>。</p>
+<ol type="1">
+<li><strong>Harness 平台</strong>：跨场景复用——统一调度 + 场景配置 +
+Skill 复用</li>
+<li><strong>PE 自动化流水线</strong>：LLM 提建议 + 人工 Review +
+离线跑测 + 灰度发布</li>
+<li><strong>LLM-as-a-Judge 评估器</strong>：评估 Agent
+回复质量，作为训练数据源</li>
+<li><strong>DPO 训练飞轮</strong>：用人工 + 评估反馈持续训练模型</li>
+<li><strong>A/B 实验框架</strong>：新旧
+Prompt/模型对比，决定上线与否</li>
+</ol>
+<p><strong>面试时被问”AI 怎么落地到客服场景”</strong>——直接答”Single →
+Multi → Harness 架构演进 + PE 自动化 + DPO
+数据飞轮”。<strong>真正的工程能力不在架构本身</strong>，而在：PE
+流水线化、LLM-as-a-Judge 偏差控制、DPO 训练闭环——把这三件事做出来，客服
+Agent 才从”机械应答”变成”服务伙伴”。</p>
+<h2 id="一句话总结">一句话总结</h2>
+<p>智能客服 Agent 的演进路径是 Single → Multi → Harness，配套的是 PE
+自动化流水线 + DPO
+数据飞轮；架构不是设计出来的，是被业务复杂度逼出来的，工程能力的核心是让流水线自动化运转。</p>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>

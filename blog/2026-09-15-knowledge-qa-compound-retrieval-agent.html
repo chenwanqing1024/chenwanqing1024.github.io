@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="这篇不讲”AI 知识问答”，讲怎么在
+AgentScope 2.0 HarnessAgent 上做”四源融合检索”——Agent
+自主决策（搜索→评估→决策循环）替代预设 RAG 流程，三阶段质量
+Pipeline（FastPass → Reranker → LLM Grading）在 Middleware
+里做精筛，多实例 SSE 断点续传解决生产可靠性。核心是把 Agent
+决策权、Middleware 关注点分离、SSE 三路径恢复做出来。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>知识问答复合检索 Agent：Agent 自主决策 + 三阶段质量 Pipeline
++ 多实例 SSE 断点续传 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>知识问答复合检索 Agent：Agent 自主决策 + 三阶段质量
+Pipeline + 多实例 SSE 断点续传</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">RAG</span> <span class="badge bg-secondary">Multi-Agent</span> <span class="badge bg-secondary">HarnessAgent</span> <span class="badge bg-secondary">Middleware</span> <span class="badge bg-secondary">工程落地</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://xie.infoq.cn/article/57d3176e5eaaf8fcd8ba44cf5" target="_blank" rel="noopener">AgentScope
+2.0 Harness Agent 架构：四源融合检索 + 三阶段质量 Pipeline
+实践</a> · 得物技术
+            </div>
+
+<h2 id="原文在说什么">原文在说什么</h2>
+<p>得物这篇讲的是企业知识问答 Agent
+的工程现实——一个回答要准确，需要查得全（召回率）、查得准（精准度）、理解得对（多模态）、看得对（权限隔离）。这些能力不是堆功能能做出来的，需要一个强大的
+Agent 运行时做底座。</p>
+<p>作者选了 <strong>AgentScope 2.0 的
+HarnessAgent</strong>——面向生产环境的 Agent 实现，内置 ReAct
+循环、Middleware、长期记忆、子 Agent
+编排、沙箱隔离。文章重点用了三个能力：HarnessAgent 架构、Middleware
+机制、并行工具调用。</p>
+<p><strong>Agent 自主决策的复合检索架构</strong>——传统 RAG
+是单向流程（用户提问 → 向量检索 → 拼接上下文 → 生成回答），Agent
+是被动的——检索到什么就用什么，不会判断信息是否充分。</p>
+<p>本文的流程完全不同，核心是 <strong>Agent
+的决策权</strong>：每轮都是”搜索 → 评估 → 决策”闭环，Agent
+自己决定用哪些工具、搜几次、是否需要精读、什么时候停止。用户不需要告诉
+Agent”你去查飞书文档”，Agent 自己知道什么时候该查。</p>
+<p><strong>多源并行检索</strong>——四条数据源：企业知识库 + 飞书文档 +
+飞书消息 +
+飞书妙记。一次推理中决定调用多个工具时，框架自动并行执行（Toolkit.parallel(true)
++ Java 21 Virtual Thread）。</p>
+<p><strong>权限隔离两层</strong>——知识库按业务领域/部门划分，飞书生态通过
+UserCallContext 注入用户 openId。同一问题不同用户看到不同结果。</p>
+<p><strong>自主决策的三种挖掘策略</strong>——拿到第一轮检索结果后，Agent
+基于结构化提示词中的策略进行多维度评估： -
+<strong>直接整合</strong>：信息足够，直接进入整合阶段 -
+<strong>深挖</strong>（同源）：用同一个工具换关键词或精读 -
+<strong>切换源</strong>：当前源不给力，切到其他源</p>
+<p><strong>决策依据：结构化提示词 + Middleware 兜底</strong>——AGENTS.md
+不是指令列表，是完整的决策流程图。结构化提示词负责”做什么”（策略框架），Middleware
+负责”做得好”（质量保障），ReAct
+循环负责”怎么做”（执行流程）。三者各司其职。</p>
+<p><strong>信息整合能力三个层面</strong>： 1.
+多角度并行搜索，最大化召回（旧版废弃 vs 新版最新） 2.
+从搜索到精读，深挖关键文档（向量检索只返回片段，全文藏在其他段落） 3.
+多源交叉验证，有判断力的信息整合（官方文档 &gt;
+会议纪要，冲突时标注让用户判断）</p>
+<p><strong>三阶段质量
+Pipeline</strong>——核心思路是”召回靠查询扩展，精准靠三阶段 Pipeline”： -
+<strong>Stage 0: FastPass</strong>——结果数 ≤ 2 且原始 score ≥ 0.7 →
+直接透传，零延迟 - <strong>Stage 1: Reranker
+粗筛</strong>——交叉编码器重新打分，过滤”词像但意思不对”的结果（gte-rerank-v2，阈值
+0.3，Top-8） - <strong>Stage 2: LLM Grading
+精评</strong>——大模型逐条打分（0.1~1.0
+四级），过滤”主题对但不够直接”的结果（阈值 0.5）</p>
+<p>通过 AgentScope Middleware 在 <code>onActing</code> 钩子拦截
+<code>knowledge_search</code> 工具结果，过滤对 Agent 完全透明。</p>
+<p><strong>查询扩展：自然语言句子而非关键词</strong>——Embedding
+模型在自然语言文本上训练，“一句话”的语义编码远比”一串词”精准。用户问”怎么申请加薪”，关键词”加薪
+申请 流程
+条件”缺乏语法结构，自然语言变体”得物内部员工申请薪资调整的流程是什么”有完整主谓宾。</p>
+<p><strong>多模态：图片全生命周期管理</strong>——用户上传图片后系统检测上下文，自动切换视觉模型。校验不仅查本轮，还查历史对话——大模型无状态，历史图片每轮都要重发。</p>
+<p><strong>生产级可靠性：多实例 SSE 断点续传三种路径</strong>： 1.
+<strong>同实例恢复</strong>（最常见，页面刷新/切后台/网络闪断）：本地内存仍有
+Agent 状态，直接发快照恢复 2.
+<strong>跨实例转发</strong>（负载均衡分到另一实例）：通过 Redis
+路由表查到原实例，内部 HTTP 转发 3.
+<strong>快照重建兜底</strong>（原实例宕机）：从 Redis 重建完整会话</p>
+<p><strong>关键设计决策</strong>： - <strong>快照一帧恢复 vs
+逐条重放</strong>：早期”按顺序重发所有事件”，多轮 Agent
+对话可能几百事件，前端会合并跳变。快照方案折叠成”当前状态”，像游戏存档一帧恢复
+- <strong>路由表 + 内部转发 vs Redis Pub/Sub</strong>：Pub/Sub
+致命问题——订阅生效有延迟，新订阅者连上时已错过前面消息。方案核心：Redis
+只存路由信息，不参与事件推送</p>
+<p><strong>核心创新点（与”标准 RAG 套壳”的六项差异）</strong>： -
+复合检索不是”多搜几个地方”——Agent 自主选源组合，搜索和精读交替推进 -
+质量 Pipeline 不只是 Reranker——三级：FastPass / Reranker / LLM Grading -
+SSE 断点续传不靠 Pub/Sub——路由表 + 内部转发</p>
+<h2 id="我的看法">我的看法</h2>
+<p>我认同作者把”HarnessAgent + Middleware + 三阶段 Pipeline”作为知识问答
+Agent
+工程起点的判断。这篇文章给我最有价值的不是某个具体技术，而是几个反直觉的工程判断：</p>
+<p>第一，<strong>Agent 决策权比”AI 检索结果”更值得设计</strong>。传统
+RAG 思路是”我（工程师）设计检索流程，AI
+被动执行”，所以质量上限被工程师能力封死。本文做法是反过来的——工程师只画”决策框架”（AGENTS.md），让
+Agent 自己决定用什么工具、搜几次、什么时候停。<strong>Agent 决策权是 AI
+应用的灵魂，没有决策权的产品只是流程自动化，不是 Agent</strong>。</p>
+<p>第二，<strong>Middleware
+机制是把”质量控制”和”业务逻辑”解耦的关键</strong>。三阶段 Pipeline
+不是写死在 Agent 代码里，而是通过 Middleware 在 <code>onActing</code>
+钩子拦截工具结果——调阈值、切 Reranker 模型、开关 LLM Grading
+都改配置不改代码。<strong>这是软件工程”横切关注点”范式应用到 LLM
+场景，跟 AOP、Filter、Interceptor 是同一个套路</strong>。</p>
+<p>第三，<strong>快照一帧恢复比逐条重放更工程化</strong>。“把所有历史事件按顺序重新发送”听起来自然，但前端会合并跳变。快照方案把所有事件折叠成”当前状态”一帧恢复——像游戏存档。这个判断在分布式系统里就是”状态机恢复
+vs
+日志重放”的经典选择：<strong>状态机恢复更快但需要快照，日志重放更慢但更通用</strong>。</p>
+<p>但我有 push back：</p>
+<p>第一，<strong>LLM Grading 的成本没说</strong>。Stage 2
+用大模型逐条打分——一条结果一次 LLM 调用，10 条结果就是 10 次。Stage 2 的
+Token 成本和延迟是 Stage 1（Reranker）的几十倍。文章没说 Stage 2
+的实际命中率和成本权衡——是必须的还是可选的？</p>
+<p>第二，<strong>三阶段 Pipeline 的 Stage 0 阈值（size ≤ 2 且 score ≥
+0.7）是经验值，不是工程化结论</strong>。这个数字怎么来的？是大量实验调出来的还是拍脑袋的？阈值漂移怎么办？文章没说监控和回滚机制。</p>
+<p>第三，<strong>多源并行检索的”并行”是有上限的</strong>。Toolkit.parallel(true)
++ Virtual Thread 是技术实现，但同时调用 4 个工具意味着 4
+倍的并发成本（飞书 API
+限流、知识库查询压力）。文章没说并发上限和降级策略。</p>
+<h3 id="怎么落到-agent-项目">怎么落到 Agent 项目</h3>
+<p>核心模块五件套：<strong>HarnessAgent 基座、结构化
+AGENTS.md、Middleware 质量 Pipeline、并行工具调度、SSE
+三路径恢复</strong>。</p>
+<ol type="1">
+<li><strong>HarnessAgent 基座</strong>：选一个成熟 Agent
+框架（AgentScope 2.0 / LangGraph / Spring AI
+Alibaba），<strong>不要重新发明轮子</strong>。重点考察：ReAct
+循环、Middleware、长期记忆、并行工具调用。</li>
+<li><strong>结构化 AGENTS.md</strong>：决策框架，不是指令列表——告诉
+Agent 做什么和为什么，不告诉怎么做。</li>
+<li><strong>Middleware 质量
+Pipeline</strong>：横切关注点统一处理（质量过滤、限流、监控、审计），业务逻辑和工程化逻辑解耦。</li>
+<li><strong>并行工具调度</strong>：I/O
+密集型工具（HTTP/API）自动并行，CPU
+密集型串行；并发上限和降级策略必备。</li>
+<li><strong>SSE 三路径恢复</strong>：同实例本地状态 → 跨实例路由转发 →
+快照重建兜底。Redis 只存路由不存事件。</li>
+</ol>
+<p><strong>面试时被问”RAG
+怎么从套壳变成工程化产品”</strong>——直接答”Agent 自主决策 + Middleware
+质量控制 + SSE 多实例恢复”。<strong>真正的工程能力不在 RAG
+本身</strong>，而在于：决策权怎么给 Agent、Middleware
+怎么设计质量策略、生产可靠性怎么兜底——把这三件事做出来，知识问答 Agent
+才从”AI 套壳”变成”可治理生产系统”。</p>
+<h2 id="一句话总结">一句话总结</h2>
+<p>知识问答 Agent 的关键不是 RAG 本身，而是把 Agent 决策权、Middleware
+质量控制、SSE 多实例恢复这三件事做出来——Agent
+自主决策替代预设流程，Middleware
+横切关注点分离质量策略，多实例三路径恢复兜底生产可靠性。</p>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>

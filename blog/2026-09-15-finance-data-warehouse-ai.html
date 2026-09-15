@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="得物技术把财务数仓场景的 AI
+落地拆成 4 个环节（建模、SQL Coding、数据测试、需求文档转化），借助
+Claude + Cursor + 飞书 MCP 提效。认同他们’规范即
+Prompt、迭代是常态、海量文件阅读’的三方法论，但 push back 三处：’L3
+时刻’比喻不严谨、规范文档的演进机制没说清、AI 测试 SQL
+的’问题发现能力提升’缺少对照实验。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>财务数仓 AI 全链路增强，但真正难的是 L3
+级人机协作的边界划法 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>财务数仓 AI 全链路增强，但真正难的是 L3
+级人机协作的边界划法</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">数据仓库</span> <span class="badge bg-secondary">AI
+Coding</span> <span class="badge bg-secondary">财务数仓</span> <span class="badge bg-secondary">LLM
+应用</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://xie.infoq.cn/article/35ad5a89945a96e731421b6da" target="_blank" rel="noopener">财务数仓
+Claude AI Coding 应用实战｜得物技术</a> · 得物技术
+            </div>
+
+<h2 id="原文在说什么">原文在说什么</h2>
+<p>得物技术 (作者：丹克) 写了一篇关于财务数仓场景下 Claude AI Coding
+的实战长文。立论起点很清晰：<strong>财务域是电商数仓里复杂度最高、容错率最低的领域</strong>——字段间有严格数学公式（正向
+- 冲销 = 冲销之后）、业务规则涉及跨周期分摊、指标多口径（业务口径 /
+资金口径 / 财管报口径）。</p>
+<p><strong>核心方法论三条：</strong></p>
+<ol type="1">
+<li><strong>规范即 Prompt</strong>：把沉淀的规范文档（命名规则
+DWD/DIM/DWS/ADM、时间周期 1d/7d/30d/wtd/mtd/ytd、刷新周期、字段命名原则
+{主体}{业务场景}{币种}{度量}{时间单位}）作为 AI 输入的核心，规范质量 =
+AI 输出质量。</li>
+<li><strong>迭代是常态</strong>：不期待一次出完美结果，每次迭代重点验证复杂字段（条件取值、分摊、冲销、多口径），迭代产物不只是修正输出，更重要的是<strong>完善规范文档</strong>。</li>
+<li><strong>海量文件阅读</strong>：利用超大 Context
+把历史文档、设计链路表、代码一次性灌入模型，模型输出思路供数仓工程师整理，特别是画业务架构图。</li>
+</ol>
+<p><strong>四个落地场景：</strong></p>
+<ul>
+<li><strong>AI OneData
+标准化建模</strong>：财务核算项目涉及百张以上表、十余个业务过程、数百个指标。AI
+按 ODS→DWD/DIM→DWS→ADM 分层输出建模建议，反复迭代。</li>
+<li><strong>AI SQL Coding（财务 UE 表迭代）</strong>：AI 把 PRD
+提炼为结构化要点，自动生成待确认问题清单；输出符合规范的 DDL 和
+SELECT；处理窗口函数、多层嵌套、存量长 SQL 重构。</li>
+<li><strong>AI 数据测试（财务 UE
+表邮费迭代）</strong>：测试用例覆盖度提升、复杂逻辑逐步分析找
+Bug、上下游影响分析、公式验证与精度问题诊断。</li>
+<li><strong>AI 需求文档转化</strong>：通过飞书 MCP 让 Cursor 直接读取 BI
+文档，自动总结两张表（DWS/ADS）各自要改什么，节省碎片化沟通时间。</li>
+</ul>
+<p><strong>人机协作分级</strong>：借用自动驾驶分级，把数仓大模型应用分
+L1-L5，当前处于 <strong>L2 向 L3 过渡</strong>阶段——在明确 Prompt
+约束和规范文档支撑下，AI
+能接管绝大部分标准化的执行动作，但业务判断仍由人做。分工逻辑是：<strong>规范执行是
+AI 长板、业务判断是 AI 短板</strong>。</p>
+<h2 id="我的看法">我的看法</h2>
+<p><strong>我认同的核心点：规范即
+Prompt，把规范文档当一等公民对待。</strong> 这跟上一篇 Galaxy MCP
+文章里”规范化 I/O”是一脉相承的判断。AI 输出质量 = 规范质量 ×
+模型能力，规范跟不上，模型再强也是 garbage in garbage
+out。<strong>真正值钱的不是”哪个 prompt
+写得好”，而是”团队有没有一套活文档化的规范”</strong>。这跟软件工程里”代码即文档”是反的——AI
+Coding 时代是”规范即代码”。</p>
+<p><strong>这篇文章给我最有价值的不是 4 个场景的提效数据，而是”AI
+输出要反过来迭代规范文档”这个反向闭环。</strong> 这是少数把 AI
+应用从”工具使用”提升到”系统演进”的洞察。多数团队用 AI
+是”用完就完了”，作者强调”每次迭代的产物不只是修正后的输出，更重要的是规范文档的完善”——这是把
+AI 当成”团队规范的探测器”，哪里 AI
+出错多就说明规范有缺口。这种用法比单纯提效有更长期的价值。</p>
+<p><strong>三个反直觉的工程判断：</strong></p>
+<ol type="1">
+<li><strong>财务数仓的 AI
+价值在”跨周期分摊”和”多口径指标”这种最难的地方，反而不是”DDL
+生成”。</strong> 因为前者要求对业务理解深、容易出错、规范难写完整，所以
+AI 提效带来的边际收益最大。简单 DDL 模板化本来就是体力活，AI
+提效有限。这反向论证了”AI 在规范完善的高难度领域价值最大”。</li>
+<li><strong>AI 测试 SQL 比 AI 写 SQL 更值钱。</strong>
+测试用例设计的”覆盖度”和”边界发现”是个人能力差异最大的地方，AI
+能从规则理解层面补充人容易忽略的测试点（如抽样验证、精度验证）。这跟传统认知相反——多数人以为
+AI 提效主要在编码，不在测试。</li>
+<li><strong>“海量文件阅读”是 LLM 时代数仓工程师的新基本功。</strong>
+把历史文档、表结构、代码一次性灌入模型，让模型输出业务架构图思路，本质上是用
+LLM 的超大 Context
+替代人类”读代码理解业务”的体力活。这把数仓工程师从”读代码的人”解放成”画架构图的人”。</li>
+</ol>
+<p><strong>但我有 push back：</strong></p>
+<ol type="1">
+<li><strong>“L3 时刻”比喻不严谨。</strong> 自动驾驶 L3
+是”有条件自动驾驶，系统能在特定场景下完全负责，但人需要准备接管”。文章说”AI
+能接管绝大部分标准化的执行动作”——这跟 L3 不完全对应，因为数仓场景里 AI
+失误的代价（数据错误）远比自动驾驶失误的代价可控性差。L3 是系统负责 +
+人兜底，数仓更像是 L2（人主导 + AI
+辅助）。这个分级用得不够精确，会误导团队对 AI 能力的预期。</li>
+<li><strong>规范文档的演进机制没说清。</strong>
+既然每次迭代反过来完善规范，那”规范文档”由谁来维护？AI
+自己改规范会不会出问题？规范版本怎么管理？规范改了 AI
+怎么感知？这些治理问题没提。实际工程里，规范文档一旦失去”权威地位”就会迅速腐烂。</li>
+<li><strong>“AI 测试的问题发现能力提升”缺少对照实验。</strong> 文章说 AI
+能”发现人工难以发现的逻辑错误、识别精度问题并区分可接受的误差”，但没有数据支撑（多少测试用例是
+AI 单独发现的、误报率多少、跟纯人工测试的对比）。这是 PR
+表述还是真实数据，作为面试者会追问。</li>
+</ol>
+<h3 id="怎么落到-agent-项目">怎么落到 Agent 项目</h3>
+<p>如果让我基于这篇做一个”财务数仓 AI 助手”项目，我会拆成五个模块：</p>
+<ol type="1">
+<li><strong>规范仓库 +
+版本控制</strong>：把所有数仓规范（命名、时间周期、字段命名、指标口径）作为结构化
+Markdown 入 Git，建立规范变更的 PR Review 流程。</li>
+<li><strong>OneData 建模 Agent</strong>：基于规范和历史表结构，输出
+ODS→DWD/DWS→ADM 的建模建议，重点处理多口径指标和跨周期分摊字段。</li>
+<li><strong>SQL Coding Agent</strong>：基于 PRD + 规范生成 DDL 和
+SELECT，对存量长 SQL 做分段重构和注释补充，输出符合规范的代码。</li>
+<li><strong>测试 SQL Agent</strong>：基于 PRD + 业务规则 +
+上下游依赖，生成覆盖度更全的测试
+SQL，重点补充人工容易忽略的边界场景（抽样、精度、跨周期）。</li>
+<li><strong>需求文档 Agent</strong>：通过飞书 MCP 读取 BI
+文档，自动总结每张表的改动点和待确认问题，反向触发规范文档的更新
+PR。</li>
+</ol>
+<p>面试时的回答脚本：“我做过一个财务数仓 AI 助手项目，核心是规范即
+Prompt，把数仓规范文档当一等公民进 Git 管理。AI 用在四个环节：OneData
+建模、SQL Coding、数据测试、需求文档转化。最关键的洞察是：AI
+输出的错误反向暴露规范的缺口，每次迭代反过来完善规范文档，让 AI
+成为团队规范的’探测器’。分工上，规范执行交给 AI，业务判断保留给人——AI
+擅长守规范，人擅长理解业务。”</p>
+<h2 id="一句话总结">一句话总结</h2>
+<p>财务数仓 AI 的真正价值不是”AI 写 SQL 快了”，而是把 AI
+用成团队规范的”压力测试器”——AI 哪里反复出错，就说明规范哪里需要补。</p>
+<h2
+id="附录财务数仓的特殊挑战面试素材">附录：财务数仓的特殊挑战（面试素材）</h2>
+<ul>
+<li><strong>字段数学公式严格</strong>：正向 - 冲销 = 冲销之后；子项相加
+= 汇总项；任意一项改动要验证几十个相关字段。</li>
+<li><strong>跨周期分摊</strong>：订单时间与收入确认时间不匹配（如商业化订单
+vs 交易订单），分摊逻辑难验证。</li>
+<li><strong>多口径指标</strong>：业务口径 / 资金口径 /
+财管报口径，同一指标有多种实现路径。</li>
+<li><strong>横向域依赖</strong>：财务与核算域、技术成本域、促销补贴域、商业化域、分析域都交叉。</li>
+<li><strong>命名规范严格</strong>：{主体}{业务场景}{币种标识}{度量类型}{时间单位}，人工遵守率随交付压力下降。</li>
+<li><strong>OneData
+规模</strong>：仅财务核算项目首轮就涉及百张以上表、十余个业务过程、数百个指标。</li>
+</ul>
+<h2 id="附录ai-测试-sql-的-5-类提效实战细节">附录：AI 测试 SQL 的 5
+类提效（实战细节）</h2>
+<ol type="1">
+<li><strong>测试 SQL 生成效率</strong>：从提出测试要求到生成完整
+SQL，时间大幅缩短。</li>
+<li><strong>测试用例覆盖度</strong>：AI
+从规则理解层面补充人容易忽略的测试点（如抽样验证、精度验证、跨周期分摊场景）。</li>
+<li><strong>复杂逻辑逐步分析</strong>：邮费冲销逻辑中 AI
+能逐步分析退小仓场景下的多种分支情况，识别逻辑漏洞。</li>
+<li><strong>上下游影响分析</strong>：一个字段改动自动分析对上下游的影响，识别需同步验证的相关字段。</li>
+<li><strong>公式验证与精度诊断</strong>：AI 自动生成公式验证
+SQL，区分真正的逻辑错误和可接受的精度误差，避免误报。</li>
+</ol>
+<h2 id="附录财务数仓-ai-落地的反向闭环模式">附录：财务数仓 AI
+落地的”反向闭环”模式</h2>
+<p>这是文章里最值钱的工程洞察，跟多数团队的”AI
+用完就完了”完全相反。完整闭环是：</p>
+<pre><code>规范文档（结构化 Markdown 入 Git）
+    ↓
+原始数据 + 表结构灌入模型
+    ↓
+AI 输出建模建议 / SQL / 测试用例
+    ↓
+数仓工程师验证（重点验证复杂字段）
+    ↓
+发现 AI 输出错误 → 不是&quot;修 AI&quot;，而是&quot;修规范&quot;
+    ↓
+规范文档 PR 更新（标注 Owner + 变更原因）
+    ↓
+规范变了 → 后续所有 AI 输出自动遵循新规范</code></pre>
+<p>关键反直觉点：<strong>AI 出错不是 AI
+的问题，是规范的缺口</strong>。团队应该把”AI
+反复出错的地方”当作”规范需要补的清单”。这种用法把 AI
+从”工具”变成”团队规范的探测器”——哪里 AI
+反复出错，就说明团队规范哪里有缺口。</p>
+<p>这种模式特别适合<strong>规范本身在快速演进</strong>的场景（财务、业务运营、推荐系统）。规范稳定的场景（底层
+ETL）用 SDD + Spec-to-Code
+更划算，规范不稳定的场景用”反向闭环”迭代更划算。</p>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>

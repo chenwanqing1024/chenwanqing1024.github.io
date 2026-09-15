@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="得物技术（作者羊羽）的 AI 编程 POC
+全流程实战：工具选型标准（模型可插拔 + 工具自举）、Shell 函数切换
+GLM/Kimi/七牛多模型（通过 ANTHROPIC_BASE_URL 环境变量注入）、三屏 IDE +
+iTerm2 三面板布局、IDE 工具栏一键启动项目专属 CC 会话、主从架构多 Agent
+协作、CC 六大扩展机制（command/skill/subAgent/MCP/hook/plugin）。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>AI 编程工具链 POC：多模型切换 + IDE/Terminal 协同 — 读《从
+IDE 到 Terminal》 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>AI 编程工具链 POC：多模型切换 + IDE/Terminal 协同 —
+读《从 IDE 到 Terminal》</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">AI编程</span> <span class="badge bg-secondary">Claude
+Code</span> <span class="badge bg-secondary">POC</span> <span class="badge bg-secondary">多Agent</span> <span class="badge bg-secondary">MCP</span> <span class="badge bg-secondary">工作流</span> <span class="badge bg-secondary">IDE自动化</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://xie.infoq.cn/article/c0aa2d8da8c0f8fcfb919f927" target="_blank" rel="noopener">从IDE到Terminal：适合后端的Claude
+Code工作流｜得物技术</a> · 得物技术
+            </div>
+
+<h2 id="原文在说什么">原文在说什么</h2>
+<p>得物技术（作者羊羽）的 AI 编程 POC
+个人工作流，覆盖工具选型、开发环境搭建、多 Agent 协作、CC
+扩展机制四大块。</p>
+<p><strong>一、工具选型两大基础认知。</strong> (1) AI 编程工具 =
+模型能力（决定上限） + 交互工作流（决定下限）；在标准化接口（Anthropic
+API、MCP）普及下，模型可灵活插拔，工具选择更应关注易用性与扩展性。(2)
+工具迭代速度极快，<strong>Claude Code CLI 的开发者用 Claude Code CLI
+迭代自身产品</strong>，是”工具自举”的典范。基于这两点，作者选择 Claude
+Code CLI。</p>
+<p><strong>二、Shell 函数实现多模型无感切换。</strong> 利用 Bash
+行内环境变量在启动时注入模型配置： - <code>function zcc()</code>
+切到智谱
+GLM（ANTHROPIC_BASE_URL=https://open.bigmodel.cn/api/anthropic，模型
+glm-4.7） - <code>function kcc()</code> 切到月之暗面 Kimi -
+<code>function qcc()</code> 切到七牛 - <code>alias claude="zcc"</code>
+设默认别名</p>
+<p><strong>三、三屏 + iTerm2 三面板布局。</strong> 物理布局：MacBook
+内置屏放浏览器/沟通工具，中间主屏放 IDE 编码 +
+浏览器输出，左边竖屏放文档 + 终端 + AI 会话。IDE 工具栏按钮一键调用
+AppleScript 脚本，在 iTerm2 中按项目目录自动创建/复用标签，固定”上面板 +
+左下面板 + 右下面板”三面板布局，每个面板独立执行 <code>claude</code>
+命令。</p>
+<p><strong>四、主从架构多 Agent 协作。</strong> 上方窗口（高质量 Opus
+模型）做架构师（需求理解 + 方案设计 + 任务拆解），下方两个窗口（Sonnet
+模型）做开发（代码实现 +
+逻辑落地）。类似真实研发团队结构，兼顾效果与成本。配合<strong>规范驱动开发（SDD）</strong>做上下文交接。</p>
+<p><strong>五、CC 六大扩展机制。</strong> -
+<strong>命令（command）</strong>：高频 Prompt 封装为快捷命令（如 commit
+message 自动生成） - <strong>技能（skill）</strong>：可由 Agent
+自主决策调用的能力包 -
+<strong>子代理（subAgent）</strong>：独立上下文的并行 AI
+代理，文章给出三个示例（code-reviewer 用 opus-4-5 +
+只读权限、test-writer 用 sonnet-4-5 + 全权限、doc-generator 用
+sonnet-4-5 + 仅读写） -
+<strong>MCP</strong>：标准化外部能力扩展（远程接口 + 本地脚本） -
+<strong>钩子（hook）</strong>：在关键流程节点插入自定义逻辑 -
+<strong>插件（plugin）</strong>：命令/技能/MCP/子代理/钩子的打包分发</p>
+<p><strong>六、实用 CC 技巧。</strong> MCP
+对接飞书开放能力做文档自动创建/读写；<code>@</code>
+模糊搜索快速定位文件；<code>skipWebFetchPreflight: true</code> 优化
+WebFetch；<code>/clear</code> 后用 git 状态恢复上下文的”Context
+Catch-up”模板（包含 4 步流程：阅读 git status / 推断任务 / 延续实现 /
+给出上下文判断）；“注意力哨兵”角色规则避免跑偏；状态栏自定义模型/分支/目录信息。</p>
+<p><code>commit-message</code> 命令模板（30 字标题 +
+详细正文）示例：</p>
+<pre><code>请调用 git diff --cached 获取当前暂存区的代码变动。
+忽略所有的 node_modules 或二进制文件。
+基于变动内容，判断这是一个 feat (新功能), fix (修复) 还是 chore (杂务)。
+生成一个不超过 50 字符的标题，并在正文详细列出影响的文件。
+由我确认后执行 git commit。</code></pre>
+<p>三个子代理完整 JSON 配置（code-reviewer 用 opus-4-5 +
+allowWrite=false 强制只读、test-writer 用 sonnet-4-5 +
+全权限、doc-generator 用 sonnet-4-5 + 仅
+read/write），体现了”按角色分配模型 + 权限”的精细化策略。</p>
+<h2 id="我的看法">我的看法</h2>
+<p><strong>我认同：</strong>
+文章最大价值不是某个具体配置，而是揭示了一个被忽视的事实 — <strong>AI
+编程工具的”模型可插拔”已经通过环境变量标准化接口实现</strong>。这意味着选型的核心不是”选哪个工具”而是”选哪个生态
++ 哪个交互模式”。作者选 Claude Code CLI 而非
+Cursor，本质是选了”终端原生代理 + Unix 哲学 + 工具自举”这条路。</p>
+<p><strong>这篇文章给我最有价值的不是 X，而是 Y：</strong> 不是 Shell
+函数本身（每个 Linux 用户都会写），而是
+<strong><code>alias claude="zcc"</code>
+这种”为不同模型起不同别名”的工作流思维</strong> —
+模型变成”研发资源”（按场景调用），而不是固定供应商。这对成本敏感的企业落地至关重要。</p>
+<p><strong>反直觉的工程判断：</strong></p>
+<ol type="1">
+<li><p><strong>TUI（终端）比 GUI（IDE 插件）更适合 AI 协作。</strong>
+Cursor 类的 IDE 插件看起来更直观，但 TUI + Shell 脚本可编程（AppleScript
++ Bash + iTerm2 自动化）能做的事远多于
+GUI。<strong>工具栏一键启动项目专属 CC 会话</strong>这种需求，Cursor
+几乎做不到。</p></li>
+<li><p><strong>多 Agent 协作不需要复杂框架，主从 +
+三窗口就够了。</strong> 不需要 LangGraph / AutoGen
+那种重型编排，<strong>让两个 Claude 会话在同一个项目目录独立运行 + 用
+SDD 文档做上下文交接</strong>，就是最朴素的多 Agent 模式。</p></li>
+<li><p><strong>“工具自举”是工具成熟度的隐藏指标。</strong>
+开发者用自己的产品迭代自己 —
+这种现象只有在工具已经达到”工程师日常依赖”级别才会出现。选 AI
+编程工具时，看这个工具的团队自己用不用它，比看 benchmark 重要。</p></li>
+</ol>
+<p><strong>但我有 push back：</strong></p>
+<ol type="1">
+<li><p><strong>三屏 + 三面板布局的成本被严重低估。</strong>
+文章推荐的物理环境是 MacBook + 两块外接显示器（3 屏）+ iTerm2
+三面板（每面板独立 Claude 会话）。算账：<strong>3 块屏 × $300 + MacBook
+Pro $3000 + iTerm2 订阅 = 至少 $4000 起步成本</strong>，加上每天 5+ 个
+Claude Pro 订阅（月 $200），<strong>单人年成本
+$7000+</strong>。这远超大多数中小公司的开发预算。文章没讨论这种工作流的可复制性。</p></li>
+<li><p><strong>GLM / Kimi / 七牛的”无感切换”是错觉。</strong>
+三个模型的训练数据、中文能力、上下文长度、Tool Use
+支持程度差异巨大，<strong>Prompt 在 GLM 上跑得好不等于在 Sonnet
+上跑得好</strong>。同一个 SDD
+文档在不同模型下产出的代码质量、风格、安全习惯完全不同。文章没量化这种”模型切换税”。</p></li>
+<li><p><strong>主从架构的质量边界没说清楚。</strong> 上方 Opus
+做架构设计、下面板 Sonnet 做开发，听起来很美。但<strong>当 Sonnet
+实现遇到架构歧义需要回头问 Opus
+时</strong>，这个异步回环的延迟、上下文传递损耗、版本分歧怎么处理？文章完全没提。这实际是个”多
+Agent 协议”问题，不是”多窗口布局”问题。</p></li>
+</ol>
+<h3 id="怎么落到-agent-项目">怎么落到 Agent 项目</h3>
+<p>假设让我基于这篇做一个<strong>“AI 编程工作流 SaaS
+平台”</strong>，会拆成五个模块：</p>
+<ol type="1">
+<li><strong>模型路由器</strong>：封装 ANTHROPIC_BASE_URL 模式 +
+模型能力描述（中文/代码/Reasoning/Tool
+Use），按用户场景自动选择模型。</li>
+<li><strong>会话复用器</strong>：基于项目目录的会话隔离（类似文章 iTerm2
+标签复用逻辑），支持 IDE 工具栏一键启动专属 CC 会话。</li>
+<li><strong>SDD 文档中台</strong>：多 Agent
+间共享的”技术方案文档”版本控制（Git-based），每个 Agent
+只修改自己负责的章节。</li>
+<li><strong>工作流编排器</strong>：把”主从架构”做成可视化配置（架构
+Agent + N 个开发 Agent + 评审 Agent），自动管理上下文交接协议。</li>
+<li><strong>成本与质量看板</strong>：跟踪每个 Agent 的 Token
+消耗、模型切换频率、代码 Review 通过率，给团队 ROI 报告。</li>
+</ol>
+<p><strong>面试回答脚本：</strong>”AI
+编程工具的真正壁垒不是模型，是工作流。我在做的工作流平台，核心是把’多模型路由器
++ 项目级会话隔离 + SDD 文档中台’封装成 IDE 插件，让团队 5 分钟搭起
+Claude Code 的多 Agent 协作环境。”</p>
+<p><strong>与作者的差异补充：</strong> 作者在 macOS 上的 AppleScript +
+JetBrains 集成方案是”重客户端”路径。<strong>企业级落地更应该走”云端配置
++ 跨 IDE 兼容”路径</strong> —— VSCode/Cursor/JetBrains 三家都能用同一份
+MCP + Skill 配置，避免重复造轮子。这也是 OpenSpec
+工具链的核心优势：协议中立，不绑定特定 IDE。</p>
+<h2 id="一句话总结">一句话总结</h2>
+<p>AI
+编程工具选型的本质是选<strong>生态和交互模式</strong>，不是选模型；通过环境变量让模型可插拔、用
+TUI + Shell 让工具可编程、用 SDD 文档让多 Agent 可协作 —
+这三件事比”换工具”重要 100 倍。</p>
+<p><strong>给团队 leader 的延伸：</strong>
+文章作者羊羽的工作流是”单人极致效率”路线（3 屏 + 三面板 + Opus 主架构师
++ Sonnet 实现者）。但<strong>企业级落地应该走”标准化配置 +
+多人协作”路线</strong> — 把作者的个人 Shell 脚本和 AppleScript
+封装成团队共享的 onboarding 工具，让每个新成员 30
+分钟内搭起同等工作流。这是”个体最佳实践”到”组织能力”的迁移，与 OpenSpec
+倡导的”组织资产”哲学一致。</p>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>

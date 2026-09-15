@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="得物技术 作者三白 讲推荐系统如何用
+PDCA 七阶段护栏 + Highway/ATV 混合 Agent 把 AI 从 Do
+阶段扩展到完整迭代飞轮；核心反直觉判断：好的 Harness
+不是铁笼而是环境——它让 AI
+觉得自己在自由行动，但每一步都天然处在可验证、可回滚、可复用的工程上下文里。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>从 AI Coding 到 AI Builder 读文笔记：得物推荐 Harness 把 PDCA
+拆成七阶段护栏 + 混合 Agent - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>从 AI Coding 到 AI Builder 读文笔记：得物推荐 Harness 把
+PDCA 拆成七阶段护栏 + 混合 Agent</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">Harness</span> <span class="badge bg-secondary">AI
+Builder</span> <span class="badge bg-secondary">PDCA</span> <span class="badge bg-secondary">Highway</span> <span class="badge bg-secondary">ATV</span> <span class="badge bg-secondary">推荐系统</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://xie.infoq.cn/article/9feffe245db3b0f5c96c985ba" target="_blank" rel="noopener">从狂野代码到按目标生产：得物推荐
+AI Harness 的工程化实践｜AICon 演讲整理</a> · 得物技术
+            </div>
+
+<h2 id="原文在说什么">原文在说什么</h2>
+<p>原文开篇点出一个反差：AI Coding
+体验快速成熟，但”能跑”不等于”按目标生产”。
+推荐系统尤其如此——链路长、模块多，改一处可能牵动多路召回；效果变化很难解释，经验很难沉淀成标准。
+AI 如果只停留在 <strong>Do</strong>
+阶段，就会变成一个更快的代码生成器，而不是推动业务迭代的工程伙伴。</p>
+<p><strong>核心变化：AI 化的不只是开发环节，而是整个周期闭环。</strong>
+传统工程迭代可以抽象成 PDCA——Plan 对齐目标和边界，Do 完成开发实现，Check
+验证效果和风险，Act 沉淀复盘与下一轮优化。 AI Coding 主要解决
+Do，但复杂系统里的失败往往不只发生在 Do。
+推荐系统尤其如此——指标异常可能源于策略漂移、数据分布变化或下游接入失误，单靠
+Do 阶段的代码生成无法闭环。</p>
+<p>原文以《楚门的世界》为比喻定义 Harness 的本质：<strong>好的 Harness
+不是铁笼，是环境。</strong> 它让 AI
+觉得在自由行动，但每一步都天然处在可验证、可回滚、可复用的工程上下文里。
+这是全文最反直觉也最核心的一个判断。 把 AI 关在铁笼里（硬规则、强 prompt
+约束）只能产生逆反；让 AI
+处在”自然就能做对”的环境里，才能长期可持续。</p>
+<p>七阶段护栏（全面覆盖 PDCA）：</p>
+<ol type="1">
+<li><p><strong>Plan（用 Contract 把需求变成护栏）</strong>：自然语言 PRD
+对人已经有歧义，对 AI 更是如此。Plan 阶段的核心是把需求改造成 AI
+能理解、能执行、能验证的结构化契约。得物推荐的 <strong>T-PRD</strong>
+会把需求拆成 EP，每个 EP
+绑定影响范围、指标方向、稳定性红线和验收断言。原文以”负反馈调权”为例：</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">feature</span><span class="kw">:</span><span class="at"> negative_feedback_rerank</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">goal</span><span class="kw">:</span><span class="at"> 用户点&quot;不感兴趣&quot;后，减少相似商品曝光</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="fu">scope</span><span class="kw">:</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="kw">-</span><span class="at"> </span><span class="fu">Signal</span><span class="kw">:</span><span class="at"> not_interested/dislike</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="kw">-</span><span class="at"> </span><span class="fu">Rnking</span><span class="kw">:</span><span class="at"> item/spu/shop/brand</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="fu">guardrails</span><span class="kw">:</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="kw">-</span><span class="at"> 禁止核心点击率显著劣化</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="kw">-</span><span class="at"> 必须保留多样性与新颖性观察</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="kw">-</span><span class="at"> 所有影响模块需具备回滚路径</span></span></code></pre></div></li>
+<li><p><strong>Do（让 AI 开发零等待）</strong>：AI
+自主开发最怕”等人”——写完代码跑不起来、拿不到日志、依赖服务不稳定就会不断回头问人。原文强调要把”运行环境”和”反馈链路”提前准备好。</p></li>
+<li><p><strong>Check（让推荐效果 7×24 可度量）</strong>：推荐系统的
+Check 很难，传统方式依赖 AUC、GAUC、线上实验和人工评审。得物的
+<strong>Axis 推荐 AI 评测平台</strong>引入 AI
+评审员，模拟不同用户画像，从新颖性、质量、相关性等维度对推荐结果打分——不是替代线上实验，而是在上线前多一层体验风险雷达。AI
+全量评分，专家抽样复核，复核知识沉淀回评测体系。</p></li>
+<li><p><strong>Act（把 Bad Case
+变成下一轮能力）</strong>：线上出现异常时进入 Bad Case
+捕获、诊断、沙箱复盘和 Story
+沉淀流程。一次问题排查应该留下下一次能直接复用的路径。</p></li>
+</ol>
+<p>七阶段之后还有三个深层痛点：<strong>知识会丢、行为会漂、路径不透明</strong>。这三个是
+Agent 工程化承载的问题，不是某个阶段的问题。</p>
+<p><strong>知识治理（L1/L2/L3 三层）</strong>：</p>
+<ul>
+<li>L1：整体架构，定义不可逾越的行动边界</li>
+<li>L2：模块设计文档，解释关键取舍和依赖关系</li>
+<li>L3：代码注释，最贴近 AI，读代码时随用随取</li>
+</ul>
+<p>原文给出 L3 注释的实测数据：<strong>补充 L3 注释后，简单问题准确率从
+52% 提升到 91%，复杂问题准确率达到 100%；简单题整体 token 消耗下降
+48%，复杂题下降 26%。</strong>
+单次上下文可能变长，但任务完成轮次显著减少，整体成本反而下降。</p>
+<p><strong>推查查：Highway 与 ATV 的混合 Agent 架构</strong>：</p>
+<p>在推荐链路排查场景里，80% 的问题是高频、可归类、可复现的，20%
+的问题是长尾、复杂、需要探索的。两类问题不应该用同一种 Agent
+路径解决。</p>
+<ul>
+<li><strong>Highway：确定性来自代码</strong>——好的 Highway
+不是更会猜，而是不脑补。把稳定路径写进代码，每一次都在同一个地方执行、同一个地方观测、同一个地方定位错误。LLM
+只负责最后的结果润色。原文用”女朋友让你买两根香蕉，如果看到卖苹果的，就买四根”作引——人会脑补，代码不会。</li>
+<li><strong>ATV：长尾问题需要受控探索</strong>——剩下 20%
+的长尾问题无法靠写死程序覆盖。ATV 提供工具、MCP 和约束，让 Agent 按
+ReAct 方式自主拆解、调用工具、读取结果、生成结论。探索成功后，Memory
+会把轨迹剪枝，把 UID 等一次性特征升维成业务变量，再经过 Dry Run
+准入，沉淀为新的 Highway 能力。</li>
+</ul>
+<p>最后作者用”碳硅梦蝶”作收束：<strong>Harness
+是梦境边缘，不判断谁在做梦，只保证 AI
+梦醒时有规则兜底，人类疲惫时有流程支撑。</strong> 命题不是”AI
+会不会写代码”，而是”我们能不能把 AI
+纳入一套可控、可度量、可复用的工程协作系统”。</p>
+<h2 id="我的看法">我的看法</h2>
+<p><strong>我认同</strong>作者把”AI Coding”和”AI
+Builder”分成两个阶段——前者只解决 Do，后者解决 PDCA 闭环。
+团队如果只盯着”AI 写代码更快”，会陷入局部提效但全局失控的陷阱；只有当
+Plan / Check / Act 也被 AI Harness
+接管，才能从”单点提效”走向”工程复利”。 这是把 AI Coding
+的天花板从”模型能力”挪到”流程成熟度”上。 我在做 Agent
+项目时也反复看到这一点：单看输出速度，AI
+已经把人类甩开几条街；但单看决策质量、风险控制、经验沉淀，AI Builder
+体系离成熟团队还差好几个版本。</p>
+<p><strong>这篇文章给我最有价值的不是”七阶段护栏”也不是”Highway / ATV
+混合架构”，而是 “好的 Harness 不是铁笼而是环境” 这个比喻 + L3
+注释实测数据（52% → 91%）。</strong> 前者重新定义了 AI
+治理的目标——不是”管住 AI”，而是”让正确的事情变成 AI
+的默认行为”；后者给出了最实在的 ROI——给代码补 L3
+注释让简单问题准确率提升近 40 个百分点，且 token 消耗反而下降 48%。
+这是少见的”加注释既提准确率又降成本”的工程反例。 L3
+注释的有效性反直觉的地方在于——大家本能以为越高层文档越重要，但 AI
+实际生成代码时读的是代码注释而不是架构文档。</p>
+<p>三个反直觉的工程判断：</p>
+<ol type="1">
+<li><strong>好的 Harness 是环境而不是规则集</strong>——规则挂在外面 AI
+会绕，环境嵌在流程里 AI 走不出去。这把 AI
+治理的目标从”约束层数”挪到”默认路径设计”。这条判断意味着：与其写更多
+prompt 约束，不如改环境让 AI 走对路径。</li>
+<li><strong>L3 注释比 L1/L2 文档对 AI 更有效</strong>——在补充 L3
+注释的实验中，简单问题从 52% 跳到
+91%。这反直觉——大家本能以为越高层文档越重要，但 AI
+实际生成代码时读的是代码注释而不是架构文档。L3 注释成了 AI
+推理的”最近事实源”，L1/L2 文档反而离模型太远。</li>
+<li><strong>80/20 问题应该用两套 Agent 路径，而不是一套更通用的
+Agent</strong>——Highway 写死、ATV 探索；ATV 探索成功后 Memory 升维成
+Highway。这等于把”长尾问题”当成了”下一版稳定路径的输入”。这是混合智能体最优雅的形态——不是简单的”专家系统
++ LLM”，而是”稳定路径自我进化”。</li>
+</ol>
+<p>但我有 push back：</p>
+<ol type="1">
+<li><strong>T-PRD 的 YAML
+结构没有给出完整模板</strong>。原文只展示了”负反馈调权”一个例子，缺 EP
+的字段全集（goal / scope / guardrails
+之外还有哪些？影响范围怎么量化？验收断言的具体格式是什么？）。一个不能复用的
+YAML 契约很容易退化成”每组自己写一份”。如果 T-PRD 没有标准
+schema，团队会陷入”我的 guardrails 比你的严格”的元争论。</li>
+<li><strong>Axis AI 评测平台的”AI
+全量评分、专家抽样复核”工作流没说复核频率</strong>。一周一次？一个月一次？每次发版？如果复核频率太低，AI
+评分就会悄悄漂移；如果太高，专家负担会爆。这条 ROI
+的隐形门槛原文没有给出。一个无法度量复核频率的评测体系，相当于把”客观性”外包给了”主观的勤奋”。</li>
+<li><strong>Highway → Memory → ATV
+的闭环没有失败案例</strong>。原文写的是 ATV 探索成功、Memory 升维、Dry
+Run 准入、成为新 Highway。但 ATV 探索失败的 Case
+怎么处理？会不会把错误的路径也升维进
+Highway？闭环的”反向通道”完全没提。一个只有成功路径的闭环，本质上还是一个单向
+funnel。</li>
+</ol>
+<h3 id="怎么落到-agent-项目">怎么落到 Agent 项目</h3>
+<p>如果让我基于这篇搭一个”AI Builder Harness 平台”，我会画五个模块：</p>
+<ul>
+<li><strong>T-PRD 契约引擎</strong>：每个需求必须用 YAML 写明 goal /
+scope / guardrails，未填齐字段不允许创建 EP；guardrails
+字段必须可度量（不能写”效果好”，要写”点击率不低于 X%“）。</li>
+<li><strong>L3 注释生成器</strong>：CI
+阶段检查新增代码是否携带结构化注释（函数级、字段级）；缺注释的 diff
+强制要求 AI 补全后再合并。</li>
+<li><strong>Axis 评测面板</strong>：每次发版前对推荐结果跑 AI
+全量评分；专家抽样按比例（例如千分之一）复核；复核结果回流到评分模型做权重修正。</li>
+<li><strong>Highway / ATV 双 Agent 路由</strong>：80% 高频场景用
+Highway（确定性代码 + LLM 润色），20% 长尾场景用 ATV（ReAct + MCP + Dry
+Run）；ATV 成功后走 Memory 升维 → Highway 准入。</li>
+<li><strong>PDCA 七阶段状态机</strong>：Plan / Do / Check / Act
+四个阶段各挂独立 Gate，每 Gate 失败必须显式给出失败类型（contract /
+evidence / rollback / memory），不允许简单重试。</li>
+</ul>
+<p>面试如果被问”AI Coding 和 AI Builder
+的区别是什么”，可以这样答：<strong>AI Coding 只解决 PDCA 里的 Do，AI
+Builder 把 Plan / Do / Check / Act 都纳入 Harness；Harness
+不是铁笼而是环境，它让 AI
+觉得在自由行动但每步都处在可验证上下文里；Highway 处理 80%
+高频稳定问题、ATV 处理 20% 长尾探索问题，ATV 成功后升维成
+Highway，工程复利才能开始滚动。</strong></p>
+<h2 id="一句话总结">一句话总结</h2>
+<blockquote>
+<p>AI Coding 到 AI Builder 的真正跃迁不是”AI 更会写代码”，而是”Plan / Do
+/ Check / Act 全被 Harness 纳入治理，让 AI
+进入一套可控、可度量、可复用的工程协作系统”——Harness 是梦境边缘，让 AI
+梦醒时有规则兜底。</p>
+</blockquote>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>

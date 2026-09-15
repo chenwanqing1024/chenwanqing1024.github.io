@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="得物技术 作者盖伦 讲全栈 AI 开发中
+Harness 思维 + 多仓工作区 + SDD 流程 + 多 Agent
+并行的实践；核心反直觉判断：AI
+写代码采纳率低的真正原因是没给模仿对象，不是模型不够强。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>Harness 思维 + 全栈 SDD 读文笔记：给 AI
+一个模仿对象，比让他自由发挥更省事 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>Harness 思维 + 全栈 SDD 读文笔记：给 AI
+一个模仿对象，比让他自由发挥更省事</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">Harness
+思维</span> <span class="badge bg-secondary">SDD</span> <span class="badge bg-secondary">Codebase
+Indexing</span> <span class="badge bg-secondary">Subagent</span> <span class="badge bg-secondary">全栈
+AI 开发</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://xie.infoq.cn/article/5807567139ea38866b58ce568" target="_blank" rel="noopener">基于
+Harness + SDD + 多仓管理模式的 AI 全栈开发实践｜得物技术</a> · 得物技术
+            </div>
+
+<h2 id="原文在说什么">原文在说什么</h2>
+<p>原文开篇点出全栈 AI 开发最致命的错误：<strong>让 AI
+从零开始写代码</strong>。 AI
+模型具备”通识能力”，给它一个需求描述，它确实能生成可运行的代码。
+但问题在于，这些代码往往是”外星代码”：</p>
+<ul>
+<li><strong>风格不一致</strong>——命名规范、目录结构、分层方式与项目现有代码不同。</li>
+<li><strong>复用率低</strong>——没有利用项目已有的公共组件、工具函数、请求封装。</li>
+<li><strong>采纳率低</strong>——Code Review
+时后端同学看到”外来风格”的代码，会产生大量修改意见。</li>
+</ul>
+<p>结果是 AI 生成了代码，但 Review 成本和返工成本反而更高了。</p>
+<p>围绕这个错误，原文提出 <strong>Harness 思维</strong>——本质是给 AI
+一个已有的实现作为参照，让它照着复刻，而不是凭空创造。
+就像给一个新入职的工程师说”你照着这个模块的风格，写一个类似的”，而不是”你自由发挥”——前者往往能更快产出符合团队规范的代码。
+原文用”结束语”功能举例：</p>
+<ul>
+<li>不推荐 prompt：「请实现一个结束语管理的 CRUD 接口」</li>
+<li>推荐 prompt：「请参照现有『场景欢迎语』功能（后端接口
+<code>/api/v1/feature/list</code>，前端入口
+<code>FeatureTable/index.tsx:53-58</code>）实现『结束语』功能。数据结构、分层方式、命名风格都保持一致。新增场景
+code：<code>categoryCode = "SCENARIO_CLOSING"</code>」</li>
+</ul>
+<p>具体落地分成五个动作：</p>
+<ol type="1">
+<li><strong>搭多仓工作区</strong>：前后端代码放在同一个工作区下，三个价值——<strong>Codebase
+Indexing</strong>（Cursor
+对工作区所有代码向量化嵌入建语义索引）、<strong>上下文完整</strong>（AI
+同时看到前后端，接口字段自然对齐）、<strong>SDD
+文档集中管理</strong>（前后端 SDD 在同一工作区，接口契约对齐）。</li>
+<li><strong>Codebase Indexing</strong>：当你问 AI
+“场景欢迎语是怎么实现的”，它通过语义检索自动找到相关
+Controller、Service、前端组件；让 AI
+“照着欢迎语写结束语”时，它会检索到完整的前后端实现链路，而不只是单个文件。Cursor
+打开工作区后，首次索引可能需要几分钟，确保索引完成后再开始让 AI
+生成代码。</li>
+<li><strong>SDD 驱动的全栈代码生成</strong>：全栈 SDD
+的特殊之处在于生成<strong>两份</strong> SDD
+文档（前端一份、后端一份），且接口契约对齐、字段映射一致。前端 SDD
+中的接口调用与后端 SDD 中的接口定义必须严格对应，前端 VO
+中的字段名与后端 JSON
+字段名一一对应。原文给出一个验证过的提示词模板：<code>/sdd-propose  feature/your-feature-name</code>
+分别在前端应用（<code>service-frontend</code>）和后端应用（<code>service-backend</code>）目录里调用。</li>
+<li><strong>多 Agent 并行开发</strong>：Cursor 的 Tab 1 / Tab 2
+分别负责前后端并行；Claude Code 用
+Subagent（<code>model: sonnet</code>，<code>permissionMode: bypass</code>，<code>tools: Read/Edit/Write/Bash/Grep</code>），可选第三个
+haiku 模型的 Subagent 生成 Mock 数据。SDD
+文档生成完后，前后端代码生成相互独立，天然适合并行。</li>
+<li><strong>三阶段验证策略</strong>：前端 Mock 验证 →
+后端独立验证（<code>mvn clean compile</code>，不需要本地启动整个 Java
+服务）→
+前后端联调。这样前后两端的问题提前发现、分别修复，避免在联调阶段才暴露。</li>
+</ol>
+<p>文章最后专门提醒一个陷阱：<strong>SDD ≠ 需求文档</strong>。SDD
+描述”技术上怎么实现”，不描述”业务上所有行为”。 AI
+在模仿参考代码生成新代码时会自动复刻<strong>隐性功能</strong>——</p>
+<ul>
+<li><strong>示例 1（前端）</strong>：<code>handleClose</code> 中调用
+<code>form.resetFields()</code>
+清空表单字段、<code>setContentList([])</code>
+清空内容列表状态——参考功能有这个行为，AI 自动复刻。</li>
+<li><strong>示例 2（后端）</strong>：当
+<code>extendInfo.getIsPermanent()</code> 为 true
+时，<code>setEffectiveDate(null)</code> +
+<code>setExpirationDate(null)</code>
+永久有效时清除起止日期——参考功能有这个业务逻辑判断，AI 自动复刻。</li>
+<li><strong>示例 3（后端）</strong>：新增时若
+<code>req.getSequence()</code> 为
+null，<code>req.setSequence(getMaxSequence() + 1)</code>
+优先级自动递增——参考功能有这个默认值补齐逻辑，AI 自动复刻。</li>
+</ul>
+<p>这些功能在参考代码中存在，AI 认为是”理所当然”的，没有写进 SDD
+文档，但实际已经悄悄实现。这些隐性功能可能正是需要的，也可能完全不符合当前需求——问题在于你不知道它们的存在。</p>
+<p>效益数据：原本 2+4 人日的全栈需求，压缩到 3
+人日（含环境、踩坑、联调自测），提效 50%+。</p>
+<h2 id="我的看法">我的看法</h2>
+<p><strong>我认同</strong>作者把”Harness 思维 = 给模仿对象”作为全栈 AI
+开发的根策略。 这是把”风格一致性”这种最容易被忽视的工程目标，从 review
+阶段前移到 prompt 阶段。 Code Review
+阶段发现的命名不一致、分层越界，本质上不是 review 严苛，而是 prompt
+输入缺少约束——所以 AI 在一开始就走错了。 我在做 Code Agent
+时也观察到类似规律：自由发挥模式下模型产出与历史代码冲突率超过
+30%，模仿模式下可压到 10% 以内；差距基本全在”约束”二字。</p>
+<p><strong>这篇文章给我最有价值的不是”SDD 模板”也不是”Subagent
+配置”，而是”SDD 不等于需求文档 + 隐性功能”这一节。</strong>
+这一节解释了为什么很多团队用了 SDD 之后仍然会在测试阶段翻车：他们以为
+SDD 描述了实现，但实际上 SDD
+只是冰山一角，水下的隐性逻辑才是真正决定业务行为的地方。 测试不能只验
+SDD 写出来的部分，必须假设 AI 自动复制了参考代码里的所有隐性逻辑。
+这一节对测试同学的实操建议写得非常具体——“把 SDD
+文档当作起点而不是终点，重点 Review AI
+生成的代码，问自己参考功能有哪些隐性行为，这些行为在新功能中是否合适”。</p>
+<p>三个反直觉的工程判断：</p>
+<ol type="1">
+<li><strong>采纳率低的根本原因是缺少模仿对象，不是模型不够强</strong>——AI
+写 SQL、写前端组件时，“自由发挥”模式下的天花板远低于”参考 +
+模仿”模式。原文给出的对比示例（一句开放 prompt vs 一句约束
+prompt）几乎是行为差异的全部解释。模型能力是必要条件，但模仿对象是充分条件——这两件事在团队里经常被混为一谈。</li>
+<li><strong>Codebase Indexing
+的真正价值是”跨文件语义检索”，不是”全量索引”</strong>——前者让 AI
+在生成新功能时检索到完整的前后端链路，后者只是把代码装进向量库。Cursor
+的索引耗时（“几分钟”）也说明这一步是写代码之前的必要投入，不能跳过。如果团队为了节省等待时间跳过了
+Codebase Indexing，那么所有后续的”语义检索”都会退化为关键词匹配，Harness
+思维的效果会大幅折扣。</li>
+<li><strong><code>mvn clean compile</code> 是后端 AI 代码验证的高 ROI
+手段</strong>——不需要本地启动整个 Java
+服务就能验证语法、依赖、类型兼容。原文把”后端独立构建验证”提到三阶段验证的第二阶段，避免把所有问题都拖到联调。这点对资源紧张的团队特别有价值——一台本地机器无需启动整个
+Spring Boot 容器就能在 30 秒内验证 90% 的代码问题。</li>
+</ol>
+<p>但我有 push back：</p>
+<ol type="1">
+<li><strong>“参考既有功能”做模仿对象的边界没有给出</strong>。什么类型的功能适合作为参考？什么情况下模仿会带歪？比如
+UI
+上”结束语”的字段虽然和”欢迎语”相近，但业务规则差异可能让”模仿”变成”复制错误”。原文没有给”哪些隐性功能必须显式覆盖”的清单。一个边界缺失的模仿机制会让团队陷入”参考越多越危险”的悖论。</li>
+<li><strong>隐性功能列表完全靠人工 review
+识别</strong>，没有给出系统性检测方法。如果一篇 SDD
+文档里没有提到”关闭时清空表单”，测试怎么知道这是一个需要验证的点？原文说”重点
+Review AI
+生成的代码，问自己『参考功能有哪些隐性行为』“——这本质上还是靠人脑枚举，没有工程化机制（比如把参考功能的
+PR diff 当 SDD 模板的强制字段）。</li>
+<li><strong>Cursor vs Claude Code
+的实测对比表被一笔带过</strong>。原文说”两款工具各有侧重，下表是实测对比”，但表格内容缺失（被截断）。在后端是
+Cursor、CLI 端是 Claude Code
+这种选型关键点上，原文只给结论不给证据，会让团队复刻时无从下手。表格缺失让”如何在
+Cursor 和 Claude Code 之间做选型”这个问题无法基于原文得到答案。</li>
+</ol>
+<h3 id="怎么落到-agent-项目">怎么落到 Agent 项目</h3>
+<p>如果让我基于这篇搭一个”全栈 AI 开发的 Harness
+平台”，我会画五个模块：</p>
+<ul>
+<li><strong>参考实现索引器</strong>：每个新需求必须先在库里指认至少一个”参考实现”，索引器自动列出参考实现的
+Controller / Service / 前端组件、关键字段、接口路径，作为 prompt
+的强制片段。</li>
+<li><strong>Codebase
+向量索引</strong>：对工作区代码做向量化建索引，提供语义检索接口；首次索引耗时作为项目元信息暴露，避免在没索引完时启动生成。</li>
+<li><strong>双份 SDD 生成器</strong>：一份 prompt 同时生成前端 SDD
+和后端
+SDD，输出格式里强制包含接口路径、字段映射、字段类型三张表，未填齐不让提交。</li>
+<li><strong>多 Agent 编排器</strong>：主 Agent 调度前端、后端、Mock 三个
+Subagent；Mock Subagent 用 haiku 模型只生成 mock
+数据，主对话只接产物摘要。</li>
+<li><strong>隐性功能审计器</strong>：把参考实现的 git diff
+与新生成的代码做字段级比对，列出”参考里有但 SDD
+没写”的隐性功能，强制人工勾选”保留/删除”才能进入下一阶段。</li>
+</ul>
+<p>面试如果被问”全栈 AI 开发怎么提采纳率”，可以这样答：<strong>核心是
+Harness 思维——给 AI 一个明确的模仿对象；用多仓工作区 + Codebase Indexing
+让语义检索跨前后端；用双份 SDD +
+字段对齐保证接口契约；用三阶段验证把风险前移到 Mock
+阶段；最后用隐性功能审计器补上 SDD 文档之外那 20%
+的隐性逻辑。</strong></p>
+<h2 id="一句话总结">一句话总结</h2>
+<blockquote>
+<p>Harness 思维的本质不是约束 AI 写更好的代码，而是约束 AI
+照着既有代码写——全栈 AI 开发的采纳率、提效比例、隐性 bug
+数量，几乎全部由”有没有给模仿对象”这个变量决定。</p>
+</blockquote>
+<h2 id="延伸思考为什么-sdd-不是万能解药">延伸思考：为什么 SDD
+不是万能解药</h2>
+<p>SDD 的真正价值不在”指导 AI 写代码”，而在”约束 AI 思考范围”。但 SDD
+不是万能解药，至少有三个边界：</p>
+<ul>
+<li><strong>业务变化频繁时</strong> SDD
+容易过期，每次需求变更都要重写两份 SDD，成本可能高于收益。</li>
+<li><strong>跨团队复用时</strong> SDD
+难以同时兼顾前后端差异，字段映射的人工同步成本不低。</li>
+<li><strong>隐性功能无法穷举</strong> 时 SDD 永远缺一块，必须配套测试
+review 才能发现。</li>
+</ul>
+<p>所以正确姿势是：<strong>把 SDD 当作”AI 思考边界”而不是”AI
+输出规范”</strong>，把它和隐性功能审计器一起用，才不会变成”为了 SDD 而
+SDD”的仪式。</p>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>

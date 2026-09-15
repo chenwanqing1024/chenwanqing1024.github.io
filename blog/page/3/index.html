@@ -64,29 +64,29 @@
             </div>
             <div class="card-body">
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="2026-09-15-managed-agents-arch-patterns.html">Managed Agents 架构：把&quot;大脑&quot;和&quot;双手&quot;解耦的 5 个工程模式</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
-                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">Agent 架构</span> <span class="badge bg-secondary">Harness</span> </small></p>
-                    <p class="mb-1">把 Anthropic Managed Agents 工程文章拆成 5 个架构级模式：Pet vs Cattle 的容器陷阱、脑-手解耦、Sandbox 安全边界、Session ≠ Context Window、Many Brains Many Hands。每个模式给定位 + 推论 + 工程落地的具体做法，可以直接拿去面试讲 Agent 架构。</p>
+                    <h5 class="mb-1"><a href="2026-09-15-recommend-diagnosis-hybrid-agent.html">推荐系统诊断 Agent：Highway &amp; ATV 双轨架构，把&quot;白盒排查&quot;做出来</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">推荐系统</span> <span class="badge bg-secondary">Multi-Agent</span> <span class="badge bg-secondary">ReAct</span> <span class="badge bg-secondary">工程落地</span> </small></p>
+                    <p class="mb-1">这篇不讲&quot;AI 推荐诊断&quot;，讲怎么用 Highway &amp; ATV 双轨架构平衡效率与深度——Highway 走 Story 剧本（确定性快路径），ATV 走 ReAct 循环（智能慢路径），中间调度器判定路由。核心是 Story = 原子化 Skill + 有序编排模板，把专家经验沉淀为可执行剧本。</p>
                 </div>
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="2026-09-15-madrigal-pharma-multi-agent-platform.html">Madrigal Pharma 多 Agent 平台：医药数据的&quot;看不见的归一化&quot;+ Skills 联邦制 + Trace 反哺 Eval</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
-                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">多 Agent</span> <span class="badge bg-secondary">医药 RAG</span> <span class="badge bg-secondary">Deep Agents</span> <span class="badge bg-secondary">工程实践</span> </small></p>
-                    <p class="mb-1">制药公司 Madrigal 用 LangChain / Deep Agents 搭多 Agent 平台，关键思想：把所有数据源归一化成一致的 tool interface（Agent 不关心数据从哪来）；modular skill 把单一用例变成平台；trace → eval dataset 是生产反馈的闭环。新用例从&quot;几周&quot;降到&quot;几小时&quot;。</p>
+                    <h5 class="mb-1"><a href="2026-09-15-rag-fundamentals-embedding-hnsw.html">RAG 核心原理梳理：从 Embedding 到 HNSW 的工程地图</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">RAG</span> <span class="badge bg-secondary">Embedding</span> <span class="badge bg-secondary">HNSW</span> <span class="badge bg-secondary">向量检索</span> <span class="badge bg-secondary">Agent</span> </small></p>
+                    <p class="mb-1">把得物技术这篇 14000+ 字的 RAG 科普拆成 3 段流水线 + 4 个反直觉判断:Embedding 的几何意义、HNSW 的跳表×NSW 双层结构、Query Rewrite 才是收益最大的单点优化、多路召回 RRF 融合而不是拼分数。面试 RAG 项目能直接用的版本。</p>
                 </div>
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="2026-09-15-langgraph-three-years-patterns.html">LangGraph 3 年：什么时候用 graph / 什么时候用 harness / 什么时候用 loop——决策框架</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
-                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">LangGraph</span> <span class="badge bg-secondary">工程哲学</span> <span class="badge bg-secondary">决策框架</span> <span class="badge bg-secondary">工程实践</span> </small></p>
-                    <p class="mb-1">LangGraph 3 年的核心经验：什么时候把 Agent 表达为 graph（结构已知、路径确定）、什么时候用 agent harness（结构未知、靠模型推理）、什么时候用 loop（最简版本）。3 个关键 lesson：agent graph 通常不是 DAG、loop 就是简单 graph、动态 transition 重要。附决策框架 + 简历项目骨架。</p>
+                    <h5 class="mb-1"><a href="2026-09-15-rag-engineering-patterns.html">RAG 实战：从 Naive 到 Modular 的 5 个工程模式</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">RAG</span> <span class="badge bg-secondary">Agent</span> </small></p>
+                    <p class="mb-1">把 claude-cookbooks/capabilities/retrieval_augmented_generation 的 663KB 主教程 + Promptfoo 评测套件拆成 5 个工程模式：文档分块 / 检索选型 / 上下文注入与引用 / Promptfoo 评测闭环 / 架构演进路径。每个模式给出一行定位 + 最小代码 + 踩坑提示。</p>
                 </div>
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="2026-09-15-klarna-customer-support-multi-agent.html">Klarna AI Assistant：85M 用户、70% 自动化、80% 解决提速——3 个早期 multi-agent 工程决策</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
-                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">Klarna</span> <span class="badge bg-secondary">LangGraph</span> <span class="badge bg-secondary">早期 multi-agent</span> <span class="badge bg-secondary">工程实践</span> </small></p>
-                    <p class="mb-1">Klarna AI Assistant 用 LangGraph + LangSmith 服务 85M 月活用户，70% 重复任务自动化、解决时间 -80%、效果等同 700 个全职员工。3 个早期 multi-agent 决策：controllable routing、context-aware dynamic prompt、test-driven prompt iteration。LangChain 因此设计了 meta-prompting。</p>
+                    <h5 class="mb-1"><a href="2026-09-15-patterns-agents-engineering.html">Agent 模式工程化：从 Prompt Chaining 到 Async Subagent 的 6 个实战模式</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">Patterns</span> </small></p>
+                    <p class="mb-1">把 Anthropic &quot;Building Effective Agents&quot; 论文对应的 patterns/agents 4 个 notebook 拆成 6 个工程模式：prompt chaining / parallelization / routing / orchestrator-workers / evaluator-optimizer / async multi-agent。每个模式一行定位 + 最小代码 + 2-3 条工程踩坑提示。</p>
                 </div>
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="2026-09-15-harness-design-gan-evaluator.html">Harness 设计实战：Generator-Evaluator 模式的 6 个工程教训</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
-                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">Harness</span> <span class="badge bg-secondary">Agent 架构</span> </small></p>
-                    <p class="mb-1">把 Anthropic 长时 Agent Harness 设计文章拆成 6 个工程教训：Context Anxiety 与 Reset 的必要性、Self-Evaluation 偏差、GAN 启发的 Generator-Evaluator、Sprint 契约与文件 handoff、Evaluator 调优要花几轮、Harness 是活系统（每次升级模型要重审）。每个模式配定位 + 数据 + 工程落地。</p>
+                    <h5 class="mb-1"><a href="2026-09-15-order-system-ai-native-stability.html">AI Native 研发范式拆解:得物订单系统的五道关口与 Spec-Driven 插件</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">AI Native</span> <span class="badge bg-secondary">Spec-Driven</span> <span class="badge bg-secondary">TDD</span> <span class="badge bg-secondary">Claude Code</span> <span class="badge bg-secondary">稳定性</span> </small></p>
+                    <p class="mb-1">得物订单系统的 AI Native 治理拆成五道关口:需求澄清(BDD Gherkin 钉死验收)、技术方案(五段式+知识库兜底现状)、TDD 编码(RED-GREEN 循环)、门禁卡控(三层 DAG+增量体检)、全流程埋点。关键判断:旧流程是给人设计的,要改的不是 AI 而是流水线。</p>
                 </div>
             </div>
         </div>
@@ -104,6 +104,11 @@
                 <li class="page-item"><a class="page-link" href="../8/index.html">8</a></li>
                 <li class="page-item"><a class="page-link" href="../9/index.html">9</a></li>
                 <li class="page-item"><a class="page-link" href="../10/index.html">10</a></li>
+                <li class="page-item"><a class="page-link" href="../11/index.html">11</a></li>
+                <li class="page-item"><a class="page-link" href="../12/index.html">12</a></li>
+                <li class="page-item"><a class="page-link" href="../13/index.html">13</a></li>
+                <li class="page-item"><a class="page-link" href="../14/index.html">14</a></li>
+                <li class="page-item"><a class="page-link" href="../15/index.html">15</a></li>
                 <li class="page-item"><a class="page-link" href="../4/index.html">下一页 »</a></li>
             </ul>
         </nav>

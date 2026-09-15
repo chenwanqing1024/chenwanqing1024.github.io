@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="得物技术 作者丹克
+讲数仓场景下如何用 Claude Code 的 CLAUDE.md + Hooks + Subagent + Memory
+五层防御，把 SQL 规范遵守率从 70~80% 拉到 95%+、需求一次通过率从 50%
+拉到 90%、主 context compact 频率降 50~70%；核心反直觉判断：Claude Code
+的 compact 不是 bug，是约束——你必须用 hooks 和 subagent 重新分配它的
+context。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>数仓 AI Coding Harness 读文笔记：把 Claude Code 改造成 95%+
+规范遵守率的护栏系统 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>数仓 AI Coding Harness 读文笔记：把 Claude Code 改造成
+95%+ 规范遵守率的护栏系统</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">Harness</span> <span class="badge bg-secondary">数仓</span> <span class="badge bg-secondary">Claude
+Code</span> <span class="badge bg-secondary">Hooks</span> <span class="badge bg-secondary">Subagent</span> <span class="badge bg-secondary">CLAUDE.md</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://xie.infoq.cn/article/0b53fd5abaaf99ba96386477a" target="_blank" rel="noopener">Claude
+Code Harness 工程：数仓侧落地方案｜得物技术</a> · 得物技术
+            </div>
+
+<h2 id="原文在说什么">原文在说什么</h2>
+<p>原文的核心矛盾一句话总结：<strong>越复杂的需求越容易撑爆 context →
+撑爆后 compact 触发 → 关键约束遗忘 → AI 犯低级错误。</strong>
+数仓场景下这个问题尤其尖锐：一个大型宽表需求要处理血缘查询结果（500~3000
+tokens）、23 条自测 SQL 执行结果（5000~15000 tokens）、SKILL
+规范文件内容（~10000 tokens）、数据比对两表样本（大量行），context
+迅速膨胀。</p>
+<p>得物离线数仓主力工具是 Claude Code，辅以数据平台 IDE
+插件。痛点三类：</p>
+<ol type="1">
+<li><strong>失忆</strong>：告知”金额字段单位是千元”，对话到一半 AI
+忘了，生成的 SQL 把千元当元用，<strong>数据差了 1000 倍</strong>。这是
+Claude Code context compact（默认 95% 触发）的系统性限制。</li>
+<li><strong>规范执行不稳定</strong>：OneData
+命名规范、注释三段式、INSERT 必须带
+PARTITION——工期紧张时人工规范遵守率降到 60%~70%，AI 靠 prompt 记忆也只有
+70%~80%。</li>
+<li><strong>复杂需求 context 撑满</strong>：越到后期 AI 越不可靠。</li>
+</ol>
+<p>围绕这些痛点，原文给出一个公式化的判断：<strong>准确率 = 语义理解深度
+× 数据规范覆盖度</strong>。两端都是变量。Harness
+的目标就是让变量变稳定。</p>
+<p>五层防御体系（从简单到复杂）：</p>
+<ol type="1">
+<li><strong>写死进 CLAUDE.md</strong>：项目根目录
+<code>.claude/CLAUDE.md</code> 每次 compact
+后从磁盘重新注入，是最可靠的持久化位置。原文给出一份样例：当前迭代状态（正在开发的表、版本、node_id、状态）、本次迭代约束（禁止修改的表、分区字段格式、amount
+字段单位）、数仓全局规范（建表分区、SELECT * 禁止、DECIMAL 类型、INSERT
+PARTITION
+子句）。<strong>操作规则</strong>：进入新迭代时手动更新前两节；上线后清空约束节；全局规范长期保留，控制在
+100 行以内。</li>
+<li><strong>Auto Memory 跨会话积累</strong>：Claude 自动将跨会话发现写入
+<code>~/.claude/projects/&lt;project&gt;/memory/MEMORY.md</code>，每次
+compact 后重新注入。原文给出三个主动触发时机：“这张表的 amount
+字段单位是千元，请记住”；“field_a
+在特定场景下会为空，请记住这个踩坑”；“本次 V1.0 的关键变更是 field_b
+逻辑调整，请记住”。</li>
+<li><strong>Hooks 自动验证（核心防御）</strong>：在
+<code>.claude/settings.json</code> 配置 <code>PostToolUse</code>
+hook，每次写 <code>.sql</code>
+文件后确定性触发规范检查。原文给出一份完整的
+<code>validate_sql.sh</code>，检查 4
+类违规：<code>SELECT *</code>、INSERT 缺 <code>PARTITION</code>、DOUBLE
+类型金额、UPDATE/DELETE 缺 WHERE。<strong>关键陷阱</strong>：阻断必须用
+<code>exit 2</code>，<code>exit 1</code> 不会阻止 Claude
+继续执行。另有一个 <code>block_dangerous_ddl.sh</code> 在 PreToolUse
+阶段拦截 DROP/TRUNCATE 生产表（放行 <code>_dev/_test/_stg</code>
+后缀）。原文还提到 <code>inject_context.sh</code> 用于 compact
+后重注入上下文。</li>
+<li><strong>Subagent 做上下文隔离</strong>：核心原则是”高 token
+消耗但结果只需要摘要”的操作放到 subagent 独立
+context。原文给出两个示例：<code>sql-validator</code>（用 haiku
+模型，permissionMode: dontAsk，tools:
+Read/Bash/Grep/Glob，只做验证，输出不超过 50 行结构化报告）和
+<code>dw-explorer</code>（数仓结构探索，只读，分析一层血缘，输出不超过
+80 行摘要）。主对话调用方式有两种：自然触发（“用 dw-explorer 分析
+db_a.dwd_table_a
+的结构”）或强制指定（<code>@"sql-validator (agent)" 验证 path/to/insert.sql</code>）。</li>
+<li><strong>SKILL 文件改造</strong>：当前 SKILL
+文件（01~08.md）每次调用全文加载进主 context，加速
+compact。改造方向——把执行步骤提炼成 subagent 指令，subagent 内部读完整
+SKILL 文件，主 context 只接收结果摘要；用 path-scoped
+rules（<code>.claude/rules/etl-rules.md</code>，按
+<code>paths: ["**/*insert*.sql", "**/*_di.sql", "**/*_df.sql"]</code>
+触发）替代 SKILL 文件中的规范章节，按需加载。</li>
+</ol>
+<p>数仓 8 步工作流（需求分析 → 技术设计 → ETL → 自测 → 数据比对 → SR
+导入 → 性能优化 → SLA/DQC）天然对应 Harness
+三层机制：需求分析、技术设计、SR 导入、SLA/DQC 在主会话处理（context
+压力低）；ETL 开发靠 hook、自测/数据比对靠 subagent、性能优化靠
+dw-explorer subagent。原文以 <code>/dw-etl</code>
+为例，命令封装了规范内容（建表规范、INSERT OVERWRITE + PARTITION、禁止
+SELECT *）、产出格式（<code>ddl_[表名].sql</code> +
+<code>insert_[表名].sql</code> +
+<code>ddl_sr_[表名].sql</code>）、自动护栏（PostToolUse hook）、subagent
+卸载。</p>
+<p>四类具体问题与解法：</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>问题</th>
+<th>解法</th>
+<th>效果</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>字段口径遗忘导致计算错误</td>
+<td>CLAUDE.md 注入 + Auto Memory</td>
+<td>从”时常发生”降到”基本不出现”</td>
+</tr>
+<tr class="even">
+<td>需求理解偏差导致返工</td>
+<td>CLAUDE.md 迭代约束 + Stop hook 检查任务完整性</td>
+<td>一次交付通过率 50% → 90%</td>
+</tr>
+<tr class="odd">
+<td>SQL 规范执行不一致</td>
+<td>PostToolUse hook + <code>exit 2</code> 强制阻断</td>
+<td>70%~80% → 95%+</td>
+</tr>
+<tr class="even">
+<td>大型需求 context 耗尽</td>
+<td>血缘 / 自测 / SKILL 全部走 subagent</td>
+<td>主 context compact 频率降 50%~70%</td>
+</tr>
+</tbody>
+</table>
+<h2 id="我的看法">我的看法</h2>
+<p><strong>我认同</strong>作者把”失忆”归因为”系统性的 compact
+限制”而非”模型能力不足”——这是一个非常重要的视角转换。 一旦承认 compact
+是约束，你就不会试图让 prompt 更聪明，而是去抢 compact
+触发的窗口期：把约束写进会重新注入的 CLAUDE.md，把验证放到不依赖模型的
+hooks，把高 token 操作隔离到 subagent。
+这是把”软件系统”和”LLM”当成两层来设计——LLM
+是会失忆的执行单元，确定性系统是不可失忆的协作底座。 我自己在做 Agent
+项目时也反复印证这一点：把状态写进磁盘、把规则写进 hook、把高 token
+操作下沉到 subagent，主对话的”模型智力”才能被解放出来。</p>
+<p><strong>这篇文章给我最有价值的不是”五层防御体系”这个分类，而是
+<code>exit 2</code> 这个细节和”高 token 操作放
+subagent”这条原则。</strong> 前者是 hook 协议里的”阻断语义”，是规范从
+LLM 记忆迁移到确定性系统的关键开关；后者是 context
+工程的核心动作——不是因为 subagent 更好，而是因为 subagent 的 context
+不会污染主对话的 context。 这两件事单独看都不起眼，但合在一起就构成了
+Harness 工程的”协议层基础”——一个 hook 协议、一个 context 隔离协议。</p>
+<p>三个反直觉的工程判断：</p>
+<ol type="1">
+<li><strong>Compact 不是 bug，是约束</strong>——95%
+阈值是设计意图，不是缺陷。原文把 compact 当作”必须重新分配 context
+的强制窗口”，写 CLAUDE.md 就是抓住这个窗口。如果团队只想着”延长
+context”或者”换更长的窗口”，就抓不到根本。</li>
+<li><strong><code>exit 2</code> 与 <code>exit 1</code> 的区别是 hook
+协议里最容易被忽略的工程细节</strong>——后者不会阻止 Claude
+继续执行。这意味着你的规范检查即便报错了也只会变成”提示”，Claude
+完全可以无视。原文把这条作为”关键陷阱”列出，说明团队落地时踩过坑。</li>
+<li><strong>Harness 的目标不是让 Claude
+更聪明，而是让研发流水线更可靠</strong>——分工明确：Claude
+负责语义理解（理解需求、设计方案、生成代码），hooks
+负责规范检查和拦截，subagent 负责大量读取操作，CLAUDE.md + Memory
+负责跨会话持久化。这是把”AI
+擅长的事”和”系统擅长的事”做了一次明确切分。</li>
+</ol>
+<p>但我有 push back：</p>
+<ol type="1">
+<li><strong><code>validate_sql.sh</code> 用 <code>grep -iE</code>
+做正则检查非常脆弱</strong>。复杂 SQL
+里的字符串字面量、注释、<code>/* ... */</code>
+块、<code>WITH ... AS (...)</code>
+子句都会触发误报。原文没给出误报处理机制，也没说明”WARNING”与”CRITICAL”的实际阻断逻辑差异。如果
+hook 频繁误报，团队会很快绕开 hook 调用 AI 直接改文件。</li>
+<li><strong>Auto Memory
+的”主动触发”对人不友好</strong>。原文要求工程师主动说”请记住”，这等于把”记忆负担”重新压回人——这恰恰是工程师最容易忘的环节。一个更稳的方案应该是让
+hook 在失败发生时自动写入
+memory，而不是等工程师记得说”请记住”。如果记忆必须靠人主动写，那么
+Harness 的”自动化”承诺就有缺口。</li>
+<li><strong>“compact 频率降低
+50%~70%”这个数字没有给出基线测量方法</strong>。原文给出了目标收益，但没说怎么度量——是按”对话
+token
+累计”算？还是按”完成一张宽表所需的回合数”算？缺测量方法会让”harness
+真的有用”这个论点无法被复现验证。</li>
+</ol>
+<h3 id="怎么落到-agent-项目">怎么落到 Agent 项目</h3>
+<p>如果让我基于这篇搭一个”数仓 AI Coding Harness”，我会画五个模块：</p>
+<ul>
+<li><strong>CLAUDE.md
+模板引擎</strong>：根据项目结构（数据库名、表名、字段类型）自动生成当前迭代约束节，上线后自动清空；规范节控制
+100 行上限，超出强制归档到 path-scoped rules。</li>
+<li><strong>SQL Hook 校验套件</strong>：基于 SQL
+解析器（<code>sqlglot</code> / <code>sqlparse</code>）而不是 grep
+实现检查；每个规则独立可关；WARNING 与 CRITICAL 分两套退出码，CRITICAL
+才阻断。</li>
+<li><strong>Subagent 注册中心</strong>：内置
+<code>sql-validator</code>、<code>dw-explorer</code>、<code>data-quality-checker</code>、<code>data-comparator</code>
+四个 subagent，每个都强制 <code>model: haiku</code> +
+<code>permissionMode: dontAsk</code> + 输出行数上限。</li>
+<li><strong>Memory Auto-Writer</strong>：PostToolUse
+失败时自动把”失败现象 + 修复方式”写入 MEMORY.md，避免依赖人工记忆。</li>
+<li><strong>8 步 SKILL
+触发器</strong>：<code>/dw-etl</code>、<code>/dw-self-test</code>
+等命令封装 SKILL 文件全文加载到 subagent，主对话只收摘要报告。</li>
+</ul>
+<p>面试如果被问”怎么把 Claude Code
+用到数仓研发”，可以这样答：<strong>承认 compact 是约束不是
+bug，把约束写进 CLAUDE.md 抢窗口期；用 PostToolUse hook 强制 SQL
+规范（<code>exit 2</code> 阻断语义别用错）；把高 token
+操作（血缘、自测、数据比对）全部下沉到 haiku 模型的 subagent；Auto
+Memory 由 hook 失败时自动写入而不是靠人工记；五层分工明确，Claude
+只负责语义理解，其他由确定性系统兜底。</strong></p>
+<h2 id="一句话总结">一句话总结</h2>
+<blockquote>
+<p>数仓 AI Coding 的瓶颈不是 Claude 不会写 SQL，而是 compact
+会让约束丢失、规范会靠记忆、context 会撑爆——Harness 的本质是把”语义 ×
+规范 = 准确率”两边从 LLM 记忆里迁出来，交给 hooks、CLAUDE.md、subagent
+各自托底。</p>
+</blockquote>
+<h2
+id="延伸思考claude.md-的-100-行上限为什么是金科玉律">延伸思考：CLAUDE.md
+的 100 行上限为什么是金科玉律</h2>
+<p>CLAUDE.md 全文要在每次 compact 后重新注入，100
+行上限对应的实际是”context 抢占窗口”——超长 CLAUDE.md
+会反复挤占主对话可用空间，反而降低模型判断力。</p>
+<p>所以 100
+行的本质是<strong>“对模型友好”和”对工程严谨”的平衡点</strong>：</p>
+<ul>
+<li>太少 → 关键约束进不来，AI 还是会失忆。</li>
+<li>太多 → 每次 compact 都搬运一大段历史，挤占有效 context。</li>
+<li>100 行 → 强制把”经常用的”和”偶尔用的”分开，经常用的进
+CLAUDE.md，偶尔用的进 path-scoped rules 或 subagent。</li>
+</ul>
+<p>这就是为什么原文把”全局规范长期保留、控制在 100
+行以内”写成了一条操作规则——这不是审美，是协议。</p>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>

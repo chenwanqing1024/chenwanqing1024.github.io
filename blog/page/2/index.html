@@ -64,29 +64,29 @@
             </div>
             <div class="card-body">
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="2026-09-15-rag-engineering-patterns.html">RAG 实战：从 Naive 到 Modular 的 5 个工程模式</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
-                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">RAG</span> <span class="badge bg-secondary">Agent</span> </small></p>
-                    <p class="mb-1">把 claude-cookbooks/capabilities/retrieval_augmented_generation 的 663KB 主教程 + Promptfoo 评测套件拆成 5 个工程模式：文档分块 / 检索选型 / 上下文注入与引用 / Promptfoo 评测闭环 / 架构演进路径。每个模式给出一行定位 + 最小代码 + 踩坑提示。</p>
+                    <h5 class="mb-1"><a href="2026-09-15-spec-driven-attribution.html">Spec-driven 真正值钱的不是抓 bug，是把 review 变得可追责</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">AI 治理</span> <span class="badge bg-secondary">工程实践</span> </small></p>
+                    <p class="mb-1">Nitin Garg 的实验砍到了骨头：spec baseline 把 review 的归因率从 0% 拉到 81%，但 recall 在统计上没动（0.525 vs 0.518）。认同他把 spec 当 governance artifact 的判断，但 push back 三处：staged generation 的&quot;翻倍&quot;有第二次过模型本身的 confound、5 个 reviewer 不足以撑住治理 ROI 的结论、Accountable 必须配上&quot;被 bounced 的后果&quot;才成立；并指出这套打法在数据湖仓里早就跑过了，spec 治理不是 AI 时代的新发明，是数据治理套了个 LLM 的壳。</p>
                 </div>
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="2026-09-15-patterns-agents-engineering.html">Agent 模式工程化：从 Prompt Chaining 到 Async Subagent 的 6 个实战模式</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
-                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">Patterns</span> </small></p>
-                    <p class="mb-1">把 Anthropic &quot;Building Effective Agents&quot; 论文对应的 patterns/agents 4 个 notebook 拆成 6 个工程模式：prompt chaining / parallelization / routing / orchestrator-workers / evaluator-optimizer / async multi-agent。每个模式一行定位 + 最小代码 + 2-3 条工程踩坑提示。</p>
+                    <h5 class="mb-1"><a href="2026-09-15-spec-coding-three-layer.html">读文笔记：Spec Coding 三层规范体系——约束、示范、视觉</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">AI 编程</span> <span class="badge bg-secondary">Claude Code</span> <span class="badge bg-secondary">Spec Coding</span> <span class="badge bg-secondary">规范体系</span> <span class="badge bg-secondary">工程师能力</span> </small></p>
+                    <p class="mb-1">得物技术用 10 天、217 条指令、2754 次工具调用、25546 行净增代码跑完一个企业级中后台；核心是把 AI 编程的规范性拆成三层：rules 约束层（禁止什么）、code-design 示范层（标准产出长什么样）、ui-design 视觉层（HTML 设计稿作为锚点）。再加上两个 MCP：接口文档直连（调用 21 次覆盖 39 个接口）、飞书云文档直读。</p>
                 </div>
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="2026-09-15-multiagent-plan-master-worker.html">Agent 项目的生产可靠性三角：Plan、主子分层与 A2A</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
-                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">MultiAgent</span> <span class="badge bg-secondary">Plan-and-Execute</span> <span class="badge bg-secondary">工程落地</span> </small></p>
-                    <p class="mb-1">得物 MultiAgent 平台这篇不写&quot;什么是 Agent&quot;，写的是&quot;演示 Agent 和生产 Agent 的距离&quot;。核心是把 Plan 当作一等公民、把主/子 Agent 分层、把可靠性约束从 prompt 层下沉到框架层——这三件事合在一起，决定了 Agent 系统能不能上生产。</p>
+                    <h5 class="mb-1"><a href="2026-09-15-spark-ui-monitoring.html">Spark UI 监控：从宏观入口到 Task 指标 — 读《深入剖析 Spark UI 界面》</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Spark</span> <span class="badge bg-secondary">Spark UI</span> <span class="badge bg-secondary">性能调优</span> <span class="badge bg-secondary">数据倾斜</span> <span class="badge bg-secondary">Shuffle</span> <span class="badge bg-secondary">AQE</span> </small></p>
+                    <p class="mb-1">得物技术团队对 Spark UI 全栈监控的系统性拆解：五大一级入口（Executors/Environment/Storage/SQL/Stages）、三级诊断路径（SQL→Jobs→Stages）、两个核心实战案例（scan 表慢/Shuffle 并行度不足）、关键经验公式 D/P≈M/C，以及 AQE 参数 advisoryPartitionSizeInBytes 和 coalescePartitions 调优。</p>
                 </div>
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="2026-09-15-multiagent-memory-four-layers.html">Agent 记忆不是 prompt 拼接：四层架构与异步沉淀</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
-                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">记忆系统</span> <span class="badge bg-secondary">MemOS</span> <span class="badge bg-secondary">工程落地</span> </small></p>
-                    <p class="mb-1">这篇不讲&quot;把历史塞进 prompt&quot;——它讲怎么把记忆拆成 Working / Session / User / Agent 四层，让请求前并行加载、会话后异步沉淀、用 LLM 判断价值、用冲突处理保持一致。四层不是分类维度的炫技，是把&quot;Agent 记不住东西&quot;这个老大难问题拆成可工程化的子问题。</p>
+                    <h5 class="mb-1"><a href="2026-09-15-reuse-first-skill-three-layer.html">复用优先 Skill 三层架构：AI Coding 的工程纪律比模型能力更重要</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">Skill</span> <span class="badge bg-secondary">Claude Code</span> <span class="badge bg-secondary">工程实践</span> <span class="badge bg-secondary">AGENTS.md</span> </small></p>
+                    <p class="mb-1">得物技术 (魏无涯) 用 AGENTS.md + Hook + Skill 三层结构做&#x27;组件复用优先&#x27;Agent。认同&#x27;AI 适合被放进清晰流程里工作&#x27;的核心判断，但 push back 三处：AGENTS.md 容量上限没说、Hook 触发模式维护成本没量化、&#x27;流程控制器 vs 能力包&#x27;的边界没给标准。</p>
                 </div>
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="2026-09-15-multi-agent-research-patterns.html">Multi-Agent Research System 实操：Lead + Subagent 架构的 5 个工程教训</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
-                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">Multi-Agent</span> </small></p>
-                    <p class="mb-1">把 Anthropic 多 Agent Research 系统工程文章拆成 5 个工程教训：多 agent 适用边界（research 强、coding 弱）、LeadResearcher + Subagent + CitationAgent 三段架构、Orchestrator delegation 7 条 prompt 原则、Eval 三件套（小样本 + LLM-as-judge + 人类）、Production 三大工程挑战（stateful / debug / 同步 vs 异步）。配具体数据（90.2% / 15x token / 90% time / 40%）+ 落地边界。</p>
+                    <h5 class="mb-1"><a href="2026-09-15-recommendation-evaluation-platform.html">推荐评测平台拆解：人机协作 + CAS 调度 + Agent 巡检的演进路线</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">推荐系统</span> <span class="badge bg-secondary">评测平台</span> <span class="badge bg-secondary">LLM 评测</span> <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">工程化</span> </small></p>
+                    <p class="mb-1">把得物推荐评测平台拆成 3 个核心模块:Prompt 可视化+人机漏斗校验闭环、CAS 抢占+三阶段 offset 的分布式调度、LLM 并发控制+模型分级控本。关键数字:单周百万级审计需求下节省 91% 成本、一致性水位稳定 92%。</p>
                 </div>
             </div>
         </div>
@@ -104,6 +104,11 @@
                 <li class="page-item"><a class="page-link" href="../8/index.html">8</a></li>
                 <li class="page-item"><a class="page-link" href="../9/index.html">9</a></li>
                 <li class="page-item"><a class="page-link" href="../10/index.html">10</a></li>
+                <li class="page-item"><a class="page-link" href="../11/index.html">11</a></li>
+                <li class="page-item"><a class="page-link" href="../12/index.html">12</a></li>
+                <li class="page-item"><a class="page-link" href="../13/index.html">13</a></li>
+                <li class="page-item"><a class="page-link" href="../14/index.html">14</a></li>
+                <li class="page-item"><a class="page-link" href="../15/index.html">15</a></li>
                 <li class="page-item"><a class="page-link" href="../3/index.html">下一页 »</a></li>
             </ul>
         </nav>

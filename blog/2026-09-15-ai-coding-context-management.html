@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="得物技术（作者后羿）深度解构 AI
+编码真正的瓶颈是上下文管理（不是模型能力）：DORA 报告显示 AI 采用率 +25%
+反而交付稳定性下降 7.2%；GPT-4o 在 1K Token 99.3% 准确率 vs 32K Token
+69.7%；Claude Code 终端原生代理循环 + MCP 按需加载 + CLAUDE.md + Auto
+Memory；OpenSpec SDD 规格驱动开发（提案/应用/归档三阶段），CC + OpenSpec
+实战重构优惠券结算逻辑。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>AI 编码真正的瓶颈：上下文管理失效 — 读《Claude Code +
+OpenSpec》 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>AI 编码真正的瓶颈：上下文管理失效 — 读《Claude Code +
+OpenSpec》</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">上下文工程</span> <span class="badge bg-secondary">Claude
+Code</span> <span class="badge bg-secondary">OpenSpec</span> <span class="badge bg-secondary">SDD规格驱动</span> <span class="badge bg-secondary">MCP</span> <span class="badge bg-secondary">Auto
+Memory</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://xie.infoq.cn/article/2994eb55f0996cca761364940" target="_blank" rel="noopener">Claude
+Code + OpenSpec 正在加速 AICoding
+落地：从模型博弈到工程化的范式转移｜得物技术</a> · 得物技术
+            </div>
+
+<h2 id="原文在说什么">原文在说什么</h2>
+<p>得物技术（作者后羿）从行业高度重新审视 AI 编码的核心瓶颈 —
+<strong>不是模型不够强，而是上下文管理失效</strong>。</p>
+<p><strong>一、生产力悖论与认知负荷。</strong> 开发者主观感知 AI
+让速度提升 20%，但实际完成任务时间反而增加 19%。根源是 AI
+在长上下文中的效能衰减 + Fix/Test 修正循环 + 需要更多人工干预。引用 DORA
+2024 报告：<strong>AI 采用率每增加 25%，交付稳定性反而下降
+7.2%</strong>。</p>
+<p><strong>二、上下文断崖。</strong> GPT-4o 在 1K Token 准确率
+99.3%，扩展到 32K Token 时暴跌至
+69.7%。这说明<strong>单纯扩大上下文窗口不能解决问题</strong>。两个核心概念：(1)
+<strong>Context Poisoning（上下文中毒）</strong> —
+对话历史过长或含过多无关代码时性能非线性下降；(2) <strong>Attention
+Drift（注意力漂移）</strong> — 偏离任务核心关注。</p>
+<p><strong>三、上下文工程的兴起。</strong> 上下文工程（Context
+Engineering）正在取代提示词工程（Prompt
+Engineering）。核心不是”如何写更好的指令”，而是”如何为模型筛选最精准的
+Token 集合”。在大型组织中，关键决策散落在飞书文档评论、群消息、会议中 —
+<strong>AI 缺乏这些 Implicit
+Knowledge，生成的方案虽符合语法但违背架构初衷</strong>。</p>
+<p><strong>四、上下文作为一等系统。</strong> 现代 AI
+代理架构将上下文视为具有自身架构、生命周期和约束的”一等系统”，不再是字符串拼接，而是精密的”编译器管道”。</p>
+<p><strong>五、Claude Code 的核心机制。</strong> -
+<strong>代理循环（Agentic
+Loop）</strong>：模仿人类工程师的”收集—行动—验证”闭环。 -
+<strong>终端原生 + Unix 哲学</strong>：支持 Pipe、CI/CD 集成（GitHub
+Actions 自动 Code Review）。 - <strong>MCP +
+按需加载</strong>：不一次性加载所有 API 定义，而是通过代码执行按需调用
+MCP 服务（如分析大型数据库时编写针对性查询，仅将结果摘要读入上下文）。 -
+<strong>CLAUDE.md</strong>：根目录的”操作手册”，存储项目特定编码标准/架构决策/测试指令，提供持久、跨会话约束。
+- <strong>Auto Memory</strong>：自动在 MEMORY.md
+记录构建命令、调试心得、用户偏好；新会话加载前 200 行。</p>
+<p><strong>六、OpenSpec — 规格驱动开发（SDD）。</strong>
+核心理念：<strong>在写任何代码之前，先由人类与 AI
+共同协商并锁定一份机器可读、人可评审的规格文档</strong>。SDD
+三阶段演进：自然语言规格 → 结构化文档规格 → OpenSpec
+等机器可执行规格。OpenSpec
+工件体系：每个变更（Change）组织在独立文件夹，包含 proposal.md / specs/
+/ tasks.md / design.md。</p>
+<p><strong>七、OpenSpec 的关键设计 — 归档（Archive）机制。</strong> AI
+处理新任务最忌讳被旧任务的陈旧信息干扰。OpenSpec
+在任务完成后<strong>执行 /opsx:archive 把临时规格归档为 openspec/specs/
+下的永久规格</strong>，下一次新 AI
+代理（或新员工）只需读取这份规格即可获得完整业务语境。</p>
+<p><strong>八、实战案例 — 重构优惠券结算逻辑。</strong> 四步流程：(1)
+/opsx:propose 生成骨架；(2) 审阅 spec.md，补全”过期临界点并发问题 + Lua
+脚本原子性”等场景；(3) /opsx:apply 受控执行，对照 tasks.md
+逐项实施，跑测试失败自动修复；(4) /opsx:archive 沉淀为标准规格。</p>
+<p><strong>九、角色转变。</strong>
+软件工程师从”码农”变成”规格定义者”。如果 AI
+能根据完美描述生成任何代码，那么”代码”本身变成编译中间产物，“规格”才是核心产品。</p>
+<p><strong>十、效能飞轮。</strong> 成功落地需要建立正向循环 — 个人使用
+Skill 沉淀经验 → 团队共享 Skill 库 → 团队 AI 编码能力提升 → 更多经验沉淀
+→ 飞轮加速旋转。从”个人技能”到”组织技能”的迁移路径，正是 AI
+编码落地的高级形态。</p>
+<h2 id="我的看法">我的看法</h2>
+<p><strong>我认同：</strong> 文章最核心的反共识判断是 <strong>“AI
+编码的瓶颈从来不是模型不够聪明，而是我们与 AI
+之间的沟通带宽太低且上下文太脏”</strong>。这句话精准描述了 2026 年 AI
+落地的真实状态 — 模型能力溢出，工程能力不足。</p>
+<p><strong>这篇文章给我最有价值的不是 X，而是 Y：</strong> 不是 OpenSpec
+工件体系本身（任何 spec 工具都能实现），而是
+<strong>“归档（Archive）作为知识沉淀机制”</strong>。这是把”AI
+生成的临时规格”升级为”团队长期记忆”的关键 — 否则每次会话都从零开始。</p>
+<p><strong>反直觉的工程判断：</strong></p>
+<ol type="1">
+<li><p><strong>DORA 报告里 7.2% 的稳定性下降是 AI
+编码的隐藏税。</strong> 大家都说 AI 提升效率，但 DORA
+数据显示<strong>采用 AI
+越多反而交付越不稳定</strong>。这不是模型的错，是<strong>没有上下文工程的错</strong>
+— 你让 AI 在模糊需求下暴力生成代码，bug 率自然上升。</p></li>
+<li><p><strong>CLAUDE.md + Auto Memory 是 OpenSpec
+之前的过渡方案。</strong> OpenSpec 才是终局 — 规格作为一等公民，所有
+Agent 共享。但 OpenSpec
+的学习成本高、对存量项目改造成本大。<strong>对于已有项目，CLAUDE.md
+是”半步”；对于新项目，OpenSpec 才是”一步到位”</strong>。</p></li>
+<li><p><strong>MCP 的”按需加载”比工具数量更重要。</strong> 一开始 MCP
+工具接入越多越好，但<strong>工具定义本身会撑爆上下文</strong>。Claude
+Code 的”代码执行”模式（让 Agent 编写代码按需调用 MCP）才是关键 —
+这避免了”工具菜单爆炸”问题。</p></li>
+</ol>
+<p><strong>但我有 push back：</strong></p>
+<ol type="1">
+<li><p><strong>99.3% → 69.7% 的断崖数据被过度简化。</strong> 文章引用
+GPT-4o 数据，但<strong>没区分”模型类型”</strong> — GPT-4o 在 1K 到 32K
+的衰减，与 Claude/Gemini 不同（Claude
+的长上下文衰减更平滑）。<strong>不同模型的”上下文工程最优策略”不一样</strong>，不能一概而论。</p></li>
+<li><p><strong>SDD 的隐性成本被低估。</strong> OpenSpec
+的工件体系（proposal.md/specs/tasks.md/design.md）听起来很优雅，但<strong>每个变更都要走完这四个文档的维护</strong>，对一个
+5
+人小团队的小迭代来说成本可能超过价值。文章没给出”什么规模的团队/项目适合
+SDD”的判断标准。</p></li>
+<li><p><strong>“代码是中间产物，规格是核心产品”过于理想。</strong>
+现实里规格也会过期、也会和实现偏离。OpenSpec
+的归档机制虽然能沉淀，但<strong>规格本身的版本管理、与代码的对齐（specs
+和代码不一致时信谁？）才是真正的难题</strong>。文章没提 spec drift
+的检测和修复机制。</p></li>
+</ol>
+<h3 id="怎么落到-agent-项目">怎么落到 Agent 项目</h3>
+<p>假设让我基于这篇做一个<strong>“上下文工程平台（Context Engineering
+Platform）”</strong>，会拆成五个模块：</p>
+<ol type="1">
+<li><strong>上下文采集器</strong>：从飞书文档 / Git 历史 / 会议纪要 /
+代码注释 / 群消息中提取 Implicit Knowledge，构建组织级知识图谱。</li>
+<li><strong>Token
+精准筛选器</strong>：根据当前任务从知识图谱中检索最相关的 Top-K
+上下文（不是全量），用 embedding + rerank 双阶段。</li>
+<li><strong>CLAUDE.md + Auto Memory 持久化层</strong>：把项目级约束存为
+Markdown + 自动从会话中提炼”调试心得”沉淀到 MEMORY.md。</li>
+<li><strong>OpenSpec 风格的 SDD 工作流</strong>：每个需求走 proposal →
+spec → tasks → archive 四阶段，规格和代码双向链接（类似 GitHub Issues →
+PR 闭环）。</li>
+<li><strong>上下文健康度看板</strong>：监控 DORA 指标（部署频率 /
+变更前置时间 / 变更失败率 / 恢复时间）的 AI
+影响系数，主动预警”上下文过载”任务。</li>
+</ol>
+<p><strong>面试回答脚本：</strong>”AI
+编码最大的瓶颈是上下文管理，不是模型。我在做的 Context Engineering
+Platform，核心是把’散落的组织知识’按 SDD 流程结构化，让每个 AI
+任务拿到的不是全量上下文，而是最精准的 Top-K Token — DORA 的 7.2%
+稳定性下降就是这种’上下文过载’的代价。”</p>
+<p><strong>与得物文章方法论的延伸：</strong>
+作者强调”上下文工程取代提示词工程”是行业范式转移。我再加一层视角：<strong>Spec
+Engineering（规格工程）正在取代上下文工程</strong>。当 OpenSpec
+之类的工具把”规格”作为一等公民后，开发者的核心能力不再是”写好
+prompt”，而是”写好
+spec”。这是从”沟通带宽”到”协议标准化”的进一步跃迁。</p>
+<h2 id="一句话总结">一句话总结</h2>
+<p>AI 编码的瓶颈不在模型能力（99.3% → 69.7%
+的断崖说明扩展窗口无效），而在上下文工程 — 用 SDD 规格驱动 + CLAUDE.md
+持久化 + MCP 按需加载 + Auto Memory 归档，让 AI 拿到”最精准的 Token
+集合”而不是全量历史。</p>
+<p><strong>给架构师的延伸：</strong> DORA 报告里”AI 采用率 +25% →
+稳定性下降 7.2%“这个数据，最值得警惕的不是数字本身，而是<strong>AI
+编码的稳定性税会随着团队规模放大</strong>。小团队（5
+人）可能感知不到，但 50 人团队会明显感到 bug 率上升、hotfix
+增多。<strong>在企业级落地时，必须把 DORA 指标的 AI
+影响系数纳入研发效能看板</strong>，否则就是”开着 AI
+这辆车，但没有仪表盘”。</p>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>

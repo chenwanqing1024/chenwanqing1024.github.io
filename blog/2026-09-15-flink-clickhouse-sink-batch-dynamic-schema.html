@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="得物技术把 flink-connector-jdbc
+写入 ClickHouse
+的三个生产痛点（无数据量攒批、固定表结构、分布式表热点）拆开重写：metaSize+timeout
+双触发、本地表直写、ClusterIpsUtils 动态发现节点；并用 Checkpoint
+配合两种语义（UnexceptionableSink vs ExceptionsThrowableSink）覆盖
+At-Most-Once 与 At-Least-Once 两种业务诉求。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>读文笔记：Flink ClickHouse Sink
+的生产级攒批与动态表结构 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>读文笔记：Flink ClickHouse Sink
+的生产级攒批与动态表结构</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">Flink</span> <span class="badge bg-secondary">ClickHouse</span> <span class="badge bg-secondary">数据集成</span> <span class="badge bg-secondary">流计算</span> <span class="badge bg-secondary">后端</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://xie.infoq.cn/article/7e8c560b03aa3ba25bb1b3fea" target="_blank" rel="noopener">Flink
+ClickHouse Sink：生产级高可用写入方案｜得物技术</a> · 得物技术
+            </div>
+
+<h2 id="原文在说什么">原文在说什么</h2>
+<p>得物技术把生产环境跑了一年多的 Flink → ClickHouse
+写入链路开源化（虽然名义上是公司内部组件），把官方
+<code>flink-connector-jdbc</code> 在 ClickHouse
+场景下的三个生产痛点拆开重写。全文 1.7
+万字，配了大量代码片段，覆盖从攒批机制、节点发现、限流、重试到
+Checkpoint 语义的完整链路。</p>
+<p><strong>痛点一：没有基于数据量的攒批。</strong>官方
+<code>JdbcSink.invoke()</code> 只在
+<code>bufferedValues.size() &gt;= batchSize</code> 时 flush，而
+ClickHouse 是按 part 写入吞吐量优化的，记录数 10000
+行的批次，字节量可能差 100 倍。文中给的生产配置是
+<code>maxFlushBufferSize = 104857600</code>（100 MB，对应字节数）+
+<code>timeoutSec = 30</code>，并在 timeout 上加 10%
+<code>SecureRandom</code> 抖动，避免多个 TM 同时 flush
+引发惊群。<code>ClickHouseSinkCounter</code> 内部维护
+<code>metaSize</code>（累计字节数）和
+<code>values</code>（记录列表），<code>add()</code>
+时累加、<code>copyValuesAndClear()</code> 时 <code>List.copyOf</code>
+做不可变深拷贝。</p>
+<p><strong>痛点二：固定表结构。</strong>官方 Sink 把 INSERT SQL
+在构造时硬编码，跨应用多表场景没法用。得物抽了
+<code>ClickHouseShardStrategy&lt;T&gt;</code> 抽象，日志场景的
+<code>LogClickHouseShardStrategy</code> 把
+<code>application="order-service"</code> 映射到
+<code>tb_logs_order_service</code>。缓冲区变成
+<code>ConcurrentHashMap&lt;String, ClickHouseSinkCounter&gt;</code>，按
+application 分组独立攒批，flush 时把整个 application 的 buffer
+深拷贝后塞进写入队列。</p>
+<p><strong>痛点三：分布式表的二次转发热点。</strong>ClickHouse 的
+<code>Distributed</code> 表会把写入转发到 shard 节点，热点行（比如同一
+application）的写入会全打到同一个节点。得物改为直写本地表（<code>INSERT INTO tb_logs_local</code>），节点列表从
+<code>system.clusters</code> 动态拉取：节点变更用
+<code>AtomicBoolean IP_CHANGING</code> CAS 避免并发更新，节点剔除从
+Redis + APM 双源拉取异常节点列表，并随机 shuffle
+后选择节点避免热点。<code>ClusterIpsUtils</code> 用 Guava
+<code>LoadingCache</code> 维护两套缓存——clusterIpsCache 1
+小时刷新（节点列表）、exceptIpsCache 1 分钟刷新（异常节点）。</p>
+<p><strong>Checkpoint
+语义两套。</strong><code>UnexceptionableSink</code>（At-Most-Once）只
+buffer 不检查
+Future；<code>ExceptionsThrowableSink</code>（At-Least-Once）每次 put 都
+<code>assertFuturesNotFailedYet()</code>。<code>ClickHouseSinkScheduledCheckerAndCleaner</code>
+用 <code>volatile boolean isFlushing</code> + <code>synchronized</code>
+解决 Cleaner 线程和 Checkpoint flush 的并发冲突——Checkpoint 期间
+<code>isFlushing=true</code>，Cleaner 线程直接 <code>return</code>
+跳过。CheckpointTimeout 建议大于
+<code>FutureTimeout * MaxRetries</code>（文章给的是 10 分钟 vs 3 分钟 ×
+10 次重试）。</p>
+<p><strong>写入限流。</strong><code>ClickHouseWriter</code> 用
+<code>LinkedBlockingQueue(10)</code> 做有界队列，<code>put()</code>
+满时阻塞实现背压；<code>numWriters=10</code> 的固定线程池消费队列，每个
+<code>WriterTask</code> 用
+<code>CompletableFuture.orTimeout(3, MINUTES)</code> 防止永久阻塞。</p>
+<p><strong>重试策略。</strong>递归重试而非队列重试：失败时
+<code>handleUnsuccessfulResponse</code> 把失败节点加入
+<code>exceptHosts</code> 后递归调用
+<code>send</code>，避开故障节点；达到 <code>maxRetries=10</code> 后
+<code>future.completeExceptionally</code> 标记失败。错误码 210/1002
+自动加入黑名单。</p>
+<p><strong>HikariCP
+调优。</strong><code>connectionTimeout=30000</code>、<code>maximumPoolSize=20</code>、<code>minimumIdle=2</code>、<code>socket_timeout=180000</code>（3
+分钟）、<code>http_connection_provider=APACHE_HTTP_CLIENT</code>。</p>
+<p>文中给的生产指标是百万级 TPS 日志写入。</p>
+<h2 id="我的看法">我的看法</h2>
+<p><strong>我认同：</strong> 这篇文章最大的价值是把”ClickHouse 不是
+MySQL”这件事讲透了。MySQL 的写入是按行处理的，Flink JDBC Sink 的固定
+<code>batchSize</code> 模型搬过来完全不对路。ClickHouse 是按 part
+写入的，攒批的真正单位是字节而不是条数，这是整篇文章所有设计的起点。把这一个点理解了，其他设计（metaSize
+累加、动态分表、本地表直写）就都是顺水推舟。</p>
+<p><strong>这篇文章给我最有价值的不是具体代码，而是”两个语义模型共存”这个产品决策。</strong>
+同样是 Flink → ClickHouse 链路，日志场景允许丢（At-Most-Once +
+UnexceptionableSink），订单事件不允许丢（At-Least-Once +
+ExceptionsThrowableSink）。同一套攒批基础设施，靠
+<code>ignoringClickHouseSendingExceptionEnabled</code> 一个开关切换 Sink
+实现，运营和工程都不需要改业务代码。这比”做一个统一的 Exactly-Once
+Sink”诚实得多——因为 Exactly-Once
+在跨系统写入场景下本身就是个伪命题。</p>
+<p><strong>反直觉的工程判断：</strong></p>
+<ol type="1">
+<li><p><strong>加 10% 随机抖动在 timeout
+上是必要的，不是过度工程。</strong> 一旦多个 Flink TM 在同一时间点
+flush，CH 集群会出现 30 秒一次的写入毛刺；分散到 ±3
+秒后毛刺被吸收。这个细节一般工程师不会想到，但放在分布式系统里就是经典的”雪崩预防”。</p></li>
+<li><p><strong>写本地表而不是分布式表，意味着客户端必须做节点发现和剔除。</strong>
+把分布式表的”转发逻辑”挪到客户端，看似增加复杂度，实则避免了热点行的转发放大效应——一个
+application 在 Distributed
+表下永远是同一节点接收，写本地表后被随机分散到所有节点。这个 trade-off
+是”客户端复杂度换服务端热点消除”。</p></li>
+<li><p><strong><code>CompletableFuture</code> +
+<code>final completeExceptionally</code>
+是必须的，不是”防御式编程”。</strong> Future
+在异常路径下如果不被显式完成，下游 <code>waitUntilAllFuturesDone</code>
+会无限等。得物专门在 finally 里检查 <code>!future.isDone()</code>
+兜底，这是踩过坑才能写出来的代码。没有这个兜底，Checkpoint
+会一直卡住直到上游 TM OOM。</p></li>
+</ol>
+<p><strong>但我有 push back：</strong></p>
+<ol type="1">
+<li><p><strong>百万级 TPS 是写入指标，但没给出 P99/P999 延迟。</strong>
+攒批的本质是把单条延迟换成批量吞吐——<code>timeoutSec=30s</code>
+的设定意味着最坏情况下单条延迟 30
+秒。这个数字对运营大盘类查询无所谓，对”实时反作弊”这类场景就不可接受。文章缺一个”什么场景不能这么配”的边界讨论。</p></li>
+<li><p><strong>节点发现 1 小时刷新 + 异常节点 1
+分钟刷新，事故切换时间在分钟级。</strong> ClickHouse
+集群扩缩容场景下，新节点最多 1 小时才被 Sink
+识别——对于弹性集群来说太慢。文中没讨论”扩容触发主动
+reload”的钩子设计，比如用 etcd watch 或 Consul 通知替代 1 小时
+polling。</p></li>
+<li><p><strong>没有给任何
+backpressure（背压）传导路径的实测数据。</strong>
+<code>LinkedBlockingQueue(10)</code> 满后 <code>put()</code>
+会阻塞，进而阻塞 TM 的 Netty 线程。<code>numWriters=10</code>
+的线程池打满后，Flink 的 checkpoint barrier 也会卡住——这是一个隐性的 TM
+OOM 风险。文章只在文字里提到”背压传导”四个字，没有量化数据。</p></li>
+</ol>
+<h3 id="怎么落到-agent-项目">怎么落到 Agent 项目</h3>
+<p>面试被问”如何把 ClickHouse 接入 AI 实时决策”时的回答框架：</p>
+<ul>
+<li><strong>数据接入模块：</strong> Flink + ClickHouseLocalWriter +
+metaSize 攒批，按应用名做 <code>ClickHouseShardStrategy</code>，实测单
+TM 写 5 万 TPS；用 <code>List.copyOf</code>
+做不可变深拷贝避免并发修改；</li>
+<li><strong>节点发现模块：</strong> <code>ClusterIpsUtils</code> 拉
+<code>system.clusters</code>（1 小时 Guava refresh）+ Redis 异常列表（1
+分钟 refresh），<code>AtomicBoolean IP_CHANGING</code> CAS
+锁保护并发更新；</li>
+<li><strong>语义开关模块：</strong>
+<code>ignoringClickHouseSendingExceptionEnabled</code> 切换 At-Most-Once
+/ At-Least-Once，对应监控/告警/反作弊三类场景；底层统一
+<code>ClickHouseWriter</code> + 攒批基础设施；</li>
+<li><strong>Checkpoint 协调模块：</strong>
+<code>volatile isFlushing</code> + <code>synchronized</code> 解决
+Cleaner 与 flush 冲突，CheckpointTimeout = FutureTimeout ×
+MaxRetries（10 分钟 vs 3 分钟 × 10 次）；</li>
+<li><strong>运维保障模块：</strong> 节点扩缩容触发主动 reload（用 etcd
+watch 替代 1 小时 polling）、P99 延迟监控、queue 长度告警、Future
+永久阻塞兜底（finally 里 <code>completeExceptionally</code>）。</li>
+</ul>
+<h3 id="工程落地实践">工程落地实践</h3>
+<p><strong>分阶段里程碑</strong>：v0.1 跑通单 TM
+写本地表（metaSize=1MB、5K TPS）→ v0.5 加 Shard 路由 + 异常节点剔除（5
+万 TPS）→ v1.0 接 Checkpoint + 双语义开关 → v1.5 上 etcd watch
+做扩缩容主动 reload。每阶段必须留一份对比压测报告。</p>
+<p><strong>关键数据契约</strong>：<code>WriterConfig(metaSize, flushInterval, maxRetries)</code>、<code>BatchBuffer(List.copyOf)</code>、<code>ClickHouseShardStrategy</code>
+三件套是横向扩展的基础——抽象出来后上层业务只关心”写哪张表”，下层全部走配置中心动态下发。</p>
+<p><strong>常见踩坑 + 兜底</strong>：(1) Checkpoint 卡死 → 用
+<code>volatile isFlushing</code> 避免 Cleaner 与 flush
+同时进入临界区；(2) 节点剔除后旧数据回写 → Redis 异常列表 1 分钟 refresh
++ 写前校验节点 ID；(3) 攒批过大撑爆内存 → <code>metaSize</code> 按
+<code>(TM Heap × 0.6) / 并发 Channel</code> 反推上限；(4) 反压时 Future
+永久阻塞 → 兜底 <code>finally completeExceptionally</code>，把任务标
+FAIL 而不是 HANG。</p>
+<h2 id="一句话总结">一句话总结</h2>
+<p>ClickHouse Sink
+的工程问题不是”能不能写进去”，而是”按字节攒批、本地表直写、节点动态剔除、Checkpoint
+语义分轨”四件事都做对——这就是得物把官方 JDBC Sink 拆开重写的原因。</p>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>
