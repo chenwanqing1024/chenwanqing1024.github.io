@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="把
+claude-cookbooks/claude_agent_sdk 目录的 9 个 notebook 提炼成 5
+个工程模式：最小上手 / 生产治理 / MCP 集成 / 多 tier 部署 /
+动态工作流规模化，每个模式给出一行定位 + 最小代码 + 工程踩坑提示。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>Claude Agent SDK 实战：从 One-Liner 到 K8s 部署的 5
+个工程模式 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>Claude Agent SDK 实战：从 One-Liner 到 K8s 部署的 5
+个工程模式</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI
+工程</span> <span class="badge bg-secondary">Agent
+SDK</span> <span class="badge bg-secondary">MCP</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://github.com/anthropics/claude-cookbooks/tree/main/claude_agent_sdk" target="_blank" rel="noopener">claude-cookbooks
+/ claude_agent_sdk</a> · Anthropic
+            </div>
+
+<h2 id="引子">引子</h2>
+<p><code>claude_agent_sdk/</code> 目录里有 9 个 notebook，覆盖从「3
+行代码跑起来」到「Kubernetes 多租户部署 + 动态编排千级子
+Agent」的完整链路。它背后的产品是 <a
+href="https://github.com/anthropics/claude-agent-sdk-python">Claude
+Agent SDK</a>——把 Claude Code 的 Agent 能力开放成 Python/Node
+SDK，让你能做”超越编程”的
+Agent（研究、运维、客服、数据分析、安全审计……）。</p>
+<p>这篇文章挑出 5 个最具工程杠杆的模式，按”<strong>最小 → 生产治理 →
+集成 → 部署 → 规模化</strong>”排列。每个模式一行定位 + 最小代码 + 3
+条以内工程提示。</p>
+<hr />
+<h2 id="最小上手00_one_liner_research_agent.ipynb">1.
+最小上手：<code>00_one_liner_research_agent.ipynb</code></h2>
+<p><strong>一行定位</strong>：用 <code>query()</code> 异步迭代，3
+行代码跑起一个研究 Agent。</p>
+<p><strong>最小代码</strong>：</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> anyio</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> claude_agent_sdk <span class="im">import</span> query, ClaudeAgentOptions</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> research(question: <span class="bu">str</span>):</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    options <span class="op">=</span> ClaudeAgentOptions(</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>        system_prompt<span class="op">=</span><span class="st">&quot;You are a research analyst. Cite sources.&quot;</span>,</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>        allowed_tools<span class="op">=</span>[<span class="st">&quot;WebSearch&quot;</span>, <span class="st">&quot;Read&quot;</span>, <span class="st">&quot;Glob&quot;</span>],</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>        max_turns<span class="op">=</span><span class="dv">10</span>,</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>        max_budget_usd<span class="op">=</span><span class="fl">2.0</span>,   <span class="co"># ← 关键，防止 Agent 失控</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="cf">for</span> msg <span class="kw">in</span> query(prompt<span class="op">=</span>question, options<span class="op">=</span>options):</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="bu">hasattr</span>(msg, <span class="st">&quot;result&quot;</span>):</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> msg.result</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>anyio.run(research, <span class="st">&quot;Compare Flink vs Paimon for a real-time lakehouse&quot;</span>)</span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li><code>query()</code> 是无状态的；需要多轮会话就用
+<code>ClaudeSDKClient</code>，session 在两次调用间持久。</li>
+<li><strong><code>max_budget_usd</code> 是救命参数</strong>——Agent
+在生产里失控烧钱最常见的原因就是没有 budget cap。建议每个 Agent
+入口都强制带一个。</li>
+<li><code>allowed_tools</code> 用白名单：不要给 <code>*</code>，不要相信
+system prompt 能挡住越权调用。</li>
+</ul>
+<hr />
+<h2 id="生产治理01_chief_of_staff_agent.ipynb">2.
+生产治理：<code>01_chief_of_staff_agent.ipynb</code></h2>
+<p><strong>一行定位</strong>：把 Claude Code 的工程特性（hooks /
+subagents / plan mode / slash commands）拼成可治理的 Agent。</p>
+<p><strong>最小代码</strong>：</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> claude_agent_sdk <span class="im">import</span> ClaudeSDKClient, ClaudeAgentOptions</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. 持久指令（CLAUDE.md 等价物）</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>system <span class="op">=</span> <span class="bu">open</span>(<span class="st">&quot;CLAUDE.md&quot;</span>).read()   <span class="co"># 团队规则、合规要求</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. 子 Agent（不同领域专家）</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>options <span class="op">=</span> ClaudeAgentOptions(</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    system_prompt<span class="op">=</span>system,</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    allowed_tools<span class="op">=</span>[<span class="st">&quot;Read&quot;</span>, <span class="st">&quot;Grep&quot;</span>, <span class="st">&quot;Glob&quot;</span>, <span class="st">&quot;Bash&quot;</span>],</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>    agents<span class="op">=</span>{   <span class="co"># ← 注册 subagent</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;data-analyst&quot;</span>: {</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;description&quot;</span>: <span class="st">&quot;Analyze CSV/Parquet data and produce charts.&quot;</span>,</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;prompt&quot;</span>: <span class="st">&quot;You are a data analyst.&quot;</span>,</span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;tools&quot;</span>: [<span class="st">&quot;Bash&quot;</span>, <span class="st">&quot;Read&quot;</span>],</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>        },</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;compliance-checker&quot;</span>: {</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;description&quot;</span>: <span class="st">&quot;Review content for legal/policy compliance.&quot;</span>,</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;prompt&quot;</span>: <span class="st">&quot;You check compliance.&quot;</span>,</span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;tools&quot;</span>: [<span class="st">&quot;Read&quot;</span>],</span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>        },</span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>    },</span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>    hooks<span class="op">=</span>{   <span class="co"># ← 钩子：自动审计、敏感词过滤、限流</span></span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;PreToolUse&quot;</span>: [</span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>            {<span class="st">&quot;matcher&quot;</span>: <span class="st">&quot;Bash&quot;</span>,</span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>             <span class="st">&quot;hooks&quot;</span>: [block_dangerous_bash, log_to_audit_trail]}</span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>        ],</span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;PostToolUse&quot;</span>: [</span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a>            {<span class="st">&quot;matcher&quot;</span>: <span class="st">&quot;*&quot;</span>, <span class="st">&quot;hooks&quot;</span>: [scrub_pii]}</span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a>        ],</span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a>    },</span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="cf">with</span> ClaudeSDKClient(options<span class="op">=</span>options) <span class="im">as</span> client:</span>
+<span id="cb2-34"><a href="#cb2-34" aria-hidden="true" tabindex="-1"></a>    <span class="cf">await</span> client.query(<span class="st">&quot;Give me the Q3 revenue breakdown&quot;</span>)</span>
+<span id="cb2-35"><a href="#cb2-35" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="cf">for</span> msg <span class="kw">in</span> client.receive_response():</span>
+<span id="cb2-36"><a href="#cb2-36" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(msg)</span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li><strong>Hooks 是合规审计的关键</strong>。<code>PreToolUse</code>
+在工具调用前拦——例如禁止 <code>rm -rf</code>、强制所有 Bash
+命令走只读路径；<code>PostToolUse</code> 在调用后清洗——去
+PII、写审计日志。</li>
+<li>Subagent 设计原则：<strong>每个 subagent 只拿必要的
+tool</strong>。<code>data-analyst</code> 给 Bash+Read 没问题，给
+WebFetch 就越界了。</li>
+<li>Plan Mode（<code>permission_mode="plan"</code>）让 Agent
+先输出计划不执行——任何破坏性操作（删表、改 schema）之前强制走一次 Plan
+Mode 是企业落地的红线。</li>
+</ul>
+<hr />
+<h2
+id="mcp-集成02_observability_agent.ipynb-03_site_reliability_agent.ipynb">3.
+MCP 集成：<code>02_observability_agent.ipynb</code> +
+<code>03_site_reliability_agent.ipynb</code></h2>
+<p><strong>一行定位</strong>：用 <a
+href="https://modelcontextprotocol.io">MCP</a>
+把外部系统（Git、GitHub、Prometheus）变成 Agent 可调的工具。</p>
+<p><strong>最小代码</strong>：</p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>options <span class="op">=</span> ClaudeAgentOptions(</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    mcp_servers<span class="op">=</span>{</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;github&quot;</span>: {</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;command&quot;</span>: <span class="st">&quot;npx&quot;</span>,</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;args&quot;</span>: [<span class="st">&quot;-y&quot;</span>, <span class="st">&quot;@modelcontextprotocol/server-github&quot;</span>],</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;env&quot;</span>: {<span class="st">&quot;GITHUB_TOKEN&quot;</span>: os.environ[<span class="st">&quot;GITHUB_TOKEN&quot;</span>]}</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>        },</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;prometheus&quot;</span>: {   <span class="co"># 自定义 MCP server（参考 03 里的 JSON-RPC subprocess）</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;type&quot;</span>: <span class="st">&quot;stdio&quot;</span>,</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;command&quot;</span>: <span class="st">&quot;python&quot;</span>,</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;args&quot;</span>: [<span class="st">&quot;prom_mcp_server.py&quot;</span>],</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>        }</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>    },</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>    allowed_tools<span class="op">=</span>[<span class="st">&quot;Read&quot;</span>, <span class="st">&quot;Grep&quot;</span>, <span class="st">&quot;mcp__github__*&quot;</span>, <span class="st">&quot;mcp__prometheus__*&quot;</span>],</span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a><span class="co"># Claude 会自动发现 mcp__github__list_issues、mcp__prometheus__query 等等</span></span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li><strong><code>02</code> 是只读 MCP</strong>——GitHub
+工具集只能查、不能改。<code>03</code> 升级到读写——能改配置、重启服务、写
+post-mortem。</li>
+<li><strong>从 02 → 03 的跳跃是生产化的关键里程碑</strong>。一旦 Agent
+有了写权限，<strong>必须配套 PreToolUse hook 做白名单校验</strong>（参考
+03 的 <code>pool_size</code>
+范围检查、<code>config_sanity_check</code>）。</li>
+<li>MCP server
+选型：能用现成就别自己写（GitHub、Slack、Postgres、Prometheus
+都有官方/社区 server）。自己写的 MCP server 用 <code>mcp</code> Python
+SDK 起 stdio 进程，参考 03 的
+<code>site_reliability_agent/</code>。</li>
+</ul>
+<hr />
+<h2 id="多-tier-部署07_hosting_the_agent.ipynb">4. 多 tier
+部署：<code>07_hosting_the_agent.ipynb</code></h2>
+<p><strong>一行定位</strong>：同一个 Agent 镜像，通过 Docker / Modal /
+Kubernetes 三档升级，HTTP 接口保持不变。</p>
+<p><strong>最小代码</strong>（FastAPI 暴露 Agent）：</p>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> fastapi <span class="im">import</span> FastAPI</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> claude_agent_sdk <span class="im">import</span> ClaudeSDKClient, ClaudeAgentOptions</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>app <span class="op">=</span> FastAPI()</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>options <span class="op">=</span> ClaudeAgentOptions(allowed_tools<span class="op">=</span>[<span class="st">&quot;WebSearch&quot;</span>, <span class="st">&quot;Read&quot;</span>], max_budget_usd<span class="op">=</span><span class="fl">1.0</span>)</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="at">@app.post</span>(<span class="st">&quot;/ask&quot;</span>)</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> ask(q: <span class="bu">str</span>):</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="cf">with</span> ClaudeSDKClient(options<span class="op">=</span>options) <span class="im">as</span> client:</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>        <span class="cf">await</span> client.query(q)</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">async</span> <span class="cf">for</span> msg <span class="kw">in</span> client.receive_response():</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> <span class="bu">hasattr</span>(msg, <span class="st">&quot;result&quot;</span>):</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>                <span class="cf">return</span> {<span class="st">&quot;answer&quot;</span>: msg.result}</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a><span class="co"># Dockerfile（同一个镜像，三档部署都用）：</span></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a><span class="co">#   FROM python:3.12-slim</span></span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a><span class="co">#   COPY . /app &amp;&amp; RUN pip install -r /app/requirements.txt</span></span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a><span class="co">#   CMD [&quot;uvicorn&quot;, &quot;main:app&quot;, &quot;--host&quot;, &quot;0.0.0.0&quot;, &quot;--port&quot;, &quot;8080&quot;]</span></span></code></pre></div>
+<p><strong>三档升级路径</strong>：</p>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Tier</th>
+<th>适用</th>
+<th>复杂度</th>
+<th>隔离</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Docker（单 VM）</strong></td>
+<td>开发 / 内部工具 / 单租户</td>
+<td>低</td>
+<td>进程级</td>
+</tr>
+<tr class="even">
+<td><strong>Modal（托管 serverless）</strong></td>
+<td>中小规模生产 / scale-to-zero</td>
+<td>中</td>
+<td>容器级 + 自动休眠</td>
+</tr>
+<tr class="odd">
+<td><strong>Kubernetes（自托管）</strong></td>
+<td>多租户 / 大规模 / 合规要求</td>
+<td>高</td>
+<td>Namespace + NetworkPolicy</td>
+</tr>
+</tbody>
+</table>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li>镜像里<strong>不要</strong>带 <code>ANTHROPIC_API_KEY</code>——用
+secret manager 注入（K8s Secret / Modal Secret）。</li>
+<li>Modal 适合<strong>偶发性 Agent
+任务</strong>（夜间跑报告、低频运维巡检），scale-to-zero 省 90%
+成本。</li>
+<li>K8s 多租户时按 <code>tenant_id</code> 分 namespace；Agent 的
+<code>working_dir</code> 必须落在 emptyDir，不能挂
+PV——避免跨租户数据泄漏。</li>
+</ul>
+<hr />
+<h2 id="动态工作流规模化08_dynamic_workflows.ipynb">5.
+动态工作流规模化：<code>08_dynamic_workflows.ipynb</code></h2>
+<p><strong>一行定位</strong>：突破单 context 窗口——让 Claude 写一段 JS
+编排脚本，runtime 在千级子 Agent 上并行执行。</p>
+<p><strong>最小代码</strong>：</p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>options <span class="op">=</span> ClaudeAgentOptions(</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    workflow_tool<span class="op">=</span>{<span class="st">&quot;enabled&quot;</span>: <span class="va">True</span>},   <span class="co"># 注册 Workflow 工具</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    allowed_tools<span class="op">=</span>[<span class="st">&quot;WebSearch&quot;</span>, <span class="st">&quot;Read&quot;</span>, <span class="st">&quot;Workflow&quot;</span>],</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    max_budget_usd<span class="op">=</span><span class="fl">20.0</span>,</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Claude 生成的 orchestration 脚本大致长这样：</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a><span class="co">#   const reports = await parallel([</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a><span class="co">#     agent(&quot;research-A&quot;, { topic: &quot;flink&quot; }),</span></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a><span class="co">#     agent(&quot;research-B&quot;, { topic: &quot;paimon&quot; }),</span></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a><span class="co">#     agent(&quot;research-C&quot;, { topic: &quot;iceberg&quot; }),</span></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a><span class="co">#   ]);</span></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a><span class="co">#   const verified = await parallel(reports.map(r =&gt;</span></span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a><span class="co">#     agent(&quot;verifier&quot;, { claim: r, adversary: &quot;skeptic&quot; })</span></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a><span class="co">#   ));</span></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a><span class="co">#   return pipeline([</span></span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a><span class="co">#     synthesize(verified),</span></span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a><span class="co">#     format(&quot;markdown&quot;),</span></span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a><span class="co">#   ]);</span></span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li><strong>范式判断</strong>：如果你要在多 context 之间编排，用
+workflow（确定性脚本持有 plan）；如果只在单 context 内迭代，用
+subagents（模型自己持有 plan）。</li>
+<li><strong><code>fan-out + 对抗验证</code></strong>是规模化关键：每个
+claim 派一个 verifier 和一个 skeptic
+同时跑，只有双方共识才采纳——把幻觉率砍掉一个数量级。</li>
+<li>编排脚本要<strong>只读不写</strong>：Claude 不能直接调用 mutating
+工具，必须通过 workflow runtime。runtime 端做权限边界。</li>
+</ul>
+<hr />
+<h2 id="落地清单按项目阶段选">落地清单：按项目阶段选</h2>
+<table>
+<thead>
+<tr class="header">
+<th>阶段</th>
+<th>优先模式</th>
+<th>解决的问题</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>第一个 Agent</td>
+<td>#1 one-liner</td>
+<td>验证可行性 + budget cap</td>
+</tr>
+<tr class="even">
+<td>加治理</td>
+<td>#2 chief-of-staff</td>
+<td>hooks + subagents + plan mode</td>
+</tr>
+<tr class="odd">
+<td>接外部系统</td>
+<td>#3 MCP（02 先只读）</td>
+<td>GitHub / Prometheus / DB 集成</td>
+</tr>
+<tr class="even">
+<td>上生产</td>
+<td>#4 Docker → Modal</td>
+<td>容器化 + 弹性</td>
+</tr>
+<tr class="odd">
+<td>规模化</td>
+<td>#3 MCP 升级 03 读写、#5 动态工作流</td>
+<td>多 subagent 并行</td>
+</tr>
+<tr class="even">
+<td>多租户 / 合规</td>
+<td>#4 K8s + #2 hooks 强化</td>
+<td>隔离 + 审计</td>
+</tr>
+</tbody>
+</table>
+<h2 id="配套阅读">配套阅读</h2>
+<ul>
+<li><strong>执行机制底层</strong>：<a
+href="blog/posts/2026-09-15-tool-use-engineering-patterns.md">tool_use 7
+个模式</a> — SDK 的 <code>query()</code> / <code>ClaudeSDKClient</code>
+都建立在 tool_use 之上</li>
+<li><strong>抽象层级</strong>：patterns/agents — SDK
+给的是工具，patterns 给的是模式语言（编排 / 评估 / 异步）</li>
+<li><strong>第三方服务</strong>：third_party/Pinecone 或 MongoDB — 给
+RAG Agent 接向量库</li>
+</ul>
+<p>参考资料：</p>
+<ul>
+<li><a
+href="https://github.com/anthropics/claude-cookbooks/tree/main/claude_agent_sdk">claude_agent_sdk
+目录</a></li>
+<li><a
+href="https://github.com/anthropics/claude-agent-sdk-python">Claude
+Agent SDK Python</a></li>
+<li><a href="https://modelcontextprotocol.io">Model Context
+Protocol</a></li>
+</ul>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>
