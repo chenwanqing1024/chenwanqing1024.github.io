@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="把 claude-cookbooks/capabilities
+里除 RAG 之外的 6 个子目录提炼成各自的最小落地模式。每个能力一行定位 +
+最小代码 + 3 条以内踩坑提示，附选型对照表。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>文本能力 6 个实战模式：classification / moderation /
+contextual-embeddings / knowledge_graph / summarization /
+text_to_sql - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>文本能力 6 个实战模式：classification / moderation /
+contextual-embeddings / knowledge_graph / summarization /
+text_to_sql</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI
+工程</span> <span class="badge bg-secondary">NLP</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://github.com/anthropics/claude-cookbooks/tree/main/capabilities" target="_blank" rel="noopener">claude-cookbooks
+/ capabilities</a> · Anthropic
+            </div>
+
+<h2 id="引子">引子</h2>
+<p><code>capabilities/</code> 目录下除了 RAG（已单写一篇）还有 6
+个文本能力子目录：classification、content_moderation、contextual-embeddings、knowledge_graph、summarization、text_to_sql。每个目录都有一个完整教程
+notebook + 评测脚本，构成”开箱即用”的能力模板。</p>
+<p>这篇文章把它们压成 6 个相互独立的最小模式，按”<strong>判别 → 安全 →
+富化 → 结构化 → 压缩 → 接口化</strong>”排列。每个模式一行定位 + 最小代码
++ 2-3 条工程踩坑提示。</p>
+<hr />
+<h2 id="classification文本分类">1. Classification（文本分类）</h2>
+<p><strong>一行定位</strong>：用 <code>tool_use</code> 强制
+schema，把”情感 / 主题 / 意图”打成结构化标签。</p>
+<p><strong>最小代码</strong>：</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>tool <span class="op">=</span> {</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;name&quot;</span>: <span class="st">&quot;classify&quot;</span>,</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;input_schema&quot;</span>: {</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;type&quot;</span>: <span class="st">&quot;object&quot;</span>,</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;properties&quot;</span>: {</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;label&quot;</span>: {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;string&quot;</span>,</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>                      <span class="st">&quot;enum&quot;</span>: [<span class="st">&quot;billing&quot;</span>, <span class="st">&quot;tech_support&quot;</span>, <span class="st">&quot;sales&quot;</span>, <span class="st">&quot;other&quot;</span>]},</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;confidence&quot;</span>: {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;number&quot;</span>, <span class="st">&quot;minimum&quot;</span>: <span class="dv">0</span>, <span class="st">&quot;maximum&quot;</span>: <span class="dv">1</span>}</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>        },</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;required&quot;</span>: [<span class="st">&quot;label&quot;</span>, <span class="st">&quot;confidence&quot;</span>]</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>resp <span class="op">=</span> client.messages.create(model<span class="op">=</span><span class="st">&quot;claude-haiku-4-5&quot;</span>, tools<span class="op">=</span>[tool],</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>                              tool_choice<span class="op">=</span>{<span class="st">&quot;type&quot;</span>: <span class="st">&quot;tool&quot;</span>, <span class="st">&quot;name&quot;</span>: <span class="st">&quot;classify&quot;</span>},</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>                              messages<span class="op">=</span>[{<span class="st">&quot;role&quot;</span>:<span class="st">&quot;user&quot;</span>,<span class="st">&quot;content&quot;</span>: text}])</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a><span class="co"># low confidence 进人工</span></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>label, conf <span class="op">=</span> parse_tool_use(resp)</span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> conf <span class="op">&lt;</span> <span class="fl">0.7</span>:</span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>    escalate_to_human()</span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li>用 <strong>Haiku</strong> 做分类：速度 &lt; 200ms，成本 &lt;
+1¢/千条。Sonnet 留给生成任务。</li>
+<li><strong>label 集合 ≤ 7
+个</strong>。多了准确率掉得厉害——多分类就分两轮（先大类、再小类）。</li>
+<li><strong>confidence &lt; 0.7 转人工</strong>，不要硬拒。这是客服 /
+路由系统的标准做法。</li>
+</ul>
+<hr />
+<h2 id="content-moderation内容审核">2. Content
+Moderation（内容审核）</h2>
+<p><strong>一行定位</strong>：双层防线——Haiku 关键词粗筛 + Sonnet
+复杂判断，落到 <code>pipeline.py</code> 风格的多级流水线。</p>
+<p><strong>最小代码</strong>：</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 第一层：Haiku 高速粗筛（&lt; 200ms）</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>flag1 <span class="op">=</span> haiku_classify(text, categories<span class="op">=</span>[<span class="st">&quot;safe&quot;</span>,<span class="st">&quot;hate&quot;</span>,<span class="st">&quot;sexual&quot;</span>,<span class="st">&quot;violence&quot;</span>,<span class="st">&quot;pii&quot;</span>])</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> flag1 <span class="op">==</span> <span class="st">&quot;safe&quot;</span>:</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> approve()</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="co"># 第二层：Sonnet 复杂判断（仅对命中样本）</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>flag2 <span class="op">=</span> sonnet_classify(text, context<span class="op">=</span>context_window)</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> flag2 <span class="op">!=</span> <span class="st">&quot;safe&quot;</span>:</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    audit_log.record(text, flag2)</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> reject(flag2)</span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li><strong>Haiku 做全部审核不实际</strong>（漏判率高），<strong>Sonnet
+做全部审核太贵</strong>（成本 ×10）。双层是工业界标准做法。</li>
+<li><strong>审核策略要白盒可审计</strong>。不要让 Claude
+自己决定”为什么拒”——给它一个固定的 taxonomy + 决策树，输出枚举值。</li>
+<li><strong>人工审核兜底永远要有</strong>。任何 LLM 审核漏判率都不是
+0%——给高风险操作留人工通道。</li>
+</ul>
+<hr />
+<h2 id="contextual-embeddings上下文增强-embedding">3. Contextual
+Embeddings（上下文增强 Embedding）</h2>
+<p><strong>一行定位</strong>：把每个 chunk 的”全局上下文”通过 Claude
+提炼后再 embed，显著提升 RAG 召回率。</p>
+<p><strong>最小代码</strong>：</p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> contextualize_chunk(chunk: <span class="bu">str</span>, full_doc: <span class="bu">str</span>) <span class="op">-&gt;</span> <span class="bu">str</span>:</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">&quot;&quot;&quot;给 chunk 补一段&#39;它在整个文档中的位置&#39;的描述&quot;&quot;&quot;</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    prompt <span class="op">=</span> <span class="ss">f&quot;&quot;&quot;用 50-100 字描述下面这段文本在整篇文档中的位置和上下文，</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="ss">    使得这段文本独立可理解（无全文也能看懂它在说什么）：</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="ss">    </span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="ss">    【整篇文档】</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="ss">    </span><span class="sc">{</span>full_doc[:<span class="dv">3000</span>]<span class="sc">}</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="ss">    </span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="ss">    【目标段落】</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="ss">    </span><span class="sc">{</span>chunk<span class="sc">}</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="ss">    </span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a><span class="ss">    【上下文描述】&quot;&quot;&quot;</span></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>    resp <span class="op">=</span> <span class="cf">await</span> haiku_client.messages.create(</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>        model<span class="op">=</span><span class="st">&quot;claude-haiku-4-5&quot;</span>, max_tokens<span class="op">=</span><span class="dv">200</span>,</span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>        messages<span class="op">=</span>[{<span class="st">&quot;role&quot;</span>:<span class="st">&quot;user&quot;</span>,<span class="st">&quot;content&quot;</span>: prompt}]</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>    context_summary <span class="op">=</span> resp.content[<span class="dv">0</span>].text</span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="ss">f&quot;[Context: </span><span class="sc">{</span>context_summary<span class="sc">}</span><span class="ss">]</span><span class="ch">\n\n</span><span class="sc">{</span>chunk<span class="sc">}</span><span class="ss">&quot;</span>   <span class="co"># 拼接后再 embed</span></span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a><span class="co"># 写入向量库前先 contextualize</span></span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>chunks_with_context <span class="op">=</span> [<span class="cf">await</span> contextualize_chunk(c, doc) <span class="cf">for</span> c <span class="kw">in</span> chunks]</span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>vector_db.add(chunks_with_context)</span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li>召回率提升 <strong>30-50%</strong>（Anthropic 论文数据），代价是每
+chunk 多一次 Haiku 调用 + 50-100 token 的”上下文污染”风险——做 A/B
+验证。</li>
+<li><strong>context_summary 要”独立可理解”</strong>。否则下游 LLM
+拿到的是带幻觉上下文的 chunk，反而误导回答。</li>
+<li>用 <strong>Haiku</strong> 而不是 Sonnet 做
+contextualize——这一步是批处理，可并行、便宜优先。</li>
+</ul>
+<hr />
+<h2 id="knowledge-graph知识图谱抽取">4. Knowledge
+Graph（知识图谱抽取）</h2>
+<p><strong>一行定位</strong>：用 Claude
+从文本里抽（实体、关系、三元组），落到 Neo4j 或内存图里做推理。</p>
+<p><strong>最小代码</strong>：</p>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>tool <span class="op">=</span> {</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;name&quot;</span>: <span class="st">&quot;extract_triples&quot;</span>,</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;input_schema&quot;</span>: {</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;type&quot;</span>: <span class="st">&quot;object&quot;</span>,</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;properties&quot;</span>: {</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;triples&quot;</span>: {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;array&quot;</span>,</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>                        <span class="st">&quot;items&quot;</span>: {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;object&quot;</span>,</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>                                  <span class="st">&quot;properties&quot;</span>: {</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>                                      <span class="st">&quot;head&quot;</span>: {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;string&quot;</span>},</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>                                      <span class="st">&quot;relation&quot;</span>: {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;string&quot;</span>},</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>                                      <span class="st">&quot;tail&quot;</span>: {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;string&quot;</span>}},</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>                                  <span class="st">&quot;required&quot;</span>: [<span class="st">&quot;head&quot;</span>,<span class="st">&quot;relation&quot;</span>,<span class="st">&quot;tail&quot;</span>]}}}</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>        }</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>resp <span class="op">=</span> client.messages.create(model<span class="op">=</span><span class="st">&quot;claude-sonnet-4-6&quot;</span>,</span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>                              tools<span class="op">=</span>[tool],</span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>                              tool_choice<span class="op">=</span>{<span class="st">&quot;type&quot;</span>:<span class="st">&quot;tool&quot;</span>,<span class="st">&quot;name&quot;</span>:<span class="st">&quot;extract_triples&quot;</span>},</span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>                              messages<span class="op">=</span>[{<span class="st">&quot;role&quot;</span>:<span class="st">&quot;user&quot;</span>,<span class="st">&quot;content&quot;</span>: document}])</span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>triples <span class="op">=</span> parse_tool_use(resp)[<span class="st">&quot;triples&quot;</span>]</span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> h, r, t <span class="kw">in</span> triples:</span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a>    graph.upsert(h, r, t)   <span class="co"># 落到 Neo4j / NetworkX</span></span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li><strong>关系抽取的 schema
+决定质量上限</strong>。“<code>relation</code> 是动词短语、且必须在
+{工作于、收购、参股、投资…}
+这个枚举里`”——这种硬约束比”提取所有关系”准确率高一个数量级。</li>
+<li><strong>批处理 + 增量更新</strong>。不要每次文档变更全量重抽——只对
+diff 部分重新跑图谱更新。</li>
+<li><strong>知识图谱 ≠
+万能</strong>。结构化查询、关系推理是强项；非结构化问答还是 RAG
+更便宜。两者配合用（KG 做”硬查询”、RAG 做”软检索”）。</li>
+</ul>
+<hr />
+<h2 id="summarization文本摘要">5. Summarization（文本摘要）</h2>
+<p><strong>一行定位</strong>：摘要不是”把全文变短”，是按目标粒度（句子/段落/章节/全文）和目标受众（专家/小白）定制。</p>
+<p><strong>最小代码</strong>（多视角摘要）：</p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>prompt_template <span class="op">=</span> <span class="st">&quot;&quot;&quot;请用以下视角总结文档：</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="st">- 视角：</span><span class="sc">{perspective}</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="st">- 长度：</span><span class="sc">{length}</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="st">- 受众：</span><span class="sc">{audience}</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="st">【文档】</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a><span class="sc">{document}</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a><span class="st">【摘要】&quot;&quot;&quot;</span></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a><span class="co"># 一次 API 调用拿多个摘要（省钱）</span></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>resp <span class="op">=</span> client.messages.create(model<span class="op">=</span><span class="st">&quot;claude-haiku-4-5&quot;</span>,</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>    messages<span class="op">=</span>[{<span class="st">&quot;role&quot;</span>:<span class="st">&quot;user&quot;</span>,<span class="st">&quot;content&quot;</span>: prompt_template.<span class="bu">format</span>(</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>        perspective<span class="op">=</span><span class="st">&quot;产品经理视角，关注商业影响&quot;</span>,</span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>        length<span class="op">=</span><span class="st">&quot;200字&quot;</span>,</span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>        audience<span class="op">=</span><span class="st">&quot;非技术高管&quot;</span>,</span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>        document<span class="op">=</span>doc)}])</span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li><strong>摘要必须保留”实体 + 数字 +
+时间”</strong>。否则摘要会失去可验证性——用户在原文里找不到。</li>
+<li><strong>摘要不是预处理</strong>。很多人把摘要当 RAG
+的预处理——错。摘要会丢信息，<strong>RAG 应该用原文 +
+选择性引用</strong>，不要摘要替代。</li>
+<li>长文档（&gt; 50K token）走 <strong>map-reduce
+摘要</strong>：先每段总结成 200 字，再把 200
+字串起来总结——比一次性”总结整篇”保真度高 30%。</li>
+</ul>
+<hr />
+<h2 id="text-to-sql自然语言转-sql">6. Text-to-SQL（自然语言转 SQL）</h2>
+<p><strong>一行定位</strong>：用 tool_use 把 schema + 自然语言映射成
+SQL，服务端校验后再执行。</p>
+<p><strong>最小代码</strong>：</p>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>tool <span class="op">=</span> {</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;name&quot;</span>: <span class="st">&quot;generate_sql&quot;</span>,</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;description&quot;</span>: <span class="st">&quot;&quot;&quot;Generate a read-only SQL query against the analytics DB.</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="st">Tables:</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="st">  users(id BIGINT, email TEXT, created_at TIMESTAMP, country TEXT)</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="st">  orders(id BIGINT, user_id BIGINT, amount DECIMAL, created_at TIMESTAMP)</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="st">Constraints:&quot;&quot; + read_only_constraint_text,</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="st">    &quot;input_schema&quot;: {&quot;type&quot;:&quot;object&quot;,</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a><span class="st">                     &quot;properties&quot;:{&quot;sql&quot;:{&quot;type&quot;:&quot;string&quot;</span><span class="sc">}}</span><span class="st">,</span></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="st">                     &quot;required&quot;:[&quot;sql&quot;]}</span></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a><span class="st">}</span></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a><span class="st">resp = client.messages.create(model=..., tools=[tool],</span></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a><span class="st">                              tool_choice={&quot;type&quot;:&quot;tool&quot;,&quot;name&quot;:&quot;generate_sql&quot;},</span></span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a><span class="st">                              messages=[{&quot;role&quot;:&quot;user&quot;,&quot;content&quot;: user_query}])</span></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a><span class="st"># ⚠️ 关键：服务端校验 + 只读执行，不要相信生成的 SQL</span></span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a><span class="st">sql = parse_tool_use(resp)[&quot;sql&quot;]</span></span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a><span class="st">if not is_select_only(sql):            # 白名单：只允许 SELECT / WITH</span></span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a><span class="st">    raise SecurityError()</span></span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a><span class="st">if not has_limit(sql, max_rows=1000):  # 必须有 LIMIT</span></span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a><span class="st">    sql = inject_limit(sql)</span></span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a><span class="st">result = db.execute(sql)</span></span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li><strong>绝对不要让 Claude 生成的 SQL 直接跑生产
+DB</strong>。服务端必须做：① SELECT 白名单；② 强制 LIMIT；③ schema
+校验（表/列存在）；④ 资源超时。</li>
+<li><strong>schema 别全贴 prompt</strong>。几百张表直接撑爆——给 Claude
+一个 <code>list_tables()</code> 工具，让它先问再查。</li>
+<li><strong>加一个”query explainer”中间层</strong>。用户问”为什么这个
+SQL 慢”，让 Claude 解读 EXPLAIN 结果并改写——这是 Text-to-SQL
+的高阶用法。</li>
+</ul>
+<hr />
+<h2 id="选型对照表">选型对照表</h2>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>能力</th>
+<th>触发场景</th>
+<th>模型</th>
+<th>关键工程要素</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>classification</strong></td>
+<td>客服路由 / 标签</td>
+<td>Haiku</td>
+<td>enum 限制 + 置信度阈值</td>
+</tr>
+<tr class="even">
+<td><strong>content_moderation</strong></td>
+<td>UGC / 评论</td>
+<td>Haiku + Sonnet 双层</td>
+<td>双层防线 + taxonomy</td>
+</tr>
+<tr class="odd">
+<td><strong>contextual-embeddings</strong></td>
+<td>RAG 召回优化</td>
+<td>Haiku（批处理）</td>
+<td>召回率 +30%</td>
+</tr>
+<tr class="even">
+<td><strong>knowledge_graph</strong></td>
+<td>结构化查询 / 推理</td>
+<td>Sonnet</td>
+<td>关系枚举约束</td>
+</tr>
+<tr class="odd">
+<td><strong>summarization</strong></td>
+<td>长文档浓缩</td>
+<td>Haiku</td>
+<td>map-reduce + 实体保留</td>
+</tr>
+<tr class="even">
+<td><strong>text_to_sql</strong></td>
+<td>自然语言查 DB</td>
+<td>Sonnet</td>
+<td>服务端校验 + LIMIT 强制</td>
+</tr>
+</tbody>
+</table>
+<h2 id="落地清单">落地清单</h2>
+<table>
+<thead>
+<tr class="header">
+<th>项目阶段</th>
+<th>优先加入</th>
+<th>理由</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>第一个文本功能</td>
+<td>classification</td>
+<td>最低成本 + 最高可见价值</td>
+</tr>
+<tr class="even">
+<td>上线前</td>
+<td>content_moderation</td>
+<td>法务兜底</td>
+</tr>
+<tr class="odd">
+<td>RAG 召回不达标</td>
+<td>contextual-embeddings</td>
+<td>召回率提升杠杆</td>
+</tr>
+<tr class="even">
+<td>结构化数据丰富</td>
+<td>knowledge_graph</td>
+<td>增量图谱更新</td>
+</tr>
+<tr class="odd">
+<td>长文档场景</td>
+<td>summarization</td>
+<td>map-reduce 保真</td>
+</tr>
+<tr class="even">
+<td>内部 BI / 自助分析</td>
+<td>text_to_sql</td>
+<td>服务端校验是红线</td>
+</tr>
+</tbody>
+</table>
+<h2 id="与其它模式的关系">与其它模式的关系</h2>
+<ul>
+<li><strong>classification 是 tool_use 的子集</strong>：<a
+href="blog/posts/2026-09-15-tool-use-engineering-patterns.md">tool_use 7
+模式</a> 里的 <code>extracting_structured_json</code> 直接覆盖。</li>
+<li><strong>contextual-embeddings 是 RAG 的召回优化器</strong>：<a
+href="blog/posts/2026-09-15-rag-engineering-patterns.md">RAG 5 模式</a>
+的 #2 检索选型可以接它。</li>
+<li><strong>text_to_sql 是 tool_use + 安全约束的组合</strong>：参考 <a
+href="blog/posts/2026-09-15-claude-agent-sdk-engineering.md">claude_agent_sdk
+5 模式</a> 的 MCP 集成模式，把 SQL 工具通过 MCP 暴露。</li>
+</ul>
+<p>参考资料：</p>
+<ul>
+<li><a
+href="https://github.com/anthropics/claude-cookbooks/tree/main/capabilities">claude-cookbooks/capabilities</a></li>
+<li>配套阅读： <a
+href="blog/posts/2026-09-15-tool-use-engineering-patterns.md">tool_use 7
+模式</a>、<a
+href="blog/posts/2026-09-15-rag-engineering-patterns.md">RAG 5
+模式</a></li>
+</ul>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>
