@@ -116,16 +116,17 @@ def frontmatter(path):
     return meta
 
 
-def render(meta, slug):
+def render(meta, slug, depth=0):
     e = html.escape
     tags = "".join(
         f'<span class="badge bg-secondary">{e(str(t))}</span> ' for t in meta.get("tags", [])
     )
     badge = ' <span class="badge bg-info text-dark">读文笔记</span>' if meta.get("source-url") else ""
     summary = f'<p class="mb-1">{e(meta["summary"])}</p>' if meta.get("summary") else ""
+    href = f"{'../' * depth}{slug}.html"
     return (
         '                <div class="mb-4">\n'
-        f'                    <h5 class="mb-1"><a href="{slug}.html">{e(meta["title"])}</a>{badge}</h5>\n'
+        f'                    <h5 class="mb-1"><a href="{href}">{e(meta["title"])}</a>{badge}</h5>\n'
         f'                    <p class="text-muted mb-1"><small>{e(str(meta["date"]))} {tags}</small></p>\n'
         f"                    {summary}\n"
         "                </div>"
@@ -166,10 +167,13 @@ def main():
             if d.is_dir() and not any(d.iterdir()):
                 d.rmdir()
 
+    metas = [(frontmatter(p), p.stem) for p in posts]
+
     for page_num in range(1, total_pages + 1):
         start = (page_num - 1) * PER_PAGE
         end = start + PER_PAGE
-        page_entries = all_entries[start:end]
+        page_depth = page_num - 1
+        page_entries = [render(m, slug, page_depth) for m, slug in metas[start:end]]
         pagination = render_pagination(page_num, total_pages)
         if page_num == 1:
             out = BLOG / "index.html"
