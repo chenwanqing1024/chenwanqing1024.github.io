@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="把
+claude-cookbooks/capabilities/retrieval_augmented_generation 的 663KB
+主教程 + Promptfoo 评测套件拆成 5 个工程模式：文档分块 / 检索选型 /
+上下文注入与引用 / Promptfoo 评测闭环 /
+架构演进路径。每个模式给出一行定位 + 最小代码 + 踩坑提示。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>RAG 实战：从 Naive 到 Modular 的 5
+个工程模式 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>RAG 实战：从 Naive 到 Modular 的 5 个工程模式</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI
+工程</span> <span class="badge bg-secondary">RAG</span> <span class="badge bg-secondary">Agent</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://github.com/anthropics/claude-cookbooks/tree/main/capabilities/retrieval_augmented_generation" target="_blank" rel="noopener">claude-cookbooks
+/ capabilities / retrieval_augmented_generation</a> · Anthropic
+            </div>
+
+<h2 id="引子">引子</h2>
+<p><code>capabilities/retrieval_augmented_generation/</code> 是
+Anthropic 官方给的 RAG 黄金标准教程：一个 663KB 主教程 + 完整的
+Promptfoo 评测套件（<code>eval_retrieval.py</code> /
+<code>eval_end_to_end.py</code> / <code>vectordb.py</code>）+
+现成评测数据集（<code>docs_evaluation_dataset.json</code>）。它不仅讲”怎么做
+RAG”，还讲”怎么测 RAG”——评测脚本本身比很多公司的 RAG 系统都完整。</p>
+<p>这篇文章把它提炼成 5 个相互独立的工程模式，按”<strong>文档 → 检索 →
+注入 → 评测 → 架构</strong>”排列。每个模式配最小代码 + 3
+条以内工程踩坑提示。</p>
+<hr />
+<h2 id="文档分块按文档类型选策略">1. 文档分块：按文档类型选策略</h2>
+<p><strong>一行定位</strong>：分块不是”一刀切 512 token”，按文档结构选
+chunking 策略。</p>
+<p><strong>最小代码</strong>（多策略分块器）：</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> chunk_document(doc: <span class="bu">str</span>, doc_type: <span class="bu">str</span>) <span class="op">-&gt;</span> <span class="bu">list</span>[<span class="bu">str</span>]:</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> doc_type <span class="op">==</span> <span class="st">&quot;markdown&quot;</span>:</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 按标题切，保留 H1/H2 边界</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> re.split(<span class="vs">r&#39;(?m)^#{1,3} &#39;</span>, doc)[<span class="dv">1</span>:]</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">elif</span> doc_type <span class="op">==</span> <span class="st">&quot;code&quot;</span>:</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 按函数/类边界切（用 tree-sitter 等）</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> split_by_ast(doc, lang<span class="op">=</span><span class="st">&quot;python&quot;</span>)</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">elif</span> doc_type <span class="op">==</span> <span class="st">&quot;pdf&quot;</span>:</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 按页切，再合并相邻小段到 ~800 token</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> merge_pages(split_by_page(doc), target<span class="op">=</span><span class="dv">800</span>, model<span class="op">=</span><span class="st">&quot;claude&quot;</span>)</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">elif</span> doc_type <span class="op">==</span> <span class="st">&quot;transcript&quot;</span>:</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 按说话人切换切，再加滑动窗口（避免边界信息丢失）</span></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> sliding_window(split_by_speaker(doc), window<span class="op">=</span><span class="dv">5</span>, stride<span class="op">=</span><span class="dv">2</span>)</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span>:</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 通用 fallback：递归字符分块</span></span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> recursive_split(doc, chunk_size<span class="op">=</span><span class="dv">512</span>, overlap<span class="op">=</span><span class="dv">64</span>)</span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li><strong>chunk_size 经验值</strong>：中文 200-400 字 / 英文 512-1024
+token。<strong>太小</strong>召回碎、上下文碎；<strong>太大</strong>噪音多、首
+token 慢。</li>
+<li><strong>保留元数据</strong>：每个 chunk 必须带
+<code>source_doc_id</code>、<code>page_number</code> 或
+<code>section_title</code>、<code>chunk_index</code>——没有这些做不了
+citations，也做不了 retrieve 阶段的过滤。</li>
+<li><strong>HTML/Markdown 优先结构化分块</strong>：别用通用 tokenizer 切
+H1 标题——会切出”这是 Paimon 的核心优势”这种失语 chunk。</li>
+</ul>
+<hr />
+<h2 id="检索选型向量-关键词-混合">2. 检索选型：向量 / 关键词 / 混合</h2>
+<p><strong>一行定位</strong>：retrieval 不是”embed 然后
+top-k”，按查询类型选策略。</p>
+<p><strong>最小代码</strong>（混合检索 + 重排）：</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> hybrid_retrieve(query: <span class="bu">str</span>, k: <span class="bu">int</span> <span class="op">=</span> <span class="dv">10</span>):</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 1. 向量召回</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    vec_hits <span class="op">=</span> vector_db.search(query, k<span class="op">=</span>k<span class="op">*</span><span class="dv">2</span>)</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 2. 关键词召回（BM25 / Elasticsearch）</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    kw_hits <span class="op">=</span> es.search(query, k<span class="op">=</span>k<span class="op">*</span><span class="dv">2</span>)</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 3. RRF 融合（Reciprocal Rank Fusion）</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>    fused <span class="op">=</span> rrf_fusion(vec_hits, kw_hits)</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 4. 重排（用 Cohere Rerank 或本地 cross-encoder）</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    reranked <span class="op">=</span> reranker.rerank(query, fused[:<span class="dv">20</span>], top_k<span class="op">=</span>k)</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> reranked</span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li><strong>没有”通用最佳 retrieval”</strong>。代码检索要
+AST-aware、对话检索要 sliding window、FAQ 检索 BM25 就够、跨语言检索要走
+embedding。</li>
+<li><strong>重排贵但值得</strong>。召回 50-100 个 chunk → rerank 到 top
+5-10——准确率比”召回 top 5 直出”高一档，成本可接受。</li>
+<li><strong>过滤优于召回</strong>。90% 的噪音可以用 metadata
+过滤掉（时间范围、文档类型、权限标签）。先 filter 再 rank 比”大海捞针”省
+90% token。</li>
+</ul>
+<hr />
+<h2 id="上下文注入与引用using_citations.ipynb位于-misc">3.
+上下文注入与引用：<code>using_citations.ipynb</code>（位于 misc/）</h2>
+<p><strong>一行定位</strong>：检索到的 chunk 注入 prompt 时打开
+citations，让回答自带出处。</p>
+<p><strong>最小代码</strong>：</p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>uploaded <span class="op">=</span> client.beta.files.upload(<span class="bu">file</span><span class="op">=</span><span class="bu">open</span>(<span class="st">&quot;manual.pdf&quot;</span>, <span class="st">&quot;rb&quot;</span>))</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>resp <span class="op">=</span> client.messages.create(</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span><span class="st">&quot;claude-sonnet-4-6&quot;</span>,</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    max_tokens<span class="op">=</span><span class="dv">2048</span>,</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    messages<span class="op">=</span>[{</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;role&quot;</span>: <span class="st">&quot;user&quot;</span>,</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;content&quot;</span>: [</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>            <span class="co"># 把检索到的 top-5 chunks 当 document 块传（不是塞进 prompt 字符串）</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>            <span class="op">*</span>[{<span class="st">&quot;type&quot;</span>: <span class="st">&quot;document&quot;</span>,</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>               <span class="st">&quot;source&quot;</span>: {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;text&quot;</span>, <span class="st">&quot;data&quot;</span>: chunk.text},</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>               <span class="st">&quot;title&quot;</span>: <span class="ss">f&quot;</span><span class="sc">{</span>chunk<span class="sc">.</span>doc_id<span class="sc">}</span><span class="ss">#</span><span class="sc">{</span>chunk<span class="sc">.</span>page<span class="sc">}</span><span class="ss">&quot;</span>,</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>               <span class="st">&quot;citations&quot;</span>: {<span class="st">&quot;enabled&quot;</span>: <span class="va">True</span>}}</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>              <span class="cf">for</span> chunk <span class="kw">in</span> retrieved_chunks],</span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>            {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;text&quot;</span>, <span class="st">&quot;text&quot;</span>: user_query}</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>        ]</span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>    }]</span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a><span class="co"># 解析回答 + 引用</span></span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> blk <span class="kw">in</span> resp.content:</span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> blk.<span class="bu">type</span> <span class="op">==</span> <span class="st">&quot;text&quot;</span>:</span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>        answer <span class="op">=</span> blk.text</span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>        citations <span class="op">=</span> blk.citations   <span class="co"># char_location / page_location / content_block_location</span></span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li><strong>document block
+不是字符串</strong>。<code>{"type": "document", ...}</code>
+比拼字符串有三大优势：原生 citations、自动 OCR、可缓存。</li>
+<li><strong>chunk 之间要”标题 / 编号”明确</strong>。模型看到 5 个匿名
+chunk 会乱序总结；看到「第 3 节 / 第 12 页」会按结构引用。</li>
+<li><strong>prompt 要限制”只基于文档回答”</strong>。否则 Claude
+会用预训练知识补全，导致引用缺失——<code>system: "只基于以下文档回答，无法回答时说不知道"</code>。</li>
+</ul>
+<hr />
+<h2 id="promptfoo-评测闭环evaluation">4. Promptfoo
+评测闭环：<code>evaluation/</code></h2>
+<p><strong>一行定位</strong>：把 RAG 的”检索质量”和”端到端答案质量”做成
+CI 跑得动的回归测试。</p>
+<p><strong>最小代码</strong>（<code>evaluation/eval_end_to_end.py</code>
+简化版）：</p>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> promptfoo <span class="im">as</span> pf</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. 准备评测集（30-50 个问答对 + ground truth）</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>dataset <span class="op">=</span> json.load(<span class="bu">open</span>(<span class="st">&quot;docs_evaluation_dataset.json&quot;</span>))</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. provider：你的 RAG pipeline</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> rag_provider(prompt: <span class="bu">str</span>) <span class="op">-&gt;</span> <span class="bu">str</span>:</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>    chunks <span class="op">=</span> hybrid_retrieve(prompt, k<span class="op">=</span><span class="dv">5</span>)</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>    resp <span class="op">=</span> client.messages.create(</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>        model<span class="op">=</span><span class="st">&quot;claude-sonnet-4-6&quot;</span>,</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>        messages<span class="op">=</span>[{<span class="st">&quot;role&quot;</span>:<span class="st">&quot;user&quot;</span>,<span class="st">&quot;content&quot;</span>:[</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>            <span class="op">*</span>[{<span class="st">&quot;type&quot;</span>:<span class="st">&quot;document&quot;</span>,<span class="st">&quot;source&quot;</span>:{<span class="st">&quot;type&quot;</span>:<span class="st">&quot;text&quot;</span>,<span class="st">&quot;data&quot;</span>:c.text}}</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>              <span class="cf">for</span> c <span class="kw">in</span> chunks],</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>            {<span class="st">&quot;type&quot;</span>:<span class="st">&quot;text&quot;</span>,<span class="st">&quot;text&quot;</span>: prompt}</span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>        ]}]</span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> resp.content[<span class="dv">0</span>].text</span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. 评测指标</span></span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>test_cases <span class="op">=</span> [</span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>    {<span class="st">&quot;prompt&quot;</span>: q[<span class="st">&quot;question&quot;</span>],</span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>     <span class="st">&quot;assert&quot;</span>: [</span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a>        {<span class="st">&quot;type&quot;</span>:<span class="st">&quot;contains&quot;</span>,<span class="st">&quot;value&quot;</span>: q[<span class="st">&quot;must_contain&quot;</span>]},    <span class="co"># 必须含关键事实</span></span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a>        {<span class="st">&quot;type&quot;</span>:<span class="st">&quot;llm-rubric&quot;</span>,<span class="st">&quot;value&quot;</span>: q[<span class="st">&quot;rubric&quot;</span>]},        <span class="co"># LLM 当裁判打分</span></span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 还可以加 &quot;context-faithfulness&quot;（答案必须基于 context）</span></span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a>     ]}</span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> q <span class="kw">in</span> dataset</span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a><span class="co"># 4. 跑回归</span></span>
+<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a>pf.run(test_cases, providers<span class="op">=</span>[rag_provider])</span></code></pre></div>
+<p><strong>配套：<code>eval_retrieval.py</code></strong> 单独评测
+retrieve 阶段：</p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 召回指标（不依赖生成）</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>assertions <span class="op">=</span> [</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    {<span class="st">&quot;type&quot;</span>:<span class="st">&quot;contains-any&quot;</span>,<span class="st">&quot;value&quot;</span>: q[<span class="st">&quot;relevant_chunk_ids&quot;</span>]},  <span class="co"># 必须召回到相关 chunk</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    {<span class="st">&quot;type&quot;</span>:<span class="st">&quot;metric&quot;</span>,<span class="st">&quot;value&quot;</span>: <span class="st">&quot;recall@5&quot;</span>},                      <span class="co"># top-5 召回率</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    {<span class="st">&quot;type&quot;</span>:<span class="st">&quot;metric&quot;</span>,<span class="st">&quot;value&quot;</span>: <span class="st">&quot;mrr&quot;</span>},                           <span class="co"># Mean Reciprocal Rank</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>]</span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li><strong>评测集必须冻结</strong>。50 条问答对用 6 个月 — 改
+prompt、加文档、换模型都跑这 50 条，<strong>改动前先看 baseline
+不退化</strong>。</li>
+<li><strong>评测要拆两个</strong>。<code>eval_retrieval</code>（只评检索）和
+<code>eval_end_to_end</code>（评整体）分开跑——前者 1 分钟跑完、后者 10
+分钟。检索退化和生成退化要能区分开。</li>
+<li><strong>加一个”no-answer 评测集”</strong>。20
+条「文档里没有答案」的查询——RAG 必须说”不知道”而不是编。<strong>这是 RAG
+系统最容易暴露幻觉的地方</strong>。</li>
+</ul>
+<hr />
+<h2 id="架构演进naive-advanced-modular">5. 架构演进：Naive → Advanced →
+Modular</h2>
+<p><strong>一行定位</strong>：RAG 架构分三阶段演进，不要一开始就上
+modular。</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>阶段</th>
+<th>架构</th>
+<th>触发条件</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Naive</strong></td>
+<td>Embed → Top-k → Prompt</td>
+<td>1-10 个文档、用户 &lt;100</td>
+</tr>
+<tr class="even">
+<td><strong>Advanced</strong></td>
+<td>加 query rewriting / re-ranking / metadata filter</td>
+<td>文档 10-1000、用户 &gt;1000</td>
+</tr>
+<tr class="odd">
+<td><strong>Modular</strong></td>
+<td>query 路由 + 多个 retriever + 后处理 pipeline</td>
+<td>文档类型多 / 多租户 / 跨语言</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Modular 最小代码骨架</strong>：</p>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> RAGPipeline:</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>):</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.rewriter <span class="op">=</span> QueryRewriter()      <span class="co"># 查询改写 + HyDE</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.routers <span class="op">=</span> [                     <span class="co"># 查询路由：不同类型走不同 retriever</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>            CodeRouter(), DocsRouter(), FAQRouter()</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>        ]</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.retrievers <span class="op">=</span> {</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;code&quot;</span>: ASTRetriever(),</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;docs&quot;</span>: HybridRetriever(),</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;faq&quot;</span>: BM25Retriever()</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>        }</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.reranker <span class="op">=</span> CrossEncoderReranker()</span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.generator <span class="op">=</span> ClaudeGenerator()</span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> query(<span class="va">self</span>, q: <span class="bu">str</span>) <span class="op">-&gt;</span> <span class="bu">str</span>:</span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>        rewritten <span class="op">=</span> <span class="va">self</span>.rewriter(q)</span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>        route <span class="op">=</span> <span class="va">self</span>.routers[<span class="dv">0</span>].route(rewritten)</span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>        chunks <span class="op">=</span> <span class="va">self</span>.retrievers[route].retrieve(rewritten, k<span class="op">=</span><span class="dv">20</span>)</span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>        chunks <span class="op">=</span> <span class="va">self</span>.reranker.rerank(rewritten, chunks, top_k<span class="op">=</span><span class="dv">5</span>)</span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">self</span>.generator.generate(rewritten, chunks)</span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li><strong>不要 premature modularize</strong>。Naive 阶段把 eval
+跑起来、把 RAGAS
+之类的指标做正，再考虑加模块。每个新模块都要先证明它能提升指标。</li>
+<li><strong>Modular 的本质是”决策点显式化”</strong>。重写一次查询还是改
+prompt？路由到代码还是文档？这些隐式决策一旦显式，调试 / 替换 / A/B
+都变得简单。</li>
+<li><strong>多租户 RAG 的最大坑是数据隔离</strong>。同一 pipeline、不同
+namespace 的 vector DB——不要尝试”同一库 + metadata
+filter”，<strong>会泄漏</strong>。</li>
+</ul>
+<hr />
+<h2 id="落地清单">落地清单</h2>
+<table>
+<thead>
+<tr class="header">
+<th>阶段</th>
+<th>优先加入</th>
+<th>解决的问题</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>第一个 demo</td>
+<td>#1 基础分块、#3 注入 + citations</td>
+<td>能跑通 + 可解释</td>
+</tr>
+<tr class="even">
+<td>100 个用户</td>
+<td>#2 混合检索、#4 Promptfoo 评测</td>
+<td>召回质量 + 回归</td>
+</tr>
+<tr class="odd">
+<td>1000 个用户</td>
+<td>#1 文档类型分块、#5 naive → advanced</td>
+<td>召回稳定性</td>
+</tr>
+<tr class="even">
+<td>10000 个用户</td>
+<td>#5 modular 路由、#4 no-answer 评测集</td>
+<td>多源 + 抗幻觉</td>
+</tr>
+</tbody>
+</table>
+<h2 id="与其它模式的关系">与其它模式的关系</h2>
+<ul>
+<li><strong>tool_use</strong>：RAG 的”检索工具”就是
+<code>query_db</code> / <code>search_docs</code>——RAG 是 tool_use
+的子集。当 RAG 之外还要调其它工具，就升级到 Agent。</li>
+<li><strong>extended_thinking</strong>：复杂多跳推理（multi-hop RAG）开
+thinking，单跳查询不需要。</li>
+<li><strong>prompt caching</strong>：RAG 的 query + system
+可以缓存，retrieved chunks <strong>不能</strong>（每次不同）。缓存可省
+30-50% input token。</li>
+<li><strong>claude_agent_sdk</strong>：当 RAG 需要”先搜文档、再查
+DB、再调 API”时，升级到 Agent SDK 编排。</li>
+</ul>
+<p>参考资料：</p>
+<ul>
+<li><a
+href="https://github.com/anthropics/claude-cookbooks/tree/main/capabilities/retrieval_augmented_generation">claude-cookbooks
+RAG 目录</a></li>
+<li><a href="https://promptfoo.dev/">Promptfoo 框架</a></li>
+<li>配套：<a
+href="blog/posts/2026-09-15-tool-use-engineering-patterns.md">tool_use 7
+模式</a>、<a
+href="blog/posts/2026-09-15-claude-agent-sdk-engineering.md">claude_agent_sdk
+5 模式</a></li>
+</ul>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>

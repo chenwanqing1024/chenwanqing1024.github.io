@@ -74,6 +74,11 @@
                     <p class="mb-1">Nitin Garg 的实验砍到了骨头：spec baseline 把 review 的归因率从 0% 拉到 81%，但 recall 在统计上没动（0.525 vs 0.518）。认同他把 spec 当 governance artifact 的判断，但 push back 三处：staged generation 的&quot;翻倍&quot;有第二次过模型本身的 confound、5 个 reviewer 不足以撑住治理 ROI 的结论、Accountable 必须配上&quot;被 bounced 的后果&quot;才成立；并指出这套打法在数据湖仓里早就跑过了，spec 治理不是 AI 时代的新发明，是数据治理套了个 LLM 的壳。</p>
                 </div>
                 <div class="mb-4">
+                    <h5 class="mb-1"><a href="2026-09-15-rag-engineering-patterns.html">RAG 实战：从 Naive 到 Modular 的 5 个工程模式</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">RAG</span> <span class="badge bg-secondary">Agent</span> </small></p>
+                    <p class="mb-1">把 claude-cookbooks/capabilities/retrieval_augmented_generation 的 663KB 主教程 + Promptfoo 评测套件拆成 5 个工程模式：文档分块 / 检索选型 / 上下文注入与引用 / Promptfoo 评测闭环 / 架构演进路径。每个模式给出一行定位 + 最小代码 + 踩坑提示。</p>
+                </div>
+                <div class="mb-4">
                     <h5 class="mb-1"><a href="2026-09-15-extended-thinking-engineering.html">Extended Thinking 实战：把 Sonnet/Opus 的深度推理变成工程能力</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
                     <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">Reasoning</span> </small></p>
                     <p class="mb-1">把 claude-cookbooks/extended_thinking 的 2 个 notebook 拆成 3 个工程模式：基础启用与 budget 调参 / thinking 与 tool_use 交错 / signature 续接与 streaming。每条给最小代码 + 工程踩坑提示，对齐 anthropic-sdk-python 当前接口。</p>
@@ -82,11 +87,6 @@
                     <h5 class="mb-1"><a href="2026-09-15-claude-cookbook-misc-engineering.html">Claude API 工程实战：从 claude-cookbooks/misc 提炼的 14 个最小可用模式</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
                     <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">LLM</span> </small></p>
                     <p class="mb-1">把 anthropics/claude-cookbooks 的 misc 目录拆成 14 个独立模式，按「成本/输出可控/质量保障/长上下文/工作流增强」五个主题分组，每条给出一行定位 + 最小代码 + 工程踩坑提示。所有代码对齐 anthropic-sdk-python ≥ 0.40 的当前接口。</p>
-                </div>
-                <div class="mb-4">
-                    <h5 class="mb-1"><a href="2026-09-15-claude-agent-sdk-engineering.html">Claude Agent SDK 实战：从 One-Liner 到 K8s 部署的 5 个工程模式</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
-                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">Agent SDK</span> <span class="badge bg-secondary">MCP</span> </small></p>
-                    <p class="mb-1">把 claude-cookbooks/claude_agent_sdk 目录的 9 个 notebook 提炼成 5 个工程模式：最小上手 / 生产治理 / MCP 集成 / 多 tier 部署 / 动态工作流规模化，每个模式给出一行定位 + 最小代码 + 工程踩坑提示。</p>
                 </div>
             </div>
         </div>
