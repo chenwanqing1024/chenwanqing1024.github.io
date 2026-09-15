@@ -64,27 +64,27 @@
             </div>
             <div class="card-body">
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="../../../../../../2026-09-15-galaxy-mcp-data-warehouse.html">Galaxy MCP 把数仓 Agent 化，但真正的护城河是规范化的 I/O</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <h5 class="mb-1"><a href="../../../../../../../2026-09-15-galaxy-mcp-data-warehouse.html">Galaxy MCP 把数仓 Agent 化，但真正的护城河是规范化的 I/O</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
                     <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">MCP</span> <span class="badge bg-secondary">数据仓库</span> <span class="badge bg-secondary">AI 工程化</span> </small></p>
                     <p class="mb-1">得物技术把 Claude Code 集成进内部数仓平台 Galaxy，提出&#x27;认知运行时 × 执行运行时&#x27;解耦架构和&#x27;规范化 I/O&#x27;契约；落地 6 个场景（视觉埋点、OneData、周报、策略孵化、智能测试、Spark UI 调优），提效 3-10 倍。认同 SDD 是真正稳定的底座，但 push back 三处：MCP 工具原子化粒度没说清、Spec-to-Code 的版本管理缺位、Vibe Coding 与 SDD 的边界没量化。</p>
                 </div>
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="../../../../../../2026-09-15-flinkspec-bp-claw-prd-to-spec.html">BP Claw 把 PRD 转高质量需求：AI Coding 的瓶颈在输入不在模型</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <h5 class="mb-1"><a href="../../../../../../../2026-09-15-flinkspec-bp-claw-prd-to-spec.html">BP Claw 把 PRD 转高质量需求：AI Coding 的瓶颈在输入不在模型</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
                     <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">AI Coding</span> <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">PRD</span> <span class="badge bg-secondary">实时数仓</span> <span class="badge bg-secondary">FlinkSpec</span> </small></p>
                     <p class="mb-1">得物技术推出 BP Claw（AI 数据 BP），把 PM 的非标 PRD 转成 AI 可消费的高质量需求文档，作为 FlinkSpec 流水线的上游输入。认同它&#x27;问题在源头不在模型&#x27;的核心判断，但 push back 三处：PRD 评分 5 维度权重没说清、&#x27;参照不是卡点&#x27;与阻断 BLOCK-N 矛盾、长 PRD 分段生成的失败语义没定义。</p>
                 </div>
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="../../../../../../2026-09-15-flink-clickhouse-sink-batch-dynamic-schema.html">读文笔记：Flink ClickHouse Sink 的生产级攒批与动态表结构</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <h5 class="mb-1"><a href="../../../../../../../2026-09-15-flink-clickhouse-sink-batch-dynamic-schema.html">读文笔记：Flink ClickHouse Sink 的生产级攒批与动态表结构</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
                     <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Flink</span> <span class="badge bg-secondary">ClickHouse</span> <span class="badge bg-secondary">数据集成</span> <span class="badge bg-secondary">流计算</span> <span class="badge bg-secondary">后端</span> </small></p>
                     <p class="mb-1">得物技术把 flink-connector-jdbc 写入 ClickHouse 的三个生产痛点（无数据量攒批、固定表结构、分布式表热点）拆开重写：metaSize+timeout 双触发、本地表直写、ClusterIpsUtils 动态发现节点；并用 Checkpoint 配合两种语义（UnexceptionableSink vs ExceptionsThrowableSink）覆盖 At-Most-Once 与 At-Least-Once 两种业务诉求。</p>
                 </div>
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="../../../../../../2026-09-15-finance-data-warehouse-ai.html">财务数仓 AI 全链路增强，但真正难的是 L3 级人机协作的边界划法</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <h5 class="mb-1"><a href="../../../../../../../2026-09-15-finance-data-warehouse-ai.html">财务数仓 AI 全链路增强，但真正难的是 L3 级人机协作的边界划法</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
                     <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">数据仓库</span> <span class="badge bg-secondary">AI Coding</span> <span class="badge bg-secondary">财务数仓</span> <span class="badge bg-secondary">LLM 应用</span> </small></p>
                     <p class="mb-1">得物技术把财务数仓场景的 AI 落地拆成 4 个环节（建模、SQL Coding、数据测试、需求文档转化），借助 Claude + Cursor + 飞书 MCP 提效。认同他们&#x27;规范即 Prompt、迭代是常态、海量文件阅读&#x27;的三方法论，但 push back 三处：&#x27;L3 时刻&#x27;比喻不严谨、规范文档的演进机制没说清、AI 测试 SQL 的&#x27;问题发现能力提升&#x27;缺少对照实验。</p>
                 </div>
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="../../../../../../2026-09-15-extended-thinking-engineering.html">Extended Thinking 实战：把 Sonnet/Opus 的深度推理变成工程能力</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <h5 class="mb-1"><a href="../../../../../../../2026-09-15-extended-thinking-engineering.html">Extended Thinking 实战：把 Sonnet/Opus 的深度推理变成工程能力</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
                     <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">Reasoning</span> </small></p>
                     <p class="mb-1">把 claude-cookbooks/extended_thinking 的 2 个 notebook 拆成 3 个工程模式：基础启用与 budget 调参 / thinking 与 tool_use 交错 / signature 续接与 streaming。每条给最小代码 + 工程踩坑提示，对齐 anthropic-sdk-python 当前接口。</p>
                 </div>

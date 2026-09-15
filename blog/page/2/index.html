@@ -64,27 +64,27 @@
             </div>
             <div class="card-body">
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="../2026-09-15-spec-driven-attribution.html">Spec-driven 真正值钱的不是抓 bug，是把 review 变得可追责</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <h5 class="mb-1"><a href="../../2026-09-15-spec-driven-attribution.html">Spec-driven 真正值钱的不是抓 bug，是把 review 变得可追责</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
                     <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">AI 治理</span> <span class="badge bg-secondary">工程实践</span> </small></p>
                     <p class="mb-1">Nitin Garg 的实验砍到了骨头：spec baseline 把 review 的归因率从 0% 拉到 81%，但 recall 在统计上没动（0.525 vs 0.518）。认同他把 spec 当 governance artifact 的判断，但 push back 三处：staged generation 的&quot;翻倍&quot;有第二次过模型本身的 confound、5 个 reviewer 不足以撑住治理 ROI 的结论、Accountable 必须配上&quot;被 bounced 的后果&quot;才成立；并指出这套打法在数据湖仓里早就跑过了，spec 治理不是 AI 时代的新发明，是数据治理套了个 LLM 的壳。</p>
                 </div>
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="../2026-09-15-spec-coding-three-layer.html">读文笔记：Spec Coding 三层规范体系——约束、示范、视觉</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <h5 class="mb-1"><a href="../../2026-09-15-spec-coding-three-layer.html">读文笔记：Spec Coding 三层规范体系——约束、示范、视觉</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
                     <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">AI 编程</span> <span class="badge bg-secondary">Claude Code</span> <span class="badge bg-secondary">Spec Coding</span> <span class="badge bg-secondary">规范体系</span> <span class="badge bg-secondary">工程师能力</span> </small></p>
                     <p class="mb-1">得物技术用 10 天、217 条指令、2754 次工具调用、25546 行净增代码跑完一个企业级中后台；核心是把 AI 编程的规范性拆成三层：rules 约束层（禁止什么）、code-design 示范层（标准产出长什么样）、ui-design 视觉层（HTML 设计稿作为锚点）。再加上两个 MCP：接口文档直连（调用 21 次覆盖 39 个接口）、飞书云文档直读。</p>
                 </div>
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="../2026-09-15-spark-ui-monitoring.html">Spark UI 监控：从宏观入口到 Task 指标 — 读《深入剖析 Spark UI 界面》</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <h5 class="mb-1"><a href="../../2026-09-15-spark-ui-monitoring.html">Spark UI 监控：从宏观入口到 Task 指标 — 读《深入剖析 Spark UI 界面》</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
                     <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Spark</span> <span class="badge bg-secondary">Spark UI</span> <span class="badge bg-secondary">性能调优</span> <span class="badge bg-secondary">数据倾斜</span> <span class="badge bg-secondary">Shuffle</span> <span class="badge bg-secondary">AQE</span> </small></p>
                     <p class="mb-1">得物技术团队对 Spark UI 全栈监控的系统性拆解：五大一级入口（Executors/Environment/Storage/SQL/Stages）、三级诊断路径（SQL→Jobs→Stages）、两个核心实战案例（scan 表慢/Shuffle 并行度不足）、关键经验公式 D/P≈M/C，以及 AQE 参数 advisoryPartitionSizeInBytes 和 coalescePartitions 调优。</p>
                 </div>
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="../2026-09-15-reuse-first-skill-three-layer.html">复用优先 Skill 三层架构：AI Coding 的工程纪律比模型能力更重要</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <h5 class="mb-1"><a href="../../2026-09-15-reuse-first-skill-three-layer.html">复用优先 Skill 三层架构：AI Coding 的工程纪律比模型能力更重要</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
                     <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">Skill</span> <span class="badge bg-secondary">Claude Code</span> <span class="badge bg-secondary">工程实践</span> <span class="badge bg-secondary">AGENTS.md</span> </small></p>
                     <p class="mb-1">得物技术 (魏无涯) 用 AGENTS.md + Hook + Skill 三层结构做&#x27;组件复用优先&#x27;Agent。认同&#x27;AI 适合被放进清晰流程里工作&#x27;的核心判断，但 push back 三处：AGENTS.md 容量上限没说、Hook 触发模式维护成本没量化、&#x27;流程控制器 vs 能力包&#x27;的边界没给标准。</p>
                 </div>
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="../2026-09-15-recommendation-evaluation-platform.html">推荐评测平台拆解：人机协作 + CAS 调度 + Agent 巡检的演进路线</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <h5 class="mb-1"><a href="../../2026-09-15-recommendation-evaluation-platform.html">推荐评测平台拆解：人机协作 + CAS 调度 + Agent 巡检的演进路线</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
                     <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">推荐系统</span> <span class="badge bg-secondary">评测平台</span> <span class="badge bg-secondary">LLM 评测</span> <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">工程化</span> </small></p>
                     <p class="mb-1">把得物推荐评测平台拆成 3 个核心模块:Prompt 可视化+人机漏斗校验闭环、CAS 抢占+三阶段 offset 的分布式调度、LLM 并发控制+模型分级控本。关键数字:单周百万级审计需求下节省 91% 成本、一致性水位稳定 92%。</p>
                 </div>
