@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="这篇不讲”AI
+自动审漏洞”，讲怎么用通用 Agent（Claude Code /
+OpenCode）做底座，把业务逻辑（漏洞模式、检测流程、报告模板）封装在 Skill
+里，实现 100% 路由覆盖 + 分钟级响应。同时把 Token 消耗降低 95%——MCP 改
+CLI、Early-Exit、YAML 返回格式。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>AI Agent 做安全审计不是替代人工：通用 Agent + 业务 Skill
+的人机协同 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>AI Agent 做安全审计不是替代人工：通用 Agent + 业务 Skill
+的人机协同</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">AI
+Agent</span> <span class="badge bg-secondary">安全审计</span> <span class="badge bg-secondary">Skill
+设计</span> <span class="badge bg-secondary">MCP</span> <span class="badge bg-secondary">Token
+优化</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://xie.infoq.cn/article/6a99838dcf4b352c9592f4268" target="_blank" rel="noopener">通用
+AI Agent 驱动网关路由安全审计实践｜得物技术</a> · 得物技术
+            </div>
+
+<h2 id="原文在说什么">原文在说什么</h2>
+<p>得物这篇讲的是网关路由 AI 安全审计系统，覆盖数万个
+API、上百个微服务的全量审计场景。</p>
+<p>架构核心是<strong>通用 Agent + 业务 Skill
+分层</strong>：常规代码负责任务调度与结果存储，所有 AI 分析工作由超级
+Agent 完成。底层用 Claude Code / OpenCode 这种成熟 Coding
+Agent，把代码理解、推理分析、上下文管理、会话恢复等通用能力直接复用——<strong>不重复造轮子</strong>。业务逻辑（检测规则、分析流程、报告格式）全部沉淀在
+Skill 中，可以随时调整优化。</p>
+<p>具体项目分析时采用 <strong>AI 批量筛查 +
+人工深度验证的人机协同模式</strong>：</p>
+<pre><code>AI Agent
+├─ Step 1: 路由配置检查（auth_config.public、required_scopes）→ 短路退出
+├─ Step 2: 登录态识别（认证节点存在性）→ 标准认证路由直接信任
+├─ Step 3: 代码审计（三维检测）→ @PreAuthorize 注解 / 用户 ID 来源 / 所有权校验
+└─ Step 4: 精细化危害评估 → 越权读取 / 越权操作</code></pre>
+<p>检测分四步，前两步设有短路退出以降低成本。配置无异常、认证路由标准，可以直接跳过代码审计。</p>
+<p><strong>Skill 层</strong>结构很清晰：</p>
+<pre><code>gateway-route-vuln-analyzer/
+├── SKILL.md                        # 核心：漏洞分析主流程
+│   ├── 检测决策树（Step 1-4）
+│   ├── 危害评估规则
+│   └── 报告输出模板
+├── references/
+│   ├── unauthorized_patterns.md    # 越权漏洞模式库
+│   ├── logic_flaws.md              # 逻辑漏洞检测指南
+│   ├── data_classification.md      # 数据敏感性分级
+│   └── report_template.md          # 标准化报告模板
+└── scripts/
+    └── mcpcli-gateway              # CLI入口（Token优化）</code></pre>
+<p><strong>精细化危害评估</strong>是这篇文章的工程亮点：越权读取走<strong>数据敏感性评估</strong>（依据《数据安全法》《网络安全法》对数据资产分级），越权操作走<strong>利益流向评估</strong>。这避免了”一刀切”评级——同样是越权，读用户头像和读订单信息、修改昵称和退款是完全不同的危害等级。</p>
+<p><strong>Token 成本降低 95%</strong> 的优化策略值得逐条记：</p>
+<ol type="1">
+<li><strong>MCP → CLI 转换（mcp2cli）</strong>：把 MCP 工具暴露为 CLI
+命令，避免每次会话加载 MCP 上下文。效果：节省 61% Token。</li>
+<li><strong>工具返回值优化</strong>：<code>gitlab_file</code>
+无参数调用会返回完整文件（最大 1.47MB ≈ 500K
+tokens）。加精准参数实现按需提取。效果：v2 vs v1 再节省 88%。</li>
+<li><strong>Early-Exit
+模式</strong>：标准认证路由直接信任，跳过冗余代码审计。效果：节省
+50-70%。</li>
+<li><strong>AI 友好返回格式 YAML</strong>：YAML 天然比 JSON 的 Token
+量更少，对 AI 阅读更友好。</li>
+</ol>
+<p><strong>模型选型</strong>建立了 P0/P1/P2
+三重约束下的决策矩阵，最终选了 qwen3.5-plus——在召回率 100%
+的候选模型中，以更低的单位成本实现可接受的准确率，是批量场景下的最优解。</p>
+<p>作者明说：测试集基于独立手工标注测试集（100+
+样本），与生产告警数据相互隔离，仅作基线参考；大模型迭代速度快，可能存在更优模型未纳入评测。<strong>局限性的诚实标注本身就是工程素养</strong>。</p>
+<h2 id="我的看法">我的看法</h2>
+<p>我认同作者把”通用 Agent + 业务 Skill 分层”作为垂直 Agent
+应用架构起点的判断。这是过去一年最被低估的一个 Agent
+落地范式——很多人以为做 AI 应用必须自己写 Agent 框架，其实成熟的 Coding
+Agent 已经把通用能力做完了，业务方只需要在 Skill 层做领域封装。</p>
+<p>但这篇文章给我最有价值的不是架构本身，而是几个工程判断：</p>
+<p>第一，<strong>Token 成本降低 95%
+不是优化，是生存问题</strong>。一个审一万条 API 的 Agent，原始 MCP
+调用方式下 Token 消耗足够把任何模型账单打爆。文章给的四个优化点（mcp2cli
+/ 参数精准化 / Early-Exit / YAML 返回）其实是工程常识，但在 LLM
+应用里被严重低估——因为大家习惯了”调 LLM = 烧钱”。<strong>做 LLM
+应用的第一步是控制 Token 消耗，而不是选择哪个模型</strong>。</p>
+<p>第二，<strong>短路退出是减少无效调用的关键</strong>。前两步配置检查和登录态识别可以快速过滤掉
+80% 的合规路由，只对真正可疑的路由跑完整代码审计。这种”早退 +
+深度”的策略跟编译器优化、数据流水线是同一个套路——<strong>先做廉价检查，再做昂贵分析</strong>。</p>
+<p>第三，<strong>危害评估分两类（读取 vs
+操作）是反常识的正确设计</strong>。普通的安全工具用单一严重等级（高/中/低）评估漏洞，但实际工程里同样是越权，“读他人订单”和”替他人退款”的业务影响差
+100 倍。<strong>业务驱动的风险评级 &gt; 通用 CVSS 评分</strong>。</p>
+<p>但我有几个 push back：</p>
+<p>第一，<strong>人机协同的具体边界没说</strong>。AI
+批量筛查后哪些场景走人工深度验证？判断标准是什么？是所有 P0 都人工？还是
+AI
+标记”不确定”的才人工？这直接影响人工成本和系统可用性。文章只在概念上提到”AI
+处理重复筛查，人工聚焦深度分析”，但没给出 SLA 量化。</p>
+<p>第二，<strong>Skill 层的设计模式</strong>值得推广但没说怎么避免 Skill
+膨胀。一个项目的 Skill 可能从 5 个涨到 50
+个，怎么管理？版本控制？测试？复用？这跟微服务架构的”服务网格”问题很像——抽象做对了能复用，做错了反而是负担。</p>
+<p>第三，<strong>召回率 100% 的要求</strong>。文章说模型选型”召回率
+100%“——这是不是要求过高？100%
+召回意味着漏报为零，这通常需要牺牲精度（多报）。一个更现实的目标是”高召回
++ 可接受误报 +
+人工兜底”。文章的”人工深度验证”是兜底，但没量化人工成本。</p>
+<h3 id="怎么落到-agent-项目">怎么落到 Agent 项目</h3>
+<p>如果让我基于这篇做一个<strong>垂直 Agent
+应用（不限于安全审计）</strong>，我会画成这样：</p>
+<p><strong>核心模块四件套：通用 Agent 基座、Skill
+注册中心、决策树短路、Token 优化器。</strong></p>
+<ol type="1">
+<li><p><strong>通用 Agent 基座</strong>：直接用 Claude Code / OpenCode
+这种成熟 Coding
+Agent，不要重新发明轮子。它们的代码理解、推理、上下文管理、Session
+恢复都已经是产品级。</p></li>
+<li><p><strong>Skill 注册中心</strong>：每个业务场景一个 Skill，结构 =
+SKILL.md（决策树） + references/（知识库） + scripts/（CLI
+工具）。<strong>references 不进 context</strong>，按需检索；scripts 是
+Token 优化的关键。</p></li>
+<li><p><strong>决策树短路</strong>：先做廉价检查（配置、登录态）再做昂贵分析（代码审计）。<strong>短路退出条件要明确可测</strong>，不能凭”AI
+觉得没问题”。</p></li>
+<li><p><strong>Token 优化器</strong>：四个手段叠加——</p>
+<ul>
+<li>MCP → CLI 转换</li>
+<li>工具参数精准化（按字段提取，不返全文件）</li>
+<li>Early-Exit 模式</li>
+<li>YAML 返回格式</li>
+</ul></li>
+</ol>
+<p><strong>工程上最值得做的：</strong></p>
+<ul>
+<li><strong>业务驱动的风险评级</strong>：按”读取 vs 操作”、“公开数据 vs
+私密数据”、“无利益 vs 有利益”分维度评估，不要用单一严重等级</li>
+<li><strong>测试集独立标注</strong>：手工标注 100+
+测试集，与生产数据隔离，避免过拟合到测试集</li>
+<li><strong>局限性诚实标注</strong>：在文档里写明”测试集局限”“模型迭代风险”，不是谦虚是工程素养</li>
+</ul>
+<p><strong>面试时被问”AI Agent 怎么落地垂直场景”</strong>——直接答通用
+Agent + 业务 Skill
+分层。<strong>真正的工程能力不在分层本身</strong>，而在于：短路决策、Token
+优化、危害分级、测试集隔离——把这四件事做出来，垂直 Agent 才从 PoC
+变成产品。</p>
+<h2 id="一句话总结">一句话总结</h2>
+<p>AI Agent 做垂直场景的关键不是”自己造 Agent 框架”，而是复用通用 Agent
++ 在 Skill 层做领域封装；同时把 Token
+优化、决策树短路、危害分级当成头等工程问题对待——这四件事做对了，垂直
+Agent 才从烧钱 demo 变成能上生产的产品。</p>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>
