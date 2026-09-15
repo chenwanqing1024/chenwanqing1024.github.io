@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="把 claude-cookbooks/skills 的 3 个
+notebook + 3 个 custom skill 提炼成 6 个工程模式：内置 Skill 调用 /
+Container+Code Execution / Files API 下载 / Custom Skill 编写 /
+渐进式加载 / 多 Skill 组合。每个模式一行定位 + 最小代码 +
+工程踩坑提示。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>Claude Skills 实战：让 Claude 生成 Excel / PPT / PDF 的 6
+个工程模式 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>Claude Skills 实战：让 Claude 生成 Excel / PPT / PDF 的
+6 个工程模式</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI
+工程</span> <span class="badge bg-secondary">Skills</span> <span class="badge bg-secondary">Agent</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://github.com/anthropics/claude-cookbooks/tree/main/skills" target="_blank" rel="noopener">claude-cookbooks
+/ skills</a> · Anthropic
+            </div>
+
+<h2 id="引子">引子</h2>
+<p><code>skills/</code> 是 claude-cookbooks
+里<strong>最”产品向”</strong>的目录：3 个 notebook（基础 / 金融场景 /
+自定义）+ 3 个完整 custom skill（金融建模 / 财务分析 / 品牌规范）+
+真实的样例数据集。它解决的问题不是”调工具”——而是<strong>让 Claude
+学会一种”专业能力”</strong>，并以渐进式加载的方式按需使用。</p>
+<p>Skills 是 Anthropic 在 2025-10
+推出的产品形态，可以理解为「<strong>装满指令、脚本、资源的文件夹</strong>」：Claude
+看到 SKILL.md 的 frontmatter 时只读 name+description（占 token
+极少），判定相关后才加载完整指令，再按需调里面的 Python
+脚本。<strong>这是当前所有 LLM 产品形态里”按 token
+付费”最友好的一种</strong>——多装技能不烧钱。</p>
+<p>这篇文章把它拆成 6 个相互独立的工程模式，按”<strong>调用 → 闭环 →
+下载 → 自定义 → 经济学 → 组合</strong>”排列。每个模式配一行定位 +
+最小代码 + 2-3 条工程踩坑提示。</p>
+<hr />
+<h2 id="内置-skill-调用xlsx-pptx-pdf-docx">1. 内置 Skill 调用：xlsx /
+pptx / pdf / docx</h2>
+<p><strong>一行定位</strong>：用
+<code>client.beta.messages.create</code> 的
+<code>container.skills</code> 把官方技能挂上去，Claude
+自动获得对应格式的”专家级”生成能力。</p>
+<p><strong>最小代码</strong>：</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> anthropic <span class="im">import</span> Anthropic</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>client <span class="op">=</span> Anthropic(api_key<span class="op">=</span>os.environ[<span class="st">&quot;ANTHROPIC_API_KEY&quot;</span>])</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>resp <span class="op">=</span> client.beta.messages.create(</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span><span class="st">&quot;claude-sonnet-4-6&quot;</span>,</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    max_tokens<span class="op">=</span><span class="dv">4096</span>,</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>    container<span class="op">=</span>{</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;skills&quot;</span>: [</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>            {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;anthropic&quot;</span>, <span class="st">&quot;skill_id&quot;</span>: <span class="st">&quot;xlsx&quot;</span>, <span class="st">&quot;version&quot;</span>: <span class="st">&quot;latest&quot;</span>}</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>        ]</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>    },</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>    tools<span class="op">=</span>[{<span class="st">&quot;type&quot;</span>: <span class="st">&quot;code_execution_20250825&quot;</span>, <span class="st">&quot;name&quot;</span>: <span class="st">&quot;code_execution&quot;</span>}],</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>    messages<span class="op">=</span>[{</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;role&quot;</span>: <span class="st">&quot;user&quot;</span>,</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;content&quot;</span>: <span class="st">&quot;Create a monthly budget Excel with income/expense/savings, currency format, column chart&quot;</span></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>    }],</span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>    betas<span class="op">=</span>[<span class="st">&quot;code-execution-2025-08-25&quot;</span>, <span class="st">&quot;files-api-2025-04-14&quot;</span>, <span class="st">&quot;skills-2025-10-02&quot;</span>],</span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li>4 个内置 Skill ID：<code>xlsx</code> / <code>pptx</code> /
+<code>pdf</code> / <code>docx</code>。<strong>用
+<code>"version": "latest"</code></strong>——Anthropic
+维护升级，<strong>别 pin 死版本</strong>，否则错失 bug fix。</li>
+<li>Skills 必须挂 <code>code_execution</code> 工具，否则会报
+<code>BadRequestError</code>。这是强制依赖关系，不是可选。</li>
+<li><strong>生成耗时</strong>：Excel 约 2 分钟、PowerPoint 1-2 分钟、PDF
+40-60 秒。生产环境要加 timeout + 重试，不要按普通 messages API 的 SLA
+设计。</li>
+</ul>
+<hr />
+<h2 id="container-code-execution最小闭环">2. Container + Code
+Execution：最小闭环</h2>
+<p><strong>一行定位</strong>：把
+Skills、代码执行、文件生成三件套装进一个<strong>沙箱
+container</strong>，Claude 在里面跑 Python 写文件，回灌 file_id。</p>
+<p><strong>最小代码</strong>（复用 container 提效）：</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 第一次调用：建 container + 加载 skill</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>resp1 <span class="op">=</span> client.beta.messages.create(</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span><span class="st">&quot;claude-sonnet-4-6&quot;</span>,</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    max_tokens<span class="op">=</span><span class="dv">4096</span>,</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    container<span class="op">=</span>{<span class="st">&quot;skills&quot;</span>: [{<span class="st">&quot;type&quot;</span>: <span class="st">&quot;anthropic&quot;</span>, <span class="st">&quot;skill_id&quot;</span>: <span class="st">&quot;xlsx&quot;</span>,</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>                           <span class="st">&quot;version&quot;</span>: <span class="st">&quot;latest&quot;</span>}]},</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>    tools<span class="op">=</span>[{<span class="st">&quot;type&quot;</span>: <span class="st">&quot;code_execution_20250825&quot;</span>, <span class="st">&quot;name&quot;</span>: <span class="st">&quot;code_execution&quot;</span>}],</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    messages<span class="op">=</span>[{<span class="st">&quot;role&quot;</span>:<span class="st">&quot;user&quot;</span>,<span class="st">&quot;content&quot;</span>:<span class="st">&quot;创建 Q1 财报 Excel：营收 100M、毛利 40M、运营成本 20M&quot;</span>}],</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    betas<span class="op">=</span>[<span class="st">&quot;code-execution-2025-08-25&quot;</span>, <span class="st">&quot;files-api-2025-04-14&quot;</span>, <span class="st">&quot;skills-2025-10-02&quot;</span>],</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>container_id <span class="op">=</span> resp1.container.<span class="bu">id</span>   <span class="co"># ← 关键：保留这个 id</span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a><span class="co"># 第二次调用：复用同一个 container（skill 不重新加载，节省 ~3000 token）</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>resp2 <span class="op">=</span> client.beta.messages.create(</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span><span class="st">&quot;claude-sonnet-4-6&quot;</span>,</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>    max_tokens<span class="op">=</span><span class="dv">4096</span>,</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>    container<span class="op">=</span>container_id,   <span class="co"># ← 直接传字符串 id</span></span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>    messages<span class="op">=</span>[{<span class="st">&quot;role&quot;</span>:<span class="st">&quot;user&quot;</span>,<span class="st">&quot;content&quot;</span>:<span class="st">&quot;再加一页 sheet 画营收环比图&quot;</span>}],</span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>    betas<span class="op">=</span>[<span class="st">&quot;code-execution-2025-08-25&quot;</span>, <span class="st">&quot;files-api-2025-04-14&quot;</span>, <span class="st">&quot;skills-2025-10-02&quot;</span>],</span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li><strong>复用 container = 复用沙箱 + 复用 skill
+加载状态</strong>。第二次起只需 50-100 token 的 skill
+metadata，<strong>省 99% 的 skill 加载开销</strong>。</li>
+<li>container 不传 → 每次新建沙箱（冷启动 30
+秒+）。<strong>多轮对话一定要传 id</strong>。</li>
+<li>container 有 TTL，过期要重建。生产里把 container_id 存 Redis，TTL
+通常 1 小时。</li>
+</ul>
+<hr />
+<h2 id="files-api-下载file_id-本地文件">3. Files API 下载：file_id →
+本地文件</h2>
+<p><strong>一行定位</strong>：Skill 在沙箱里生成的文件，response
+里只能拿到 <code>file_id</code>——必须用
+<code>client.beta.files.download</code> 拉到本地。</p>
+<p><strong>最小代码</strong>：</p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># file_id 从 bash_code_execution_tool_result.content.content[0].file_id 取</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="co"># 推荐用 cookbook 提供的 file_utils.extract_file_ids() 自动解析</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 下载文件（二进制）</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>content <span class="op">=</span> client.beta.files.download(file_id<span class="op">=</span><span class="st">&quot;file_abc123...&quot;</span>)</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> <span class="bu">open</span>(<span class="st">&quot;outputs/q1_report.xlsx&quot;</span>, <span class="st">&quot;wb&quot;</span>) <span class="im">as</span> f:</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>    f.write(content.read())   <span class="co"># ⚠️ 用 .read()，不是 .content</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="co"># 查元信息</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>info <span class="op">=</span> client.beta.files.retrieve_metadata(file_id<span class="op">=</span><span class="st">&quot;file_abc123...&quot;</span>)</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;</span><span class="sc">{</span>info<span class="sc">.</span>filename<span class="sc">}</span><span class="ss"> | </span><span class="sc">{</span>info<span class="sc">.</span>size_bytes<span class="sc">}</span><span class="ss"> bytes&quot;</span>)  <span class="co"># ⚠️ size_bytes 不是 size</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a><span class="co"># 列出所有文件</span></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> f <span class="kw">in</span> client.beta.files.<span class="bu">list</span>().data:</span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f&quot;</span><span class="sc">{</span>f<span class="sc">.</span>filename<span class="sc">}</span><span class="ss"> | </span><span class="sc">{</span>f<span class="sc">.</span>created_at<span class="sc">}</span><span class="ss">&quot;</span>)</span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li><strong>file_id
+是临时的</strong>。下载要立刻做，不要假设能”过会再拉”——Anthropic 端有
+lifetime 限制。</li>
+<li><strong><code>.read()</code> vs <code>.content</code></strong>：beta
+files 返回的是 <code>BinaryAPIResponse</code>，<strong>只有
+<code>.read()</code></strong>，调 <code>.content</code> 直接
+AttributeError。</li>
+<li><strong><code>size_bytes</code> vs
+<code>size</code></strong>：metadata 字段叫 <code>size_bytes</code>，写
+<code>info.size</code> 也会 AttributeError。这是 SDK beta
+期的字段名”漂移”，cookbook 的 CLAUDE.md 专门列了。</li>
+<li><strong>文件会被覆盖</strong>：重跑同一个 cell 会 overwrite
+已下载的文件（output 会标
+<code>[overwritten]</code>）。生产里加时间戳防覆盖。</li>
+</ul>
+<hr />
+<h2 id="自定义-skillskill.md-scripts-resources">4. 自定义
+Skill：SKILL.md + scripts + resources</h2>
+<p><strong>一行定位</strong>：把自己的领域知识、helper
+脚本、模板打包成一个文件夹，上传后 Claude 按 metadata 自动发现。</p>
+<p><strong>最小代码</strong>（自定义 Skill 的目录结构）：</p>
+<pre><code>my_skill/
+├── SKILL.md            # 必须：YAML frontmatter + 指令正文
+├── scripts/            # 可选：helper Python 脚本
+│   └── processor.py
+└── resources/          # 可选：模板 / 数据 / 图片
+    └── template.xlsx</code></pre>
+<p><strong>SKILL.md frontmatter 模板</strong>（注意 name ≤ 64
+字符、description ≤ 1024 字符）：</p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="an">name:</span><span class="co"> applying-brand-guidelines</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="an">description:</span><span class="co"> This skill applies consistent corporate branding (colors, fonts, layouts) to all generated documents including Excel, PowerPoint, and PDF.</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="fu"># Corporate Brand Guidelines Skill</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a><span class="fu">## Visual Standards</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a><span class="fu">### Color Palette</span></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Acme Blue: #0066CC (headers, primary buttons)</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Acme Navy: #003366 (text, accents)</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Success Green: #28A745 (positive metrics)</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Error Red: #DC3545 (negative values)</span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a><span class="fu">## Excel Standards</span></span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Row 1 headers: Bold, White text on Acme Blue background</span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Alternating rows: #F8F9FA</span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Charts: primary Acme Blue, secondary Success Green</span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a><span class="fu">## Scripts</span></span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="in">`apply_brand.py`</span>: 自动应用品牌格式到任意 docx/xlsx/pptx</span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="in">`validate_brand.py`</span>: 校验生成的文件是否符合品牌规范</span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li><strong>description
+决定”何时被加载”</strong>。写得越精确，召回越准——cookbook 的金融建模
+skill 写”This skill provides an advanced financial modeling suite with
+DCF analysis, sensitivity testing, Monte Carlo
+simulations”，金融问答会被精准命中，技术问答不会被误召。</li>
+<li><strong>SKILL.md 正文控制在 &lt;5k
+tokens</strong>。超过会被截断，关键指令丢失。<strong>长内容拆到 scripts/
+单独引用</strong>。</li>
+<li><strong>scripts 是 Claude 主动调的工具</strong>。Cookbook 的
+financial-modeling skill 把 DCF 公式、敏感性分析全写成 Python，Claude
+在沙箱里 <code>from dcf_model import *</code>——<strong>比自己从零写
+openpyxl 代码可靠得多</strong>。</li>
+<li><strong>resources 是惰性数据</strong>。模板
+Excel、配色字典、术语表——Claude 只在需要时才读，<strong>别把全部资源塞
+frontmatter</strong>。</li>
+</ul>
+<hr />
+<h2 id="渐进式加载token-经济学">5. 渐进式加载：Token 经济学</h2>
+<p><strong>一行定位</strong>：Skills 的核心创新是”按需加载”——挂 100 个
+skill 不烧 token，只有真正用到的才付费。</p>
+<p><strong>对比数据</strong>（cookbook 数据）：</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>方式</th>
+<th>Token 开销</th>
+<th>性能</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>手动指令（写在 prompt 里）</td>
+<td>5,000-10,000 / 请求</td>
+<td>不稳定，看 prompt 写得如何</td>
+</tr>
+<tr class="even">
+<td>Skills（只挂 metadata）</td>
+<td>~100 / 请求</td>
+<td>专家级（skill 加载后）</td>
+</tr>
+<tr class="odd">
+<td>Skills（命中后完整加载）</td>
+<td>~5,000 / 请求（一次性）</td>
+<td>专家级</td>
+</tr>
+</tbody>
+</table>
+<p><strong>100 个 skill 同时挂载的开销</strong>：</p>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 即使挂 100 个 skill，初始只花 100 × 64 chars name + 1024 chars description</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="co"># = ~25k token（一次性 metadata 加载）</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>container_skills <span class="op">=</span> [</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;anthropic&quot;</span>, <span class="st">&quot;skill_id&quot;</span>: sid, <span class="st">&quot;version&quot;</span>: <span class="st">&quot;latest&quot;</span>}</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> sid <span class="kw">in</span> [<span class="st">&quot;xlsx&quot;</span>, <span class="st">&quot;pptx&quot;</span>, <span class="st">&quot;pdf&quot;</span>, <span class="st">&quot;docx&quot;</span>, ...]   <span class="co"># 加你自定义的</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Claude 只在用到时才把对应 skill 的完整指令（&lt;5k token）+ 资源读进来</span></span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li><strong>多挂不烧钱，挂错才烧钱</strong>。一个 skill
+被误召（描述太宽泛）= 多花 5k token。<strong>写好 description
+是省钱第一要务</strong>。</li>
+<li><strong>3 层加载模型</strong>：metadata → 完整指令 →
+链接文件。<strong>链接文件按需 fetch</strong>，不是 skill
+加载时全读。</li>
+<li>估算一个生产 Agent 的 skill
+开销：<code>Σ(每个 skill metadata) + N 次命中的完整加载</code>。前者摊薄、后者与使用频率相关——<strong>高频
+skill 越值得打磨</strong>。</li>
+</ul>
+<hr />
+<h2 id="多-skill-组合跨格式工作流">6. 多 Skill 组合：跨格式工作流</h2>
+<p><strong>一行定位</strong>：在一个请求里挂多个 skill，Claude
+自动编排——CSV → Excel → PPT → PDF 全链路一键出。</p>
+<p><strong>最小代码</strong>：</p>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>resp <span class="op">=</span> client.beta.messages.create(</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span><span class="st">&quot;claude-sonnet-4-6&quot;</span>,</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    max_tokens<span class="op">=</span><span class="dv">8192</span>,</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    container<span class="op">=</span>{</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;skills&quot;</span>: [</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>            {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;anthropic&quot;</span>, <span class="st">&quot;skill_id&quot;</span>: <span class="st">&quot;xlsx&quot;</span>, <span class="st">&quot;version&quot;</span>: <span class="st">&quot;latest&quot;</span>},</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>            {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;anthropic&quot;</span>, <span class="st">&quot;skill_id&quot;</span>: <span class="st">&quot;pptx&quot;</span>, <span class="st">&quot;version&quot;</span>: <span class="st">&quot;latest&quot;</span>},</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>            {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;anthropic&quot;</span>, <span class="st">&quot;skill_id&quot;</span>: <span class="st">&quot;pdf&quot;</span>,  <span class="st">&quot;version&quot;</span>: <span class="st">&quot;latest&quot;</span>},</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>            <span class="co"># + 你的自定义 skill</span></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>            {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;custom&quot;</span>,   <span class="st">&quot;skill_id&quot;</span>: <span class="st">&quot;applying-brand-guidelines&quot;</span>,</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>             <span class="st">&quot;version&quot;</span>: <span class="st">&quot;1759287696&quot;</span>},   <span class="co"># 自定义 skill 用 epoch timestamp</span></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>        ]</span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>    },</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>    tools<span class="op">=</span>[{<span class="st">&quot;type&quot;</span>: <span class="st">&quot;code_execution_20250825&quot;</span>, <span class="st">&quot;name&quot;</span>: <span class="st">&quot;code_execution&quot;</span>}],</span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>    messages<span class="op">=</span>[{</span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;role&quot;</span>: <span class="st">&quot;user&quot;</span>,</span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;content&quot;</span>: <span class="st">&quot;&quot;&quot;读取 sample_data/financial_statements.csv，做如下输出：</span></span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a><span class="st">1. Excel：财务比率仪表盘（含公式、图表）</span></span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a><span class="st">2. PPT：高管汇报 5 页（含 KPI 卡片、趋势图）</span></span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a><span class="st">3. PDF：完整年报（含品牌规范的封面、目录、分章节）</span></span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a><span class="st">&quot;&quot;&quot;</span></span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>    }],</span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>    betas<span class="op">=</span>[<span class="st">&quot;code-execution-2025-08-25&quot;</span>, <span class="st">&quot;files-api-2025-04-14&quot;</span>, <span class="st">&quot;skills-2025-10-02&quot;</span>],</span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li><strong>多 Skill 的协同是 Claude 自动编排的</strong>——它会决定”先做
+Excel 算数据、再做 PPT 引图表、最后做 PDF 整合”。<strong>不要在 prompt
+里写死顺序</strong>。</li>
+<li><strong>自定义 skill 和官方 skill 同等地位</strong>。Cookbook 的
+brand-guidelines skill
+在多文档生成时被自动调用，保证颜色/字体一致——<strong>这就是 skill
+的真正价值：把”组织知识”打包成可复用的资产</strong>。</li>
+<li><strong>生成耗时叠加</strong>：3 个 skill 串行跑可能要 5-8
+分钟。生产环境用 <code>async</code> + 长 timeout，<strong>别让用户盯着
+spinner</strong>。</li>
+<li>跨 Skill 输出的格式校验：xlsx skill 出的图 → pptx skill 引用 → pdf
+skill 整合——<strong>全靠 Claude 内部传递</strong>，没有标准
+schema，<strong>要写 e2e 评测</strong>（见 §7）。</li>
+</ul>
+<hr />
+<h2 id="落地清单">落地清单</h2>
+<table>
+<thead>
+<tr class="header">
+<th>场景</th>
+<th>优先加入的模式</th>
+<th>解决的问题</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>第一次用 Skill</td>
+<td>#1 内置 Skill + #3 Files API 下载</td>
+<td>跑通 + 文件落地</td>
+</tr>
+<tr class="even">
+<td>多轮对话</td>
+<td>#2 复用 container</td>
+<td>节省 skill 加载 token</td>
+</tr>
+<tr class="odd">
+<td>团队专属能力</td>
+<td>#4 自定义 Skill</td>
+<td>品牌 / 流程 / 领域知识沉淀</td>
+</tr>
+<tr class="even">
+<td>Agent 高频调用</td>
+<td>#5 渐进式加载</td>
+<td>控制 token 开销</td>
+</tr>
+<tr class="odd">
+<td>跨格式报表</td>
+<td>#6 多 Skill 组合</td>
+<td>CSV → XLSX → PPT → PDF 链路</td>
+</tr>
+<tr class="even">
+<td>内部工具集成</td>
+<td>#2 + #4 + Files API 落 OSS</td>
+<td>与对象存储 / DMS 打通</td>
+</tr>
+</tbody>
+</table>
+<h2 id="选型速查">选型速查</h2>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>需求</th>
+<th>推荐 skill</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>数据报表 / 财务模型</td>
+<td><code>xlsx</code> +
+<code>creating-financial-models</code>（custom）</td>
+</tr>
+<tr class="even">
+<td>高管汇报 / 客户演示</td>
+<td><code>pptx</code> +
+<code>applying-brand-guidelines</code>（custom）</td>
+</tr>
+<tr class="odd">
+<td>合同 / 发票 / 文档生成</td>
+<td><code>pdf</code> +
+<code>analyzing-financial-statements</code>（custom，做数据校验）</td>
+</tr>
+<tr class="even">
+<td>Word 文档（合同 / 报告）</td>
+<td><code>docx</code></td>
+</tr>
+<tr class="odd">
+<td>公司全格式一致</td>
+<td><code>applying-brand-guidelines</code>（custom）+ 任意 1+ 内置
+skill</td>
+</tr>
+</tbody>
+</table>
+<h2 id="与其它模式的关系">与其它模式的关系</h2>
+<ul>
+<li><strong>Skills vs Tool Use</strong>：Tool Use
+是”调单个函数”（低层次），Skills
+是”装一个专家包”（高层次）。<strong>Skills 内部通常用 code_execution
+实现，code_execution 本身是 tool</strong>。</li>
+<li><strong>Skills vs MCP</strong>：MCP 把外部服务（GitHub / Slack）变成
+tool；Skills 把”领域能力 +
+脚本”打包成可加载资产。<strong>两者正交</strong>：MCP
+用于”对接外部系统”，Skills 用于”沉淀内部知识”。</li>
+<li><strong>Skills vs Agent SDK</strong>：Agent SDK 管”多步骤编排 +
+治理”，Skills 管”单步专业能力”。<strong>复杂 Agent 里每个 subagent
+可以挂不同 skill</strong>——例如 research Agent 挂 web-search
+skill，finance Agent 挂 financial-modeling skill。</li>
+<li><strong>Skills 与 prompt caching 兼容</strong>：Skill metadata
+一次性加载进 cache，重复使用 0 成本。配合 cache_control 节省 token
+是天然组合。</li>
+</ul>
+<p>参考资料：</p>
+<ul>
+<li><a
+href="https://github.com/anthropics/claude-cookbooks/tree/main/skills">claude-cookbooks/skills</a></li>
+<li><a
+href="https://docs.claude.com/en/docs/agents-and-tools/agent-skills/overview">Skills
+官方文档</a></li>
+<li><a
+href="https://docs.claude.com/en/docs/agents-and-tools/agent-skills/best-practices">Skills
+最佳实践</a></li>
+<li>配套阅读：<a
+href="blog/posts/2026-09-15-claude-agent-sdk-engineering.md">Claude
+Agent SDK 5 模式</a>、<a
+href="blog/posts/2026-09-15-tool-use-engineering-patterns.md">Tool Use 7
+模式</a></li>
+</ul>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>
