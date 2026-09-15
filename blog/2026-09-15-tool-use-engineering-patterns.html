@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="把 claude-cookbooks/tool_use
+目录拆成 7 个独立可复制的工程模式，按”单工具控制 / 多工具编排 /
+规模化”三档排列。每个模式给出一行定位 + 最小代码 + 工程踩坑提示，对齐
+anthropic-sdk-python 当前接口。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>Claude Tool Use 实战：从 tool_choice 到 tool_search 的 7
+个工程模式 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>Claude Tool Use 实战：从 tool_choice 到 tool_search 的 7
+个工程模式</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI
+工程</span> <span class="badge bg-secondary">Tool
+Use</span> <span class="badge bg-secondary">Agent</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://github.com/anthropics/claude-cookbooks/tree/main/tool_use" target="_blank" rel="noopener">claude-cookbooks
+/ tool_use</a> · Anthropic
+            </div>
+
+<h2 id="引子">引子</h2>
+<p><code>tool_use/</code> 是 <code>claude-cookbooks</code>
+里<strong>最大、最常被引用</strong>的目录：14 个 notebook 覆盖
+tool_choice、结构化输出、并行调用、程序化调用、工具检索、外部记忆、上下文压缩。它对应的工程问题是同一件事——<strong>让
+Claude 在生产里稳定地调用你的服务</strong>。</p>
+<p>这篇文章把目录里的核心 notebook 拆成 7
+个相互独立的工程模式，按”<strong>单工具控制 → 多工具编排 →
+规模化</strong>”三档排列。每个模式配一行定位 + 最小代码 + 3
+条以内工程踩坑提示。所有代码基于
+<code>anthropic-sdk-python &gt;= 0.40</code> 当前接口。</p>
+<hr />
+<h2 id="第一档单工具控制">第一档：单工具控制</h2>
+<h3 id="tool_choice.ipynb-三档控制auto-any-指定工具">1.
+<code>tool_choice.ipynb</code> — 三档控制：auto / any / 指定工具</h3>
+<p><strong>最小用法</strong>：</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># auto（默认）：让 Claude 自己决定要不要调用</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>resp <span class="op">=</span> client.messages.create(model<span class="op">=</span><span class="st">&quot;claude-sonnet-4-6&quot;</span>,</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>                              tools<span class="op">=</span>tools, messages<span class="op">=</span>...)</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="co"># any：必须调至少一个工具，但不限制哪个</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>resp <span class="op">=</span> client.messages.create(model<span class="op">=</span>..., tool_choice<span class="op">=</span>{<span class="st">&quot;type&quot;</span>: <span class="st">&quot;any&quot;</span>},</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>                              tools<span class="op">=</span>tools, messages<span class="op">=</span>...)</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="co"># 指定具体工具：必须调用这一个</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>resp <span class="op">=</span> client.messages.create(model<span class="op">=</span>...,</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>                              tool_choice<span class="op">=</span>{<span class="st">&quot;type&quot;</span>: <span class="st">&quot;tool&quot;</span>, <span class="st">&quot;name&quot;</span>: <span class="st">&quot;search_docs&quot;</span>},</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>                              tools<span class="op">=</span>tools, messages<span class="op">=</span>...)</span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li>客服 / 路由 Agent 用 <code>any</code>
+保证<strong>每轮必调工具</strong>，不会出现”我直接回答了”的退化。</li>
+<li>数据抽取 / 格式化场景用「指定工具」+ JSON schema，<strong>让 schema
+替代 prompt 引导</strong>。</li>
+<li>不要混用 <code>tool_choice</code> 和自由文本——模型收到「必须调用
+X」后还想「顺便聊聊」是反模式。</li>
+</ul>
+<h3 id="extracting_structured_json.ipynb-用-tool_use-替代正则抓-json">2.
+<code>extracting_structured_json.ipynb</code> — 用 tool_use 替代正则抓
+JSON</h3>
+<p><strong>最小用法</strong>：</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pydantic <span class="im">import</span> BaseModel, Field</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> typing <span class="im">import</span> Literal</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Sentiment(BaseModel):</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    label: Literal[<span class="st">&quot;pos&quot;</span>, <span class="st">&quot;neg&quot;</span>, <span class="st">&quot;neutral&quot;</span>]</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    score: <span class="bu">float</span> <span class="op">=</span> Field(ge<span class="op">=</span><span class="dv">0</span>, le<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>tool <span class="op">=</span> {</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;name&quot;</span>: <span class="st">&quot;emit&quot;</span>,</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;description&quot;</span>: <span class="st">&quot;Emit the sentiment result.&quot;</span>,</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;input_schema&quot;</span>: Sentiment.model_json_schema(),</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>resp <span class="op">=</span> client.messages.create(model<span class="op">=</span><span class="st">&quot;claude-sonnet-4-6&quot;</span>,</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>                              tools<span class="op">=</span>[tool],</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>                              tool_choice<span class="op">=</span>{<span class="st">&quot;type&quot;</span>: <span class="st">&quot;tool&quot;</span>, <span class="st">&quot;name&quot;</span>: <span class="st">&quot;emit&quot;</span>},</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>                              messages<span class="op">=</span>[{<span class="st">&quot;role&quot;</span>:<span class="st">&quot;user&quot;</span>,<span class="st">&quot;content&quot;</span>: text}])</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> blk <span class="kw">in</span> resp.content:</span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> blk.<span class="bu">type</span> <span class="op">==</span> <span class="st">&quot;tool_use&quot;</span> <span class="kw">and</span> blk.name <span class="op">==</span> <span class="st">&quot;emit&quot;</span>:</span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>        result <span class="op">=</span> Sentiment.model_validate(blk.<span class="bu">input</span>)   <span class="co"># pydantic 直接校验</span></span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li>配合 <code>tool_use_with_pydantic.ipynb</code>：把 pydantic
+模型直接喂给 <code>input_schema</code>，省去手写 schema 字段。</li>
+<li>不要再写「请输出严格 JSON」——模型对 tool_use 的严格度比 prompt
+引导高一个数量级，正则解析已成易碎层。</li>
+<li><code>strict: True</code>（部分模型支持）开启后 schema
+解析严格匹配，连 enum 之外的值都不返回。</li>
+</ul>
+<h3 id="calculator_tool.ipynb-单工具的最小闭环范式">3.
+<code>calculator_tool.ipynb</code> — 单工具的最小闭环范式</h3>
+<p><strong>最小用法</strong>：</p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. 定义工具（描述要清楚，模型靠这个决定何时调）</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>tools <span class="op">=</span> [{</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;name&quot;</span>: <span class="st">&quot;calc&quot;</span>,</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;description&quot;</span>: <span class="st">&quot;Evaluate a Python math expression. Returns a number.&quot;</span>,</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;input_schema&quot;</span>: {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;object&quot;</span>,</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>                     <span class="st">&quot;properties&quot;</span>: {<span class="st">&quot;expr&quot;</span>: {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;string&quot;</span>}},</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>                     <span class="st">&quot;required&quot;</span>: [<span class="st">&quot;expr&quot;</span>]}</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>}]</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. 让 Claude 决策</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>resp <span class="op">=</span> client.messages.create(model<span class="op">=</span>..., tools<span class="op">=</span>tools, messages<span class="op">=</span>...)</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>tool_use <span class="op">=</span> <span class="bu">next</span>(b <span class="cf">for</span> b <span class="kw">in</span> resp.content <span class="cf">if</span> b.<span class="bu">type</span> <span class="op">==</span> <span class="st">&quot;tool_use&quot;</span>)</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. 你执行（在自己的环境里）</span></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> <span class="bu">eval</span>(tool_use.<span class="bu">input</span>[<span class="st">&quot;expr&quot;</span>])  <span class="co"># 生产环境换成安全的求值器</span></span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a><span class="co"># 4. 把结果回灌给 Claude</span></span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>final <span class="op">=</span> client.messages.create(model<span class="op">=</span>..., tools<span class="op">=</span>tools, messages<span class="op">=</span>[</span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>    <span class="op">*</span>prior_msgs,</span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>    {<span class="st">&quot;role&quot;</span>:<span class="st">&quot;assistant&quot;</span>, <span class="st">&quot;content&quot;</span>: resp.content},</span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>    {<span class="st">&quot;role&quot;</span>:<span class="st">&quot;user&quot;</span>, <span class="st">&quot;content&quot;</span>: [{</span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;type&quot;</span>: <span class="st">&quot;tool_result&quot;</span>, <span class="st">&quot;tool_use_id&quot;</span>: tool_use.<span class="bu">id</span>,</span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;content&quot;</span>: <span class="bu">str</span>(result)</span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>    }]}</span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>])</span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li><strong>永远不要让模型生成的字符串直接进
+<code>eval()</code></strong>。生产里用
+<code>numexpr</code>、<code>asteval</code>、或 <code>simpleeval</code>
+这种受限求值器；或者直接调外部计算服务（WolframAlpha / SymPy）。</li>
+<li>工具的 <code>description</code>
+是给模型看的——写得越具体，调用越准。把”何时用 / 何时不用 /
+参数格式约定”全部写进 description 字段。</li>
+<li>工具调用要有超时和重试。一次 tool call 超过 10s 没回就要降级或
+fallback，否则主对话永远阻塞。</li>
+</ul>
+<hr />
+<h2 id="第二档多工具编排">第二档：多工具编排</h2>
+<h3 id="parallel_tools.ipynb-一次返回多个工具调用">4.
+<code>parallel_tools.ipynb</code> — 一次返回多个工具调用</h3>
+<p><strong>最小用法</strong>：在 prompt 里鼓励 Claude
+一次性发多个独立工具调用。</p>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 场景：用户问&quot;北京和上海的天气怎么样？&quot;</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>resp <span class="op">=</span> client.messages.create(model<span class="op">=</span>..., tools<span class="op">=</span>[get_weather], messages<span class="op">=</span>[</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    {<span class="st">&quot;role&quot;</span>:<span class="st">&quot;user&quot;</span>,<span class="st">&quot;content&quot;</span>:<span class="st">&quot;北京和上海的天气怎么样？&quot;</span>}</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>])</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="co"># resp.content 会包含两个 tool_use block：location=北京、location=上海</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 并行执行</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>results <span class="op">=</span> <span class="cf">await</span> asyncio.gather(<span class="op">*</span>[</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>    execute_weather(tu.<span class="bu">input</span>[<span class="st">&quot;location&quot;</span>])</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> tu <span class="kw">in</span> resp.content <span class="cf">if</span> tu.<span class="bu">type</span> <span class="op">==</span> <span class="st">&quot;tool_use&quot;</span></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>])</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a><span class="co"># 把所有结果一次性回灌（保留顺序）</span></span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>tool_results <span class="op">=</span> [{</span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;type&quot;</span>: <span class="st">&quot;tool_result&quot;</span>,</span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;tool_use_id&quot;</span>: tu.<span class="bu">id</span>,</span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;content&quot;</span>: <span class="bu">str</span>(res),</span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>} <span class="cf">for</span> tu, res <span class="kw">in</span> <span class="bu">zip</span>(</span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>    [b <span class="cf">for</span> b <span class="kw">in</span> resp.content <span class="cf">if</span> b.<span class="bu">type</span> <span class="op">==</span> <span class="st">&quot;tool_use&quot;</span>], results</span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>)]</span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>final <span class="op">=</span> client.messages.create(model<span class="op">=</span>..., tools<span class="op">=</span>[get_weather], messages<span class="op">=</span>[</span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a>    <span class="op">*</span>prior_msgs,</span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a>    {<span class="st">&quot;role&quot;</span>:<span class="st">&quot;assistant&quot;</span>,<span class="st">&quot;content&quot;</span>: resp.content},</span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a>    {<span class="st">&quot;role&quot;</span>:<span class="st">&quot;user&quot;</span>,<span class="st">&quot;content&quot;</span>: tool_results}</span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a>])</span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li>默认 Claude
+就会发多调用，但<strong>显式鼓励</strong>”请一次性检索所有需要的字段”可以提高并发命中率。</li>
+<li>工具之间有依赖关系时（A 的输出是 B
+的输入），不要用并行——让模型分两次返回。</li>
+<li>并行度受你服务端的 QPS 限制。一个 Agent 同时打 5
+个工具调用没问题，20+ 就要排队。</li>
+</ul>
+<h3
+id="programmatic_tool_calling_ptc.ipynb-在沙箱里跑代码减少-token-消耗">5.
+<code>programmatic_tool_calling_ptc.ipynb</code> — 在沙箱里跑代码减少
+token 消耗</h3>
+<p><strong>最小用法</strong>：注册一个 <code>code_execution</code>
+工具，让 Claude 写 Python 来串多个工具。</p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 把多个工具 + 一个 code_execution 一起注册</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>tools <span class="op">=</span> [</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    {<span class="st">&quot;name&quot;</span>: <span class="st">&quot;list_files&quot;</span>, <span class="st">&quot;description&quot;</span>: <span class="st">&quot;...&quot;</span>, <span class="st">&quot;input_schema&quot;</span>: {...}},</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    {<span class="st">&quot;name&quot;</span>: <span class="st">&quot;read_file&quot;</span>, <span class="st">&quot;description&quot;</span>: <span class="st">&quot;...&quot;</span>, <span class="st">&quot;input_schema&quot;</span>: {...}},</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    {<span class="st">&quot;name&quot;</span>: <span class="st">&quot;grep&quot;</span>,      <span class="st">&quot;description&quot;</span>: <span class="st">&quot;...&quot;</span>, <span class="st">&quot;input_schema&quot;</span>: {...}},</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;code_execution_20250825&quot;</span>,</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>     <span class="st">&quot;name&quot;</span>: <span class="st">&quot;code_execution&quot;</span>}     <span class="co"># ← 沙箱代码执行</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Claude 不再逐个调用工具，而是写一段 Python：</span></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a><span class="co">#   files = list_files(path=&#39;/src&#39;)</span></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a><span class="co">#   matches = [read_file(path=f) for f in files if grep(pattern=&#39;TODO&#39;, path=f)]</span></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a><span class="co"># 只有 matches 这一份结果回到主 context。</span></span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li>适用场景：<strong>大量工具调用、只需要聚合结果</strong>——比如批量文件处理、批量
+DB 查询、批量 API 拉取。</li>
+<li>Token 节省量级：100 个工具调用 → 主 context 只收 1 个聚合结果，省
+99× 工具 description + response 的开销。</li>
+<li>沙箱隔离是必须的。<code>code_execution_20250825</code>
+这种内置工具自带隔离层；自己实现时用 gVisor / Firecracker /
+Docker，<strong>绝不能让模型生成的 Python 跑在你主进程</strong>。</li>
+</ul>
+<hr />
+<h2 id="第三档规模化">第三档：规模化</h2>
+<h3 id="tool_search_with_embeddings.ipynb-工具太多时按需检索">6.
+<code>tool_search_with_embeddings.ipynb</code> — 工具太多时按需检索</h3>
+<p><strong>最小用法</strong>：把不常用的工具标
+<code>defer_loading=True</code>，注册一个 <code>tool_search</code>
+让模型按需加载。</p>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 常用工具直接列</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>common_tools <span class="op">=</span> [</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    {<span class="st">&quot;name&quot;</span>: <span class="st">&quot;search&quot;</span>, <span class="st">&quot;description&quot;</span>: <span class="st">&quot;...&quot;</span>, <span class="st">&quot;input_schema&quot;</span>: {...}},</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    {<span class="st">&quot;name&quot;</span>: <span class="st">&quot;summarize&quot;</span>, <span class="st">&quot;description&quot;</span>: <span class="st">&quot;...&quot;</span>, <span class="st">&quot;input_schema&quot;</span>: {...}},</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 不常用的全部 defer</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>rare_tools <span class="op">=</span> [</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    {<span class="st">&quot;name&quot;</span>: <span class="ss">f&quot;action_</span><span class="sc">{</span>i<span class="sc">}</span><span class="ss">&quot;</span>, <span class="st">&quot;description&quot;</span>: <span class="st">&quot;...&quot;</span>, <span class="st">&quot;input_schema&quot;</span>: {...},</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>     <span class="st">&quot;defer_loading&quot;</span>: <span class="va">True</span>}</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">500</span>)</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a><span class="co"># 工具搜索器（基于 BM25 或 embedding）</span></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>search_tool <span class="op">=</span> {</span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;type&quot;</span>: <span class="st">&quot;tool_search_tool_bm25_20251119&quot;</span>,</span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;name&quot;</span>: <span class="st">&quot;tool_search_tool_bm25&quot;</span></span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>resp <span class="op">=</span> client.messages.create(model<span class="op">=</span>..., tools<span class="op">=</span>[<span class="op">*</span>common_tools, <span class="op">*</span>rare_tools, search_tool], ...)</span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a><span class="co"># Claude 会先调 tool_search 找到 action_347，再调 action_347</span></span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a><span class="co"># 中间过程在 Anthropic 服务端走完，回灌到主 context 的只有最终结果</span></span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li>工具超过 <strong>50 个</strong>就该上 tool_search。把常用 5-10
+个常驻，其它全部 defer。</li>
+<li>工具 description 写得越精确，检索越准。建议给每个工具配 1 个
+input_example。</li>
+<li><code>tool_search_alternate_approaches.ipynb</code> 给了对比：BM25
+便宜但召回差，embedding 准但要 embedding 成本。按你的工具规模选。</li>
+</ul>
+<h3 id="memory_cookbook.ipynb-memory_tool.py-把记忆外置">7.
+<code>memory_cookbook.ipynb</code> + <code>memory_tool.py</code> —
+把记忆外置</h3>
+<p><strong>最小用法</strong>：用内置的 <code>memory_20250818</code>
+工具，让 Claude 自己管理长期记忆文件。</p>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>memory_tool <span class="op">=</span> {</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;type&quot;</span>: <span class="st">&quot;memory_20250818&quot;</span>,</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;name&quot;</span>: <span class="st">&quot;memory&quot;</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>resp <span class="op">=</span> client.messages.create(model<span class="op">=</span><span class="st">&quot;claude-sonnet-4-6&quot;</span>,</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>                              tools<span class="op">=</span>[memory_tool],</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>                              messages<span class="op">=</span>[{<span class="st">&quot;role&quot;</span>:<span class="st">&quot;user&quot;</span>,<span class="st">&quot;content&quot;</span>: <span class="st">&quot;记住我下周要去上海出差&quot;</span>}])</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Claude 会调用 memory 工具写一个文件到 /memories</span></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a><span class="co"># 下次会话带上同一个 memory tool + path，Claude 自动 recall</span></span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li>适用<strong>跨会话的用户偏好 / 项目记忆 / 累积事实</strong>——客服
+Agent、个人助理、长期项目追踪。</li>
+<li>与 <code>automatic_context_compaction.ipynb</code> 配合：长会话里
+compaction 收近期窗口，memory 存远期事实。</li>
+<li><strong>不要</strong>把所有上下文都往 memory 里塞——memory 是给
+Claude 自己查询用的，不是给你当 KV 存储。</li>
+</ul>
+<hr />
+<h2 id="落地清单按-agent-复杂度选模式">落地清单：按 Agent
+复杂度选模式</h2>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>阶段</th>
+<th>优先加入的模式</th>
+<th>解决的问题</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>第一个工具调用</td>
+<td>#1 tool_choice、#2 structured JSON</td>
+<td>必调 / 必格式化</td>
+</tr>
+<tr class="even">
+<td>5-10 个工具</td>
+<td>#3 calculator 范式、#4 parallel</td>
+<td>单闭环 + 并行加速</td>
+</tr>
+<tr class="odd">
+<td>30-50 个工具</td>
+<td>#2 严格 schema、#5 PTC</td>
+<td>token 控制 + 工具描述稳定性</td>
+</tr>
+<tr class="even">
+<td>100+ 个工具</td>
+<td>#6 tool_search</td>
+<td>突破 schema 窗口</td>
+</tr>
+<tr class="odd">
+<td>跨会话</td>
+<td>#7 memory</td>
+<td>用户偏好 / 项目状态持久化</td>
+</tr>
+<tr class="even">
+<td>长会话</td>
+<td><code>automatic_context_compaction.ipynb</code>（同目录）</td>
+<td>token 窗口控制</td>
+</tr>
+</tbody>
+</table>
+<h2 id="结语">结语</h2>
+<p>tool_use 不是”加了 tools
+就完事”——它是一组可叠加的模式。<code>tool_choice</code>
+控制必调性，<code>parallel</code> 拉并发，PTC 把 N 次调用压成 1
+份结果，<code>tool_search</code> 把”工具描述”从主 context
+移出去，<code>memory</code> 把”历史”从主 context
+移出去。<strong>你做的每一个 Agent 优化，本质上都是在做一件事：让 Claude
+在每一轮对话里看到的 token 尽量少而准</strong>。</p>
+<p>参考资料：</p>
+<ul>
+<li><a
+href="https://github.com/anthropics/claude-cookbooks/tree/main/tool_use">anthropics/claude-cookbooks/tree/main/tool_use</a></li>
+<li><a
+href="https://docs.claude.com/en/docs/tool-use/overview">docs.claude.com
+Tool Use 指南</a></li>
+</ul>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>
