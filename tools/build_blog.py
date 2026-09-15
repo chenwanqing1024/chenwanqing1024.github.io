@@ -2,6 +2,7 @@
 """Build blog/*.html from blog/posts/*.md via pandoc, then regenerate blog/index.html."""
 
 import html
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -14,6 +15,7 @@ POSTS = BLOG / "posts"
 TEMPLATE = BLOG / "_template.html"
 PAGE_DIR = BLOG / "page"
 PER_PAGE = 5
+SEARCH_INDEX = ROOT / "search-index.json"
 
 INDEX = """<!DOCTYPE html>
 <html lang="zh-CN">
@@ -52,11 +54,13 @@ INDEX = """<!DOCTYPE html>
                     <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
                     <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
                 </ul>
-                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
-                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
-                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
-                    <button class="btn btn-outline-success" type="submit">搜索</button>
-                </form>
+                <div class="search-container">
+                    <form class="d-flex" role="search" data-blog-search>
+                        <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search" autocomplete="off">
+                        <button class="btn btn-outline-success" type="submit">搜索</button>
+                    </form>
+                    <div class="search-results" hidden></div>
+                </div>
                 <ul class="navbar-nav">
                     <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">中文</a></li>
                     <li class="nav-item"><a class="nav-link" href="../en/blog/index.html">EN</a></li>
@@ -95,6 +99,7 @@ INDEX = """<!DOCTYPE html>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
         integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+    <script src="/search.js" defer></script>
 
 </body>
 
@@ -189,6 +194,21 @@ def main():
             encoding="utf-8",
         )
         print(f"built index page {page_num} ({len(page_entries)} posts)")
+
+    entries = []
+    for m, slug in metas:
+        entries.append({
+            "slug": slug,
+            "title": str(m.get("title", "")),
+            "date": str(m.get("date", "")),
+            "tags": list(m.get("tags", []) or []),
+            "summary": str(m.get("summary", "")),
+        })
+    SEARCH_INDEX.write_text(
+        json.dumps(entries, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    print(f"wrote {SEARCH_INDEX.name} ({len(entries)} entries)")
 
     print(f"done: {total} posts across {total_pages} page(s)")
 
