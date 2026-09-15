@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="把
+claude-cookbooks/extended_thinking 的 2 个 notebook 拆成 3
+个工程模式：基础启用与 budget 调参 / thinking 与 tool_use 交错 /
+signature 续接与 streaming。每条给最小代码 + 工程踩坑提示，对齐
+anthropic-sdk-python 当前接口。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>Extended Thinking 实战：把 Sonnet/Opus
+的深度推理变成工程能力 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>Extended Thinking 实战：把 Sonnet/Opus
+的深度推理变成工程能力</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI
+工程</span> <span class="badge bg-secondary">Reasoning</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://github.com/anthropics/claude-cookbooks/tree/main/extended_thinking" target="_blank" rel="noopener">claude-cookbooks
+/ extended_thinking</a> · Anthropic
+            </div>
+
+<h2 id="引子">引子</h2>
+<p><code>extended_thinking/</code> 目录只有 2 个 notebook，但它处理的是
+Claude 模型能力变化最大的一个方向：<strong>让模型在回答前先花 token
+想清楚</strong>。Sonnet 4.5+ 和 Opus 4.7+ 引入了”interleaved
+thinking”——思考和工具调用可以多轮交错，而不是想完再调。</p>
+<p>这篇文章把目录里的两个 notebook 拆成 3
+个相互独立的工程模式，按”<strong>启用 → 交错 →
+续接</strong>”递进排列。所有代码基于 <code>anthropic-sdk-python</code>
+当前接口。</p>
+<hr />
+<h2 id="基础启用extended_thinking.ipynb">1.
+基础启用：<code>extended_thinking.ipynb</code></h2>
+<p><strong>一行定位</strong>：开启深度思考模式，给模型一个
+<code>budget_tokens</code> 配额。</p>
+<p><strong>最小代码</strong>：</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>resp <span class="op">=</span> client.messages.create(</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span><span class="st">&quot;claude-sonnet-4-6&quot;</span>,</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    max_tokens<span class="op">=</span><span class="dv">16_000</span>,</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    thinking<span class="op">=</span>{</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;type&quot;</span>: <span class="st">&quot;enabled&quot;</span>,</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;budget_tokens&quot;</span>: <span class="dv">8_000</span>,   <span class="co"># ← 思考配额，必须 ≥1024 且 &lt; max_tokens</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    },</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>    messages<span class="op">=</span>[{<span class="st">&quot;role&quot;</span>: <span class="st">&quot;user&quot;</span>, <span class="st">&quot;content&quot;</span>:</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;给我一个 30 天从 JVM 后端转 AI 工程师的学习路线&quot;</span>}]</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="co"># 响应里包含两类块</span></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> blk <span class="kw">in</span> resp.content:</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> blk.<span class="bu">type</span> <span class="op">==</span> <span class="st">&quot;thinking&quot;</span>:</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f&quot;[thinking </span><span class="sc">{</span><span class="bu">len</span>(blk.thinking)<span class="sc">}</span><span class="ss"> chars] </span><span class="sc">{</span>blk<span class="sc">.</span>thinking[:<span class="dv">200</span>]<span class="sc">}</span><span class="ss">...&quot;</span>)</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>    <span class="cf">elif</span> blk.<span class="bu">type</span> <span class="op">==</span> <span class="st">&quot;text&quot;</span>:</span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f&quot;[answer] </span><span class="sc">{</span>blk<span class="sc">.</span>text<span class="sc">}</span><span class="ss">&quot;</span>)</span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li><strong>不是所有任务都该开 thinking</strong>。简单分类、JSON
+抽取、FAQ 回答——开了反而拖慢 + 烧钱。判断准则：
+<ul>
+<li>✅ 开：多步推理、复杂代码 debug、长规划、策略博弈、数学/逻辑题</li>
+<li>❌ 关：格式化抽取、单轮 Q&amp;A、tool call 编排（除非用交错模式，见
+§2）</li>
+</ul></li>
+<li><code>budget_tokens</code>
+不是越大越好。<strong>经验值</strong>：复杂代码规划
+4000-8000；多步骤业务决策 8000-16000；超过 16000 通常是 prompt
+设计有问题，不是 thinking 不够。</li>
+<li><code>display: "omitted"</code> 可以让 thinking
+块不返回原文（节省下游 token），但<strong>保留 signature</strong>
+用于多轮续接。</li>
+</ul>
+<hr />
+<h2
+id="thinking-与-tool-use-交错extended_thinking_with_tool_use.ipynb">2.
+Thinking 与 Tool Use
+交错：<code>extended_thinking_with_tool_use.ipynb</code></h2>
+<p><strong>一行定位</strong>：让模型<strong>思考 → 调工具 → 看结果 →
+再思考 → 再调工具</strong>，而不是”想完再动”。</p>
+<p><strong>最小代码</strong>：</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>tools <span class="op">=</span> [{</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;name&quot;</span>: <span class="st">&quot;query_db&quot;</span>,</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;description&quot;</span>: <span class="st">&quot;Run a read-only SQL query, returns rows as JSON.&quot;</span>,</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;input_schema&quot;</span>: {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;object&quot;</span>,</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>                     <span class="st">&quot;properties&quot;</span>: {<span class="st">&quot;sql&quot;</span>: {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;string&quot;</span>}},</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>                     <span class="st">&quot;required&quot;</span>: [<span class="st">&quot;sql&quot;</span>]}</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>}]</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> agent_loop(user_query: <span class="bu">str</span>, max_iters: <span class="bu">int</span> <span class="op">=</span> <span class="dv">10</span>):</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>    messages <span class="op">=</span> [{<span class="st">&quot;role&quot;</span>: <span class="st">&quot;user&quot;</span>, <span class="st">&quot;content&quot;</span>: user_query}]</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(max_iters):</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>        resp <span class="op">=</span> client.messages.create(</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>            model<span class="op">=</span><span class="st">&quot;claude-sonnet-4-6&quot;</span>,</span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>            max_tokens<span class="op">=</span><span class="dv">16_000</span>,</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>            thinking<span class="op">=</span>{<span class="st">&quot;type&quot;</span>: <span class="st">&quot;enabled&quot;</span>, <span class="st">&quot;budget_tokens&quot;</span>: <span class="dv">4_000</span>},</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>            tools<span class="op">=</span>tools,</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>            messages<span class="op">=</span>messages,    <span class="co"># ← 每轮都把上一轮 thinking + tool_use 完整回灌</span></span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 把整段 content（thinking + tool_use）追加进消息</span></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>        messages.append({<span class="st">&quot;role&quot;</span>: <span class="st">&quot;assistant&quot;</span>, <span class="st">&quot;content&quot;</span>: resp.content})</span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 如果有 tool_use 就执行，否则结束</span></span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>        tool_uses <span class="op">=</span> [b <span class="cf">for</span> b <span class="kw">in</span> resp.content <span class="cf">if</span> b.<span class="bu">type</span> <span class="op">==</span> <span class="st">&quot;tool_use&quot;</span>]</span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="kw">not</span> tool_uses:</span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> <span class="bu">next</span>(b.text <span class="cf">for</span> b <span class="kw">in</span> resp.content <span class="cf">if</span> b.<span class="bu">type</span> <span class="op">==</span> <span class="st">&quot;text&quot;</span>)</span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 执行并回灌 tool_result</span></span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a>        results <span class="op">=</span> []</span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> tu <span class="kw">in</span> tool_uses:</span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a>            rows <span class="op">=</span> db.execute(tu.<span class="bu">input</span>[<span class="st">&quot;sql&quot;</span>])</span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a>            results.append({<span class="st">&quot;type&quot;</span>: <span class="st">&quot;tool_result&quot;</span>, <span class="st">&quot;tool_use_id&quot;</span>: tu.<span class="bu">id</span>,</span>
+<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a>                            <span class="st">&quot;content&quot;</span>: json.dumps(rows)})</span>
+<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a>        messages.append({<span class="st">&quot;role&quot;</span>: <span class="st">&quot;user&quot;</span>, <span class="st">&quot;content&quot;</span>: results})</span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li><strong>交错是 Agent 推理质量的关键</strong>。非交错
+Agent（先想完再调）有个常见
+bug：模型想好”应该查订单表”，结果调错了表，<strong>因为它没看到 schema
+就开始思考了</strong>。交错模式下，模型在收到表结构后再调整后续思考。</li>
+<li>每轮 thinking 配额要<strong>递减</strong>：第一轮 4000（探索），后续
+1500-2000（细化）。否则一个 Agent 跑 10 轮光 thinking 就烧 4 万
+token。</li>
+<li><code>max_iters</code> 是救命参数——Agent
+死循环（重复调同一个工具）在生产里是真实事故。</li>
+</ul>
+<hr />
+<h2 id="signature-续接与流式extended_thinking.ipynb-signature-api">3.
+Signature 续接与流式：<code>extended_thinking.ipynb</code> + signature
+API</h2>
+<p><strong>一行定位</strong>：把 thinking 块的 <code>signature</code>
+当成模型”思考状态的指纹”回传，保持多轮思考连续性。</p>
+<p><strong>最小代码（多轮续接）</strong>：</p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 第一轮</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>resp1 <span class="op">=</span> client.messages.create(</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span><span class="st">&quot;claude-sonnet-4-6&quot;</span>,</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    max_tokens<span class="op">=</span><span class="dv">8_000</span>,</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    thinking<span class="op">=</span>{<span class="st">&quot;type&quot;</span>: <span class="st">&quot;enabled&quot;</span>, <span class="st">&quot;budget_tokens&quot;</span>: <span class="dv">4_000</span>},</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    messages<span class="op">=</span>[{<span class="st">&quot;role&quot;</span>: <span class="st">&quot;user&quot;</span>, <span class="st">&quot;content&quot;</span>: <span class="st">&quot;设计一个支持 100k QPS 的推荐系统&quot;</span>}],</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="co"># 第二轮：必须把第一轮 thinking + 文本完整回灌</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 注意：thinking 块必须原封不动（包括 signature 字段）</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>resp2 <span class="op">=</span> client.messages.create(</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span><span class="st">&quot;claude-sonnet-4-6&quot;</span>,</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>    max_tokens<span class="op">=</span><span class="dv">8_000</span>,</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>    thinking<span class="op">=</span>{<span class="st">&quot;type&quot;</span>: <span class="st">&quot;enabled&quot;</span>, <span class="st">&quot;budget_tokens&quot;</span>: <span class="dv">4_000</span>},</span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>    messages<span class="op">=</span>[</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>        {<span class="st">&quot;role&quot;</span>: <span class="st">&quot;user&quot;</span>, <span class="st">&quot;content&quot;</span>: <span class="st">&quot;设计一个支持 100k QPS 的推荐系统&quot;</span>},</span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>        {<span class="st">&quot;role&quot;</span>: <span class="st">&quot;assistant&quot;</span>, <span class="st">&quot;content&quot;</span>: resp1.content},   <span class="co"># ← 含 thinking 块 + signature</span></span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>        {<span class="st">&quot;role&quot;</span>: <span class="st">&quot;user&quot;</span>, <span class="st">&quot;content&quot;</span>: <span class="st">&quot;在线部分用 Flink 还是 Kafka Streams？&quot;</span>},</span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>    ],</span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div>
+<p><strong>最小代码（流式 + thinking 跳过显示）</strong>：</p>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> client.messages.stream(</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span><span class="st">&quot;claude-sonnet-4-6&quot;</span>,</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    max_tokens<span class="op">=</span><span class="dv">8_000</span>,</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    thinking<span class="op">=</span>{<span class="st">&quot;type&quot;</span>: <span class="st">&quot;enabled&quot;</span>, <span class="st">&quot;budget_tokens&quot;</span>: <span class="dv">4_000</span>, <span class="st">&quot;display&quot;</span>: <span class="st">&quot;omitted&quot;</span>},</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    messages<span class="op">=</span>[...],</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>) <span class="im">as</span> stream:</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> event <span class="kw">in</span> stream:</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> event.<span class="bu">type</span> <span class="op">==</span> <span class="st">&quot;content_block_start&quot;</span>:</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> event.content_block.<span class="bu">type</span> <span class="op">==</span> <span class="st">&quot;thinking&quot;</span>:</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>                <span class="bu">print</span>(<span class="st">&quot;[thinking...]&quot;</span>, end<span class="op">=</span><span class="st">&quot;&quot;</span>, flush<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>            <span class="cf">elif</span> event.content_block.<span class="bu">type</span> <span class="op">==</span> <span class="st">&quot;text&quot;</span>:</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>                <span class="bu">print</span>(<span class="st">&quot;</span><span class="ch">\n</span><span class="st">[answer] &quot;</span>, end<span class="op">=</span><span class="st">&quot;&quot;</span>, flush<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>        <span class="cf">elif</span> event.<span class="bu">type</span> <span class="op">==</span> <span class="st">&quot;content_block_delta&quot;</span>:</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> event.delta.<span class="bu">type</span> <span class="op">==</span> <span class="st">&quot;text_delta&quot;</span>:</span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>                <span class="bu">print</span>(event.delta.text, end<span class="op">=</span><span class="st">&quot;&quot;</span>, flush<span class="op">=</span><span class="va">True</span>)</span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li><strong><code>signature</code> 是 thinking
+块的身份凭据</strong>，改一个字就 400
+报错。生产代码里<strong>永远不要</strong>手动构造 thinking 块——直接
+<code>messages.append({"role":"assistant", "content": prev_resp.content})</code>
+整段回灌。</li>
+<li>想省下游 token：服务端开
+<code>display: "omitted"</code>，客户端拿到的是 thinking 块<strong>只有
+signature + 空 thinking 字段</strong>——不显示原文但仍可续接。</li>
+<li>流式场景：thinking 块和 text 块是分开发的
+<code>content_block_start</code> 事件，前端可以折叠 / 隐藏 /
+实时显示。</li>
+</ul>
+<hr />
+<h2 id="落地清单">落地清单</h2>
+<table>
+<thead>
+<tr class="header">
+<th>场景</th>
+<th>是否启用 thinking</th>
+<th>budget</th>
+<th>模式</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>JSON 抽取 / 格式化</td>
+<td>❌ 关</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr class="even">
+<td>单轮 FAQ 回答</td>
+<td>❌ 关</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr class="odd">
+<td>单 Agent + 工具（无思考）</td>
+<td>❌ 关</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr class="even">
+<td>复杂代码生成 / debug</td>
+<td>✅ 开</td>
+<td>4000-8000</td>
+<td>单轮</td>
+</tr>
+<tr class="odd">
+<td>Agent 编排（多工具调用）</td>
+<td>✅ 开</td>
+<td>1500-4000/轮</td>
+<td>交错</td>
+</tr>
+<tr class="even">
+<td>长规划 / 策略博弈</td>
+<td>✅ 开</td>
+<td>8000-16000</td>
+<td>单轮</td>
+</tr>
+<tr class="odd">
+<td>多轮续接 / 流式</td>
+<td>✅ 开 + signature</td>
+<td>4000</td>
+<td>多轮续接</td>
+</tr>
+</tbody>
+</table>
+<h2 id="与其它模式的关系">与其它模式的关系</h2>
+<ul>
+<li><strong>tool_use 是 thinking
+的脚</strong>：<code>tool_use_with_pydantic</code>
+提供结构化输出、<code>memory_cookbook</code> 提供长记忆，没有 thinking
+这两者的质量会下降一个数量级。</li>
+<li><strong>tool_search 解放 thinking 配额</strong>：工具越多、prompt
+越长，thinking 配额越被稀释——把工具移出主 context（用
+tool_search）能腾出 thinking 空间。</li>
+<li><strong>extended_thinking 与 prompt caching
+互不冲突</strong>：thinking 块本身不进缓存（每次都不同），但 system /
+tools 可以缓存，<strong>两者叠加是生产 Agent 的标配</strong>。</li>
+</ul>
+<p>参考资料：</p>
+<ul>
+<li><a
+href="https://github.com/anthropics/claude-cookbooks/tree/main/extended_thinking">claude-cookbooks/extended_thinking</a></li>
+<li><a
+href="https://docs.claude.com/en/docs/build-with-claude/extended-thinking">Extended
+Thinking 官方文档</a></li>
+<li>配套：<a
+href="blog/posts/2026-09-15-tool-use-engineering-patterns.md">tool_use 7
+个工程模式</a></li>
+</ul>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>
