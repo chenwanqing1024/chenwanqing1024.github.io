@@ -69,6 +69,11 @@
                     <p class="mb-1">把 anthropics/claude-cookbooks 的 misc 目录拆成 14 个独立模式，按「成本/输出可控/质量保障/长上下文/工作流增强」五个主题分组，每条给出一行定位 + 最小代码 + 工程踩坑提示。所有代码对齐 anthropic-sdk-python ≥ 0.40 的当前接口。</p>
                 </div>
                 <div class="mb-4">
+                    <h5 class="mb-1"><a href="2026-09-15-claude-code-self-evolving-memory.html">让 Coding Agent 学会你的习惯：观察 + 提炼 + 注入的自学习闭环</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">AI Coding</span> <span class="badge bg-secondary">Claude Code</span> <span class="badge bg-secondary">Hook</span> <span class="badge bg-secondary">自学习</span> <span class="badge bg-secondary">记忆系统</span> </small></p>
+                    <p class="mb-1">这篇不讲&quot;AI 帮你写代码&quot;，讲&quot;AI 学会你写代码的方式&quot;。核心是用 Hook 把工具调用 100% 抓成观测流，会话结束时用统计 + 语义两条路径提炼 Instinct 规则，下次会话 SessionStart 时把规则注入系统提示。三个环扣在一起，AI Coding Agent 才能从&quot;工具&quot;变成&quot;伙伴&quot;。</p>
+                </div>
+                <div class="mb-4">
                     <h5 class="mb-1"><a href="2026-09-15-claude-code-sandboxing-isolation.html">Claude Code 沙箱设计：文件系统 + 网络双重隔离的 5 个工程模式</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
                     <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">安全</span> <span class="badge bg-secondary">Sandbox</span> </small></p>
                     <p class="mb-1">把 Anthropic Claude Code Sandboxing 工程文章拆成 5 个工程模式：filesystem + network 双隔离缺一不可、OS 级 sandbox（bubblewrap / seatbelt）替代容器方案、proxy 化网络访问、scoped credential + 内容校验、Claude Code on the web 的 cloud sandbox。配数据（permission prompt 降 84%）+ 落地配置 + 面试可讲的安全模型取舍。</p>
@@ -82,11 +87,6 @@
                     <h5 class="mb-1"><a href="2026-09-15-claude-agent-sdk-engineering.html">Claude Agent SDK 实战：从 One-Liner 到 K8s 部署的 5 个工程模式</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
                     <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">Agent SDK</span> <span class="badge bg-secondary">MCP</span> </small></p>
                     <p class="mb-1">把 claude-cookbooks/claude_agent_sdk 目录的 9 个 notebook 提炼成 5 个工程模式：最小上手 / 生产治理 / MCP 集成 / 多 tier 部署 / 动态工作流规模化，每个模式给出一行定位 + 最小代码 + 工程踩坑提示。</p>
-                </div>
-                <div class="mb-4">
-                    <h5 class="mb-1"><a href="2026-09-15-building-effective-agents-patterns.html">Building Effective Agents 拆解：Workflows vs Agents 的 6 个工程取舍</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
-                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">Workflow</span> </small></p>
-                    <p class="mb-1">把 Anthropic Building Effective Agents 拆成 6 个工程取舍：workflows vs agents 的边界（确定路径 vs 自主决策）、5 个 workflow 模式（prompt chaining / routing / parallelization / orchestrator-workers / evaluator-optimizer）、3 个核心原则（simplicity / transparency / well-crafted ACI）、customer support + coding agent 两个工程落地参考、prompt engineering your tools 的元教训。配代码示例 + 面试可讲的设计决策。</p>
                 </div>
             </div>
         </div>
