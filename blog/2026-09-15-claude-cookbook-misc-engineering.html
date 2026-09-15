@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="把 anthropics/claude-cookbooks 的
+misc 目录拆成 14
+个独立模式，按「成本/输出可控/质量保障/长上下文/工作流增强」五个主题分组，每条给出一行定位
++ 最小代码 + 工程踩坑提示。所有代码对齐 anthropic-sdk-python ≥ 0.40
+的当前接口。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>Claude API 工程实战：从 claude-cookbooks/misc 提炼的 14
+个最小可用模式 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>Claude API 工程实战：从 claude-cookbooks/misc 提炼的 14
+个最小可用模式</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI
+工程</span> <span class="badge bg-secondary">LLM</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://github.com/anthropics/claude-cookbooks/tree/main/misc" target="_blank" rel="noopener">claude-cookbooks
+/ misc</a> · Anthropic
+            </div>
+
+<h2 id="引子">引子</h2>
+<p><code>anthropics/claude-cookbooks</code>
+是官方维护的「代码即文档」仓库，把 Claude API 的高频用法拆成可复制粘贴的
+Jupyter notebook。<code>misc/</code> 是其中一个「杂项但重要」目录：14 个
+notebook，覆盖成本、缓存、批处理、JSON 约束、引用、PDF、SQL
+工具、元提示、评估、长会话压缩等关键工程议题，每个都只解决一个问题，可以单独拆下来塞进你自己的项目。</p>
+<p>这篇文章不谈原理（notebook 自己讲得很清楚），只挑出每个 notebook
+在生产环境里<strong>最常用的那一招</strong>，附上最小代码片段和工程落地提示。所有代码基于
+<code>anthropic-sdk-python</code>
+当前接口（<code>&gt;= 0.40</code>），与最新 SDK 直接对齐。</p>
+<hr />
+<h2
+id="一成本与性能把单次调用变得便宜又稳">一、成本与性能：把单次调用变得便宜又稳</h2>
+<h3 id="prompt_caching.ipynb-把可复用的前缀钉死">1.
+<code>prompt_caching.ipynb</code> — 把可复用的前缀钉死</h3>
+<p><strong>最小用法</strong>：给 system、tools、长文档开头打一个
+<code>cache_control</code> 断点，重复前缀 5
+分钟内自动命中，价格只有写入的 1/10。</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> anthropic <span class="im">import</span> Anthropic</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>client <span class="op">=</span> Anthropic()</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>LONG_SYSTEM <span class="op">=</span> <span class="bu">open</span>(<span class="st">&quot;system_prompt.md&quot;</span>).read()  <span class="co"># 大段稳定的指令/规则</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>resp <span class="op">=</span> client.messages.create(</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span><span class="st">&quot;claude-sonnet-4-6&quot;</span>,</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    max_tokens<span class="op">=</span><span class="dv">1024</span>,</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>    system<span class="op">=</span>[</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>        {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;text&quot;</span>, <span class="st">&quot;text&quot;</span>: LONG_SYSTEM,</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>         <span class="st">&quot;cache_control&quot;</span>: {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;ephemeral&quot;</span>}}   <span class="co"># ← 唯一一行启用缓存</span></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>    ],</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>    messages<span class="op">=</span>[{<span class="st">&quot;role&quot;</span>: <span class="st">&quot;user&quot;</span>, <span class="st">&quot;content&quot;</span>: <span class="st">&quot;今天的待办？&quot;</span>}],</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(resp.usage)  <span class="co"># 关注 cache_creation_input_tokens / cache_read_input_tokens</span></span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li>TTL 默认 5 分钟；如需 1 小时，加上 <code>extended-cache-ttl</code>
+beta header 并设 <code>ttl: "1h"</code>。</li>
+<li>缓存是按<strong>整段前缀</strong>匹配的：system → tools →
+历史消息，任何一处字符差异就会
+miss。建议把<strong>变动最大的部分</strong>（如对话历史）放在最末尾，缓存前缀越靠后命中率越稳。</li>
+<li>用 <code>client.beta.messages.count_tokens()</code> 配合
+<code>diagnostics={"previous_message_id": ...}</code>
+可以拿到「为什么没命中」的具体原因（model 变了、tools
+变了等），调试时必开。</li>
+</ul>
+<h3 id="speculative_prompt_caching.ipynb-让首-token-提前出来">2.
+<code>speculative_prompt_caching.ipynb</code> — 让首 token 提前出来</h3>
+<p><strong>最小用法</strong>：在 tools 列表上挂 cache_control，让 Claude
+在思考阶段就开始返回首个 token。</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>tools <span class="op">=</span> [</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    {<span class="st">&quot;name&quot;</span>: <span class="st">&quot;search_docs&quot;</span>, <span class="st">&quot;description&quot;</span>: <span class="st">&quot;...&quot;</span>, <span class="st">&quot;input_schema&quot;</span>: {...},</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>     <span class="st">&quot;cache_control&quot;</span>: {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;ephemeral&quot;</span>}},   <span class="co"># ← 工具定义也可以缓存</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    <span class="co"># ...其它工具</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>]</span></code></pre></div>
+<p><strong>工程提示</strong>：适合<strong>工具列表经常变更、但用户问题会反复问同一组工具</strong>的场景（如客服
+Agent）。常见反模式是给所有工具都加缓存 — 实测命中率提升有限，反而浪费
+25% 的写入价。</p>
+<h3 id="batch_processing.ipynb-异步任务直接打-5-折">3.
+<code>batch_processing.ipynb</code> — 异步任务直接打 5 折</h3>
+<p><strong>最小用法</strong>：把所有可以容忍「24
+小时内完成」的请求打包成 batch。</p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>batch <span class="op">=</span> client.beta.messages.batches.create(</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    requests<span class="op">=</span>[</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>        {<span class="st">&quot;custom_id&quot;</span>: <span class="ss">f&quot;job-</span><span class="sc">{</span>i<span class="sc">}</span><span class="ss">&quot;</span>,</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>         <span class="st">&quot;params&quot;</span>: {<span class="st">&quot;model&quot;</span>: <span class="st">&quot;claude-haiku-4-5&quot;</span>,</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>                    <span class="st">&quot;max_tokens&quot;</span>: <span class="dv">512</span>,</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>                    <span class="st">&quot;messages&quot;</span>: [{<span class="st">&quot;role&quot;</span>: <span class="st">&quot;user&quot;</span>, <span class="st">&quot;content&quot;</span>: q}]}}</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> i, q <span class="kw">in</span> <span class="bu">enumerate</span>(questions)</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>    ]</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="co"># 轮询直到结束</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a><span class="cf">while</span> batch.processing_status <span class="op">!=</span> <span class="st">&quot;ended&quot;</span>:</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>    batch <span class="op">=</span> client.beta.messages.batches.retrieve(batch.<span class="bu">id</span>)</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a><span class="co"># 拉结果（JSONL 流式）</span></span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> line <span class="kw">in</span> client.beta.messages.batches.results(batch.<span class="bu">id</span>):</span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>    handle(line)   <span class="co"># line.result.message 即正常 message</span></span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li>价格是同步 API 的 50%，但<strong>没有流式、首 token 延迟 1
+小时级别</strong>。只用于离线场景：日志摘要、批量标注、CI
+里跑评测。</li>
+<li>配合 Python worker 进程 + 失败重试，是评估/评测系统的标配管线。</li>
+</ul>
+<hr />
+<h2 id="二输出可控让-claude-严格按格式说话">二、输出可控：让 Claude
+严格按格式说话</h2>
+<h3 id="how_to_enable_json_mode.ipynb-用-tool_use-替代正则">4.
+<code>how_to_enable_json_mode.ipynb</code> — 用 tool_use 替代正则</h3>
+<p><strong>最小用法</strong>：不要在 prompt 里写「请输出
+JSON」，直接注册一个空操作的 tool，schema 即契约。</p>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>tools <span class="op">=</span> [{</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;name&quot;</span>: <span class="st">&quot;emit_structured&quot;</span>,</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;description&quot;</span>: <span class="st">&quot;Return the result as JSON.&quot;</span>,</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;input_schema&quot;</span>: {</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;type&quot;</span>: <span class="st">&quot;object&quot;</span>,</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;properties&quot;</span>: {</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;label&quot;</span>: {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;string&quot;</span>, <span class="st">&quot;enum&quot;</span>: [<span class="st">&quot;pos&quot;</span>, <span class="st">&quot;neg&quot;</span>, <span class="st">&quot;neutral&quot;</span>]},</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;score&quot;</span>: {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;number&quot;</span>, <span class="st">&quot;minimum&quot;</span>: <span class="dv">0</span>, <span class="st">&quot;maximum&quot;</span>: <span class="dv">1</span>}</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>        },</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;required&quot;</span>: [<span class="st">&quot;label&quot;</span>, <span class="st">&quot;score&quot;</span>]</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>}]</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>resp <span class="op">=</span> client.messages.create(model<span class="op">=</span><span class="st">&quot;claude-sonnet-4-6&quot;</span>,</span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>                              tools<span class="op">=</span>tools,</span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>                              tool_choice<span class="op">=</span>{<span class="st">&quot;type&quot;</span>: <span class="st">&quot;tool&quot;</span>, <span class="st">&quot;name&quot;</span>: <span class="st">&quot;emit_structured&quot;</span>},</span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>                              messages<span class="op">=</span>[{<span class="st">&quot;role&quot;</span>:<span class="st">&quot;user&quot;</span>,<span class="st">&quot;content&quot;</span>: text}])</span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a><span class="co"># 解析</span></span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> blk <span class="kw">in</span> resp.content:</span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> blk.<span class="bu">type</span> <span class="op">==</span> <span class="st">&quot;tool_use&quot;</span> <span class="kw">and</span> blk.name <span class="op">==</span> <span class="st">&quot;emit_structured&quot;</span>:</span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>        data <span class="op">=</span> blk.<span class="bu">input</span>   <span class="co"># 已是 dict，无需 json.loads</span></span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li><code>tool_choice={"type": "any"}</code>
+强制调用但不限制工具；<code>{"type": "tool", "name": "..."}</code>
+强制指定。</li>
+<li><code>strict: True</code>（部分模型支持）开启后 schema
+解析严格匹配，连 enum 之外的值都不返回。</li>
+<li><strong>不要再用 prompt 引导 + 正则抓 JSON</strong> 的老办法 —
+模型对 tool_use 严格度已经足够，正则反而成了易碎层。</li>
+</ul>
+<h3 id="using_citations.ipynb-让回答自带出处">5.
+<code>using_citations.ipynb</code> — 让回答自带出处</h3>
+<p><strong>最小用法</strong>：传文档块时打开 citations，返回的 text
+block 自带引用。</p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>resp <span class="op">=</span> client.messages.create(</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span><span class="st">&quot;claude-sonnet-4-6&quot;</span>,</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    max_tokens<span class="op">=</span><span class="dv">1024</span>,</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    messages<span class="op">=</span>[{</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;role&quot;</span>: <span class="st">&quot;user&quot;</span>,</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;content&quot;</span>: [</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>            {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;document&quot;</span>,</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>             <span class="st">&quot;source&quot;</span>: {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;file&quot;</span>, <span class="st">&quot;file_id&quot;</span>: uploaded.<span class="bu">id</span>},</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>             <span class="st">&quot;title&quot;</span>: <span class="st">&quot;Product Spec&quot;</span>,</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>             <span class="st">&quot;citations&quot;</span>: {<span class="st">&quot;enabled&quot;</span>: <span class="va">True</span>}},     <span class="co"># ← 关键</span></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>            {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;text&quot;</span>, <span class="st">&quot;text&quot;</span>: <span class="st">&quot;总结这份文档的关键风险&quot;</span>}</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>        ]</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>    }]</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a><span class="co"># resp.content[*].citations 即引用列表</span></span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li>引用类型有
+<code>char_location</code>（精确到字符）、<code>page_location</code>（精确到
+PDF 页）、<code>content_block_location</code>（精确到
+block）。前端的悬浮引用按类型选择渲染方式。</li>
+<li>做 RAG 客服时，配合 code execution
+让模型先查数据库、再引用文档，回答可追溯性直接拉满。</li>
+</ul>
+<h3 id="sampling_past_max_tokens.ipynb-长输出分多次接续">6.
+<code>sampling_past_max_tokens.ipynb</code> — 长输出分多次接续</h3>
+<p><strong>最小用法</strong>：当
+<code>stop_reason == "max_tokens"</code> 时，把已生成的文本作为 prefix
+让模型继续。</p>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>parts <span class="op">=</span> []</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="cf">while</span> <span class="va">True</span>:</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    resp <span class="op">=</span> client.messages.create(model<span class="op">=</span><span class="st">&quot;claude-sonnet-4-6&quot;</span>,</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>                                  max_tokens<span class="op">=</span><span class="dv">2048</span>,</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>                                  messages<span class="op">=</span>[{<span class="st">&quot;role&quot;</span>:<span class="st">&quot;user&quot;</span>,<span class="st">&quot;content&quot;</span>: prompt}])</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    parts.append(resp.content[<span class="dv">0</span>].text)</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> resp.stop_reason <span class="op">!=</span> <span class="st">&quot;max_tokens&quot;</span>:</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>        <span class="cf">break</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 把上一次输出回灌进 prompt，让模型接着写</span></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>    prompt <span class="op">=</span> <span class="ss">f&quot;</span><span class="sc">{</span>prompt<span class="sc">}</span><span class="ch">\n\n</span><span class="ss">[...continued]</span><span class="ch">\n</span><span class="sc">{</span>resp<span class="sc">.</span>content[<span class="dv">0</span>]<span class="sc">.</span>text<span class="sc">}</span><span class="ss">&quot;</span></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>full <span class="op">=</span> <span class="st">&quot;</span><span class="ch">\n</span><span class="st">&quot;</span>.join(parts)</span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li>不优雅但有效。适合写长文档、长报告、长翻译这种「输出 &gt;
+模型上限」的场景。</li>
+<li>更现代的做法是直接用 <code>client.messages.count_tokens()</code>
+估算一次性输出所需 max_tokens，只要 ≤ 模型的 8K/128K 上限就别分段 —
+多段会让模型丢失前文风格一致性。</li>
+</ul>
+<hr />
+<h2 id="三质量保障让-claude-在生产里不退化">三、质量保障：让 Claude
+在生产里不退化</h2>
+<h3 id="building_evals.ipynb-用-claude-当裁判">7.
+<code>building_evals.ipynb</code> — 用 Claude 当裁判</h3>
+<p><strong>最小用法</strong>：拿更强的模型给弱模型的输出打分，跑回归。</p>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>judge <span class="op">=</span> client.messages.create(</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span><span class="st">&quot;claude-opus-4-7&quot;</span>,   <span class="co"># 裁判用最强的</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    tools<span class="op">=</span>[{</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;name&quot;</span>: <span class="st">&quot;rate&quot;</span>,</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;input_schema&quot;</span>: {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;object&quot;</span>,</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;properties&quot;</span>: {<span class="st">&quot;score&quot;</span>: {<span class="st">&quot;type&quot;</span>:<span class="st">&quot;integer&quot;</span>,<span class="st">&quot;minimum&quot;</span>:<span class="dv">1</span>,<span class="st">&quot;maximum&quot;</span>:<span class="dv">5</span>},</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>                           <span class="st">&quot;reason&quot;</span>: {<span class="st">&quot;type&quot;</span>:<span class="st">&quot;string&quot;</span>}},</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;required&quot;</span>:[<span class="st">&quot;score&quot;</span>,<span class="st">&quot;reason&quot;</span>]}</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>    }],</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>    tool_choice<span class="op">=</span>{<span class="st">&quot;type&quot;</span>:<span class="st">&quot;tool&quot;</span>,<span class="st">&quot;name&quot;</span>:<span class="st">&quot;rate&quot;</span>},</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>    messages<span class="op">=</span>[{<span class="st">&quot;role&quot;</span>:<span class="st">&quot;user&quot;</span>,<span class="st">&quot;content&quot;</span>:</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f&quot;Rate the following answer (1-5):</span><span class="ch">\n</span><span class="ss">Question: </span><span class="sc">{</span>q<span class="sc">}</span><span class="ch">\n</span><span class="ss">Answer: </span><span class="sc">{</span>a<span class="sc">}</span><span class="ch">\n</span><span class="ss">&quot;</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f&quot;Reference: </span><span class="sc">{</span>ref<span class="sc">}</span><span class="ss">&quot;</span>}]</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>score <span class="op">=</span> <span class="bu">next</span>(b <span class="cf">for</span> b <span class="kw">in</span> judge.content <span class="cf">if</span> b.<span class="bu">type</span><span class="op">==</span><span class="st">&quot;tool_use&quot;</span>).<span class="bu">input</span>[<span class="st">&quot;score&quot;</span>]</span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li>裁判模型要<strong>显著强</strong>于被评模型，否则评分会聚拢到中位数。</li>
+<li>给裁判的 prompt
+必须包含<strong>具体打分维度</strong>（准确、完整、风格、安全）而不是笼统「好不好」。</li>
+<li>把每次评分结果存进 BigQuery / DuckDB，跑 PR 时回归，是 LLM 应用 CI
+的核心。</li>
+</ul>
+<h3 id="generate_test_cases.ipynb-用-claude-造评测集">8.
+<code>generate_test_cases.ipynb</code> — 用 Claude 造评测集</h3>
+<p><strong>最小用法</strong>：给定真实样例，让 Claude 反向生成「刁钻问题
++ 标准答案」。</p>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 输入：5 个真实 query-answer 对</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="co"># 输出：50 个变体问题（边界、否定、罕见实体、风格反转）</span></span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li>配合 <a
+href="https://github.com/anthropics/courses">anthropic/courses</a> 的
+Building Effective Agents 一起用，先有 eval 集再去改 prompt。</li>
+<li><strong>不要</strong>让生成的测试集进入训练集 —
+会导致自评闭环。先冻结评测集，每次 prompt 改动都跑全量回归。</li>
+</ul>
+<h3 id="building_moderation_filter.ipynb-内容审核的双层防线">9.
+<code>building_moderation_filter.ipynb</code> — 内容审核的双层防线</h3>
+<p><strong>最小用法</strong>：对所有用户输入先跑一遍 Haiku
+分类器，命中就拒。</p>
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>flag <span class="op">=</span> client.messages.create(</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span><span class="st">&quot;claude-haiku-4-5&quot;</span>,</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    max_tokens<span class="op">=</span><span class="dv">10</span>,</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    messages<span class="op">=</span>[{<span class="st">&quot;role&quot;</span>:<span class="st">&quot;user&quot;</span>,<span class="st">&quot;content&quot;</span>:</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f&quot;Classify this into one of [safe, hate, sexual, violence, pii]:</span><span class="ch">\n</span><span class="sc">{</span>user_input<span class="sc">}</span><span class="ss">&quot;</span>}]</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>).content[<span class="dv">0</span>].text.strip()</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> flag <span class="op">!=</span> <span class="st">&quot;safe&quot;</span>:</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> reject(flag)</span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li>Haiku 走审核性价比最高，延迟 &lt; 200ms，成本 &lt; 1¢/千次。</li>
+<li>双层防线：第一层 Haiku 关键词粗筛，第二层 Sonnet 复杂判断。不要让
+Sonnet 做全部审核 — 成本会爆炸。</li>
+</ul>
+<hr />
+<h2 id="四长上下文与会话突破-token-墙">四、长上下文与会话：突破 token
+墙</h2>
+<h3 id="session_memory_compaction.ipynb-滑动窗口-摘要压缩">10.
+<code>session_memory_compaction.ipynb</code> — 滑动窗口 + 摘要压缩</h3>
+<p><strong>最小用法</strong>：超过阈值时，把最旧的 5 轮对话用 Claude
+压缩成 200 字摘要，作为单条消息塞回历史。</p>
+<div class="sourceCode" id="cb10"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> compact(messages, threshold_tokens<span class="op">=</span><span class="dv">80_000</span>):</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> token_count(messages) <span class="op">&lt;</span> threshold_tokens:</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> messages</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>    old <span class="op">=</span> messages[:<span class="op">-</span><span class="dv">5</span>]   <span class="co"># 留 5 轮最新</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>    summary <span class="op">=</span> summarize(old)   <span class="co"># 调一次 Claude</span></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> [{<span class="st">&quot;role&quot;</span>:<span class="st">&quot;user&quot;</span>,<span class="st">&quot;content&quot;</span>:<span class="ss">f&quot;[历史摘要]</span><span class="ch">\n</span><span class="sc">{</span>summary<span class="sc">}</span><span class="ss">&quot;</span>}] <span class="op">+</span> messages[<span class="op">-</span><span class="dv">5</span>:]</span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li>摘要 prompt
+必须保留<strong>实体、决策、未完成任务</strong>三要素，否则模型会失忆。</li>
+<li>更高级玩法：把摘要当作 long-term memory 存进向量库，下次只 retrieve
+相关片段（参见
+<code>capabilities/retrieval_augmented_generation</code>）。</li>
+<li>配合 SDK 的
+<code>BetaCompactionBlock</code>（新版已内置）可以直接用，不需要自己写摘要循环。</li>
+</ul>
+<h3 id="pdf_upload_summarization.ipynb-files-api-上传长-pdf">11.
+<code>pdf_upload_summarization.ipynb</code> — Files API 上传长 PDF</h3>
+<p><strong>最小用法</strong>：用 <code>client.beta.files.upload</code>
+拿到 file_id，再当 document block 用。</p>
+<div class="sourceCode" id="cb11"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>uploaded <span class="op">=</span> client.beta.files.upload(<span class="bu">file</span><span class="op">=</span><span class="bu">open</span>(<span class="st">&quot;paper.pdf&quot;</span>,<span class="st">&quot;rb&quot;</span>))</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>resp <span class="op">=</span> client.messages.create(</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span><span class="st">&quot;claude-sonnet-4-6&quot;</span>,</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    messages<span class="op">=</span>[{<span class="st">&quot;role&quot;</span>:<span class="st">&quot;user&quot;</span>,<span class="st">&quot;content&quot;</span>:[</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>        {<span class="st">&quot;type&quot;</span>:<span class="st">&quot;document&quot;</span>,<span class="st">&quot;source&quot;</span>:{<span class="st">&quot;type&quot;</span>:<span class="st">&quot;file&quot;</span>,<span class="st">&quot;file_id&quot;</span>:uploaded.<span class="bu">id</span>}},</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>        {<span class="st">&quot;type&quot;</span>:<span class="st">&quot;text&quot;</span>,<span class="st">&quot;text&quot;</span>:<span class="st">&quot;三句话总结这篇论文的核心结论&quot;</span>}</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>    ]}]</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li>单文件 ≤ 500MB、≤ 1000 页。超过就 split + summarize
+map-reduce。</li>
+<li>Files 是<strong>永久存储</strong>，定期 list &amp; delete
+不用的。孤儿文件多了会被账单吓到。</li>
+<li>想让 PDF 里的图片也被 Claude 看到（图表、扫描件）？直接传，不需要做
+OCR。</li>
+</ul>
+<hr />
+<h2 id="五工作流增强把-claude-嵌入你的系统">五、工作流增强：把 Claude
+嵌入你的系统</h2>
+<h3 id="metaprompt.ipynb-让-claude-优化-claude-的-prompt">12.
+<code>metaprompt.ipynb</code> — 让 Claude 优化 Claude 的 prompt</h3>
+<p><strong>最小用法</strong>：把当前 prompt + 失败样例喂给
+Claude，让它重写。</p>
+<div class="sourceCode" id="cb12"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 输入：当前 prompt + 10 个 bad case + 期望行为</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="co"># 输出：改进版 prompt</span></span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li>metaprompt 的输出不要直接上线，必须<strong>人工 +
+评测回归</strong>两道闸。</li>
+<li>把 metaprompt 跑成定时任务（每周一次），是 prompt
+长期不退化的关键机制。</li>
+</ul>
+<h3 id="read_web_pages_with_haiku.ipynb-便宜模型干脏活">13.
+<code>read_web_pages_with_haiku.ipynb</code> — 便宜模型干脏活</h3>
+<p><strong>最小用法</strong>：抓网页 → Haiku 提取关键字段 → Sonnet
+做总结。</p>
+<div class="sourceCode" id="cb13"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>html <span class="op">=</span> requests.get(url).text[:<span class="dv">50_000</span>]   <span class="co"># 先截断</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>extract <span class="op">=</span> client.messages.create(</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span><span class="st">&quot;claude-haiku-4-5&quot;</span>,</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>    messages<span class="op">=</span>[{<span class="st">&quot;role&quot;</span>:<span class="st">&quot;user&quot;</span>,<span class="st">&quot;content&quot;</span>:</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f&quot;从下面 HTML 提取标题、作者、发布时间、价格（JSON）：</span><span class="ch">\n</span><span class="sc">{</span>html<span class="sc">}</span><span class="ss">&quot;</span>}]</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>).content[<span class="dv">0</span>].text</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>summary <span class="op">=</span> client.messages.create(</span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span><span class="st">&quot;claude-sonnet-4-6&quot;</span>,</span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>    messages<span class="op">=</span>[{<span class="st">&quot;role&quot;</span>:<span class="st">&quot;user&quot;</span>,<span class="st">&quot;content&quot;</span>:<span class="ss">f&quot;基于这条数据写摘要：</span><span class="sc">{</span>extract<span class="sc">}</span><span class="ss">&quot;</span>}]</span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>).content[<span class="dv">0</span>].text</span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li>Haiku 提取结构化字段准确率已经够用，成本只有 Sonnet 的 1/15。</li>
+<li>一定要<strong>先截断 HTML</strong>（50K 字符内），否则 token
+烧在噪声上。</li>
+</ul>
+<h3 id="how_to_make_sql_queries.ipynb-自然语言-sql-的-tool_use-范式">14.
+<code>how_to_make_sql_queries.ipynb</code> — 自然语言 → SQL 的 tool_use
+范式</h3>
+<p><strong>最小用法</strong>：注册 <code>execute_sql</code> 工具，schema
+作为工具描述的一部分。</p>
+<div class="sourceCode" id="cb14"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>tools <span class="op">=</span> [{</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;name&quot;</span>: <span class="st">&quot;execute_sql&quot;</span>,</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;description&quot;</span>: <span class="st">&quot;Run a read-only SQL query against the analytics DB. Tables: users(id,email,created_at), orders(id,user_id,amount,created_at)&quot;</span>,</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;input_schema&quot;</span>: {<span class="st">&quot;type&quot;</span>:<span class="st">&quot;object&quot;</span>,</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;properties&quot;</span>:{<span class="st">&quot;query&quot;</span>:{<span class="st">&quot;type&quot;</span>:<span class="st">&quot;string&quot;</span>}},</span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;required&quot;</span>:[<span class="st">&quot;query&quot;</span>]}</span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>}]</span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Claude 会生成 SELECT，由你的服务去执行并把结果回灌</span></span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li><strong>绝对不要</strong>让 Claude 直接拼 SQL 字符串给生产 DB
+跑。在你服务端校验 schema、强制只读、强制 LIMIT。</li>
+<li>schema 别全贴 — 几百张表直接让 prompt 爆炸。给 Claude 一个
+<code>list_tables()</code> 工具，让它先问再查（<a
+href="https://github.com/anthropics/courses">anthropic/courses Tool
+Use</a> 推荐模式）。</li>
+</ul>
+<hr />
+<h2 id="六最小落地清单">六、最小落地清单</h2>
+<p>按项目阶段挑优先级，<strong>不要全上</strong>：</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>阶段</th>
+<th>优先加入</th>
+<th>理由</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>第一个 demo</td>
+<td>#4 JSON mode、#11 PDF</td>
+<td>不被输出格式卡住</td>
+</tr>
+<tr class="even">
+<td>100 个用户</td>
+<td>#1 prompt caching、#13 Haiku 预处理</td>
+<td>成本立刻砍一半</td>
+</tr>
+<tr class="odd">
+<td>1000 个用户</td>
+<td>#3 batch、#7 evals、#9 moderation</td>
+<td>性能 + 质量 + 安全</td>
+</tr>
+<tr class="even">
+<td>10000 个用户</td>
+<td>#2 speculative cache、#10 memory compaction、#8 test cases</td>
+<td>体验 + 可观测</td>
+</tr>
+<tr class="odd">
+<td>长期迭代</td>
+<td>#12 metaprompt、#5 citations、#6 long output</td>
+<td>prompt 持续进化</td>
+</tr>
+</tbody>
+</table>
+<h2 id="结语">结语</h2>
+<p>这 14 个 notebook
+单独看都不复杂，但<strong>工程价值在于组合</strong>：caching + JSON mode
++ eval 是最小可用闭环；batch + memory compaction + Haiku
+预处理是规模化必经之路。建议每个模型工程师至少在第一个月把 1、4、7、9
+跑通 — 它们覆盖了 80% 的「线上第一次出事」。</p>
+<p>参考资料：</p>
+<ul>
+<li>仓库：<a
+href="https://github.com/anthropics/claude-cookbooks/tree/main/misc">anthropics/claude-cookbooks</a></li>
+<li>课程：<a
+href="https://github.com/anthropics/courses">anthropics/courses</a></li>
+<li>文档：<a href="https://docs.claude.com">docs.claude.com</a></li>
+</ul>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>
