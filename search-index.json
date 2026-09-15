@@ -1,0 +1,938 @@
+[
+  {
+    "slug": "2026-09-15-writing-tools-for-agents",
+    "title": "给 Agent 写 Tools 的 6 个工程原则：从 Function Call 到 Agent Ergonomics",
+    "date": "2026-09-15",
+    "tags": [
+      "Claude",
+      "AI 工程",
+      "Tool Use",
+      "MCP"
+    ],
+    "summary": "把 Anthropic Writing Tools for Agents 文章拆成 6 个工程原则：Tool 是 deterministic + non-deterministic 系统之间的契约、Prototype → Eval → Iterate 循环、用 Claude Code 自己改 Tools、Consolidate 工具（schedule_event > list_users + create_event）、Namespacing 按 service/resource、返回 meaningful context、token-efficient 响应、prompt-engineering tool description。配具体例子 + 面试可讲的设计取舍。"
+  },
+  {
+    "slug": "2026-09-15-tool-use-engineering-patterns",
+    "title": "Claude Tool Use 实战：从 tool_choice 到 tool_search 的 7 个工程模式",
+    "date": "2026-09-15",
+    "tags": [
+      "Claude",
+      "AI 工程",
+      "Tool Use",
+      "Agent"
+    ],
+    "summary": "把 claude-cookbooks/tool_use 目录拆成 7 个独立可复制的工程模式，按\"单工具控制 / 多工具编排 / 规模化\"三档排列。每个模式给出一行定位 + 最小代码 + 工程踩坑提示，对齐 anthropic-sdk-python 当前接口。"
+  },
+  {
+    "slug": "2026-09-15-text-capabilities-six-patterns",
+    "title": "文本能力 6 个实战模式：classification / moderation / contextual-embeddings / knowledge_graph / summarization / text_to_sql",
+    "date": "2026-09-15",
+    "tags": [
+      "Claude",
+      "AI 工程",
+      "NLP"
+    ],
+    "summary": "把 claude-cookbooks/capabilities 里除 RAG 之外的 6 个子目录提炼成各自的最小落地模式。每个能力一行定位 + 最小代码 + 3 条以内踩坑提示，附选型对照表。"
+  },
+  {
+    "slug": "2026-09-15-team-ai-coding-ep-harness",
+    "title": "EP-Harness 读文笔记：团队级 Managed Agents 平台把 Agent 当成有工号的队友",
+    "date": "2026-09-15",
+    "tags": [
+      "Harness",
+      "EP-Harness",
+      "Managed Agents",
+      "Multica",
+      "AI Coding 团队化"
+    ],
+    "summary": "得物技术 作者方舟 讲 EP-Harness 如何在开源 Multica 上二次开发，把 Agent 从本地聊天窗口里的工具变成团队成员；核心反直觉判断：AI Coding 团队化的瓶颈不是 prompt 模板，而是 Agent 没有工号、没有 Issue、没有技能沉淀位。"
+  },
+  {
+    "slug": "2026-09-15-stripe-kai-one-engineer-one-week",
+    "title": "Stripe Kai：1 个工程师 + 1 周，用 Deep Agents 搭全公司 Agent——3 个工程决策 + 简历级骨架",
+    "date": "2026-09-15",
+    "tags": [
+      "Agent",
+      "Deep Agents",
+      "Stripe",
+      "内部平台",
+      "工程实践"
+    ],
+    "summary": "Stripe Knowledge AI Platform（Kai）从 296 用户涨到 5000+（4 周），83% 员工每周用，1 个工程师 1 周做出 MVP。3 个关键决策：把 Deep Agents 当 OS 而非工具、S3 虚拟文件系统 + sync in/out、agent skills 按 user profile 动态加载。附完整简历项目骨架。"
+  },
+  {
+    "slug": "2026-09-15-spec-driven-attribution",
+    "title": "Spec-driven 真正值钱的不是抓 bug，是把 review 变得可追责",
+    "date": "2026-09-15",
+    "tags": [
+      "Agent",
+      "AI 治理",
+      "工程实践"
+    ],
+    "summary": "Nitin Garg 的实验砍到了骨头：spec baseline 把 review 的归因率从 0% 拉到 81%，但 recall 在统计上没动（0.525 vs 0.518）。认同他把 spec 当 governance artifact 的判断，但 push back 三处：staged generation 的\"翻倍\"有第二次过模型本身的 confound、5 个 reviewer 不足以撑住治理 ROI 的结论、Accountable 必须配上\"被 bounced 的后果\"才成立；并指出这套打法在数据湖仓里早就跑过了，spec 治理不是 AI 时代的新发明，是数据治理套了个 LLM 的壳。"
+  },
+  {
+    "slug": "2026-09-15-spec-coding-three-layer",
+    "title": "读文笔记：Spec Coding 三层规范体系——约束、示范、视觉",
+    "date": "2026-09-15",
+    "tags": [
+      "AI 编程",
+      "Claude Code",
+      "Spec Coding",
+      "规范体系",
+      "工程师能力"
+    ],
+    "summary": "得物技术用 10 天、217 条指令、2754 次工具调用、25546 行净增代码跑完一个企业级中后台；核心是把 AI 编程的规范性拆成三层：rules 约束层（禁止什么）、code-design 示范层（标准产出长什么样）、ui-design 视觉层（HTML 设计稿作为锚点）。再加上两个 MCP：接口文档直连（调用 21 次覆盖 39 个接口）、飞书云文档直读。"
+  },
+  {
+    "slug": "2026-09-15-spark-ui-monitoring",
+    "title": "Spark UI 监控：从宏观入口到 Task 指标 — 读《深入剖析 Spark UI 界面》",
+    "date": "2026-09-15",
+    "tags": [
+      "Spark",
+      "Spark UI",
+      "性能调优",
+      "数据倾斜",
+      "Shuffle",
+      "AQE"
+    ],
+    "summary": "得物技术团队对 Spark UI 全栈监控的系统性拆解：五大一级入口（Executors/Environment/Storage/SQL/Stages）、三级诊断路径（SQL→Jobs→Stages）、两个核心实战案例（scan 表慢/Shuffle 并行度不足）、关键经验公式 D/P≈M/C，以及 AQE 参数 advisoryPartitionSizeInBytes 和 coalescePartitions 调优。"
+  },
+  {
+    "slug": "2026-09-15-reuse-first-skill-three-layer",
+    "title": "复用优先 Skill 三层架构：AI Coding 的工程纪律比模型能力更重要",
+    "date": "2026-09-15",
+    "tags": [
+      "Agent",
+      "Skill",
+      "Claude Code",
+      "工程实践",
+      "AGENTS.md"
+    ],
+    "summary": "得物技术 (魏无涯) 用 AGENTS.md + Hook + Skill 三层结构做'组件复用优先'Agent。认同'AI 适合被放进清晰流程里工作'的核心判断，但 push back 三处：AGENTS.md 容量上限没说、Hook 触发模式维护成本没量化、'流程控制器 vs 能力包'的边界没给标准。"
+  },
+  {
+    "slug": "2026-09-15-recommendation-evaluation-platform",
+    "title": "推荐评测平台拆解：人机协作 + CAS 调度 + Agent 巡检的演进路线",
+    "date": "2026-09-15",
+    "tags": [
+      "推荐系统",
+      "评测平台",
+      "LLM 评测",
+      "Agent",
+      "工程化"
+    ],
+    "summary": "把得物推荐评测平台拆成 3 个核心模块:Prompt 可视化+人机漏斗校验闭环、CAS 抢占+三阶段 offset 的分布式调度、LLM 并发控制+模型分级控本。关键数字:单周百万级审计需求下节省 91% 成本、一致性水位稳定 92%。"
+  },
+  {
+    "slug": "2026-09-15-recommend-diagnosis-hybrid-agent",
+    "title": "推荐系统诊断 Agent：Highway & ATV 双轨架构，把\"白盒排查\"做出来",
+    "date": "2026-09-15",
+    "tags": [
+      "推荐系统",
+      "Multi-Agent",
+      "ReAct",
+      "工程落地"
+    ],
+    "summary": "这篇不讲\"AI 推荐诊断\"，讲怎么用 Highway & ATV 双轨架构平衡效率与深度——Highway 走 Story 剧本（确定性快路径），ATV 走 ReAct 循环（智能慢路径），中间调度器判定路由。核心是 Story = 原子化 Skill + 有序编排模板，把专家经验沉淀为可执行剧本。"
+  },
+  {
+    "slug": "2026-09-15-rag-fundamentals-embedding-hnsw",
+    "title": "RAG 核心原理梳理：从 Embedding 到 HNSW 的工程地图",
+    "date": "2026-09-15",
+    "tags": [
+      "RAG",
+      "Embedding",
+      "HNSW",
+      "向量检索",
+      "Agent"
+    ],
+    "summary": "把得物技术这篇 14000+ 字的 RAG 科普拆成 3 段流水线 + 4 个反直觉判断:Embedding 的几何意义、HNSW 的跳表×NSW 双层结构、Query Rewrite 才是收益最大的单点优化、多路召回 RRF 融合而不是拼分数。面试 RAG 项目能直接用的版本。"
+  },
+  {
+    "slug": "2026-09-15-rag-engineering-patterns",
+    "title": "RAG 实战：从 Naive 到 Modular 的 5 个工程模式",
+    "date": "2026-09-15",
+    "tags": [
+      "Claude",
+      "AI 工程",
+      "RAG",
+      "Agent"
+    ],
+    "summary": "把 claude-cookbooks/capabilities/retrieval_augmented_generation 的 663KB 主教程 + Promptfoo 评测套件拆成 5 个工程模式：文档分块 / 检索选型 / 上下文注入与引用 / Promptfoo 评测闭环 / 架构演进路径。每个模式给出一行定位 + 最小代码 + 踩坑提示。"
+  },
+  {
+    "slug": "2026-09-15-patterns-agents-engineering",
+    "title": "Agent 模式工程化：从 Prompt Chaining 到 Async Subagent 的 6 个实战模式",
+    "date": "2026-09-15",
+    "tags": [
+      "Claude",
+      "AI 工程",
+      "Agent",
+      "Patterns"
+    ],
+    "summary": "把 Anthropic \"Building Effective Agents\" 论文对应的 patterns/agents 4 个 notebook 拆成 6 个工程模式：prompt chaining / parallelization / routing / orchestrator-workers / evaluator-optimizer / async multi-agent。每个模式一行定位 + 最小代码 + 2-3 条工程踩坑提示。"
+  },
+  {
+    "slug": "2026-09-15-order-system-ai-native-stability",
+    "title": "AI Native 研发范式拆解:得物订单系统的五道关口与 Spec-Driven 插件",
+    "date": "2026-09-15",
+    "tags": [
+      "AI Native",
+      "Spec-Driven",
+      "TDD",
+      "Claude Code",
+      "稳定性"
+    ],
+    "summary": "得物订单系统的 AI Native 治理拆成五道关口:需求澄清(BDD Gherkin 钉死验收)、技术方案(五段式+知识库兜底现状)、TDD 编码(RED-GREEN 循环)、门禁卡控(三层 DAG+增量体检)、全流程埋点。关键判断:旧流程是给人设计的,要改的不是 AI 而是流水线。"
+  },
+  {
+    "slug": "2026-09-15-multiagent-plan-master-worker",
+    "title": "Agent 项目的生产可靠性三角：Plan、主子分层与 A2A",
+    "date": "2026-09-15",
+    "tags": [
+      "Agent",
+      "MultiAgent",
+      "Plan-and-Execute",
+      "工程落地"
+    ],
+    "summary": "得物 MultiAgent 平台这篇不写\"什么是 Agent\"，写的是\"演示 Agent 和生产 Agent 的距离\"。核心是把 Plan 当作一等公民、把主/子 Agent 分层、把可靠性约束从 prompt 层下沉到框架层——这三件事合在一起，决定了 Agent 系统能不能上生产。"
+  },
+  {
+    "slug": "2026-09-15-multiagent-memory-four-layers",
+    "title": "Agent 记忆不是 prompt 拼接：四层架构与异步沉淀",
+    "date": "2026-09-15",
+    "tags": [
+      "Agent",
+      "记忆系统",
+      "MemOS",
+      "工程落地"
+    ],
+    "summary": "这篇不讲\"把历史塞进 prompt\"——它讲怎么把记忆拆成 Working / Session / User / Agent 四层，让请求前并行加载、会话后异步沉淀、用 LLM 判断价值、用冲突处理保持一致。四层不是分类维度的炫技，是把\"Agent 记不住东西\"这个老大难问题拆成可工程化的子问题。"
+  },
+  {
+    "slug": "2026-09-15-multi-agent-research-patterns",
+    "title": "Multi-Agent Research System 实操：Lead + Subagent 架构的 5 个工程教训",
+    "date": "2026-09-15",
+    "tags": [
+      "Claude",
+      "AI 工程",
+      "Agent",
+      "Multi-Agent"
+    ],
+    "summary": "把 Anthropic 多 Agent Research 系统工程文章拆成 5 个工程教训：多 agent 适用边界（research 强、coding 弱）、LeadResearcher + Subagent + CitationAgent 三段架构、Orchestrator delegation 7 条 prompt 原则、Eval 三件套（小样本 + LLM-as-judge + 人类）、Production 三大工程挑战（stateful / debug / 同步 vs 异步）。配具体数据（90.2% / 15x token / 90% time / 40%）+ 落地边界。"
+  },
+  {
+    "slug": "2026-09-15-marketing-activity-agent",
+    "title": "读文笔记：营销活动 Agent 填表单——两阶段架构与组件模块协议",
+    "date": "2026-09-15",
+    "tags": [
+      "LangGraph",
+      "Agent",
+      "营销自动化",
+      "Human-in-the-loop",
+      "渐进式披露"
+    ],
+    "summary": "得物社区营销活动从策划到上线要在 3 个系统间跳转 10+ 次、填 40+ 字段。得物技术用 3 版迭代走通：第一版 AI 帮填字段（失败：范式没变），第二版 Workflow + LangGraph interrupt/resume + 6 个中断点 + Capability Registry（成功），第三版两阶段 Stage 1 只读不写策划生成 + Stage 2 聚合工作台本地表预览。组件模块协议用生命周期约束初始化阶段无副作用。"
+  },
+  {
+    "slug": "2026-09-15-managed-agents-arch-patterns",
+    "title": "Managed Agents 架构：把\"大脑\"和\"双手\"解耦的 5 个工程模式",
+    "date": "2026-09-15",
+    "tags": [
+      "Claude",
+      "AI 工程",
+      "Agent 架构",
+      "Harness"
+    ],
+    "summary": "把 Anthropic Managed Agents 工程文章拆成 5 个架构级模式：Pet vs Cattle 的容器陷阱、脑-手解耦、Sandbox 安全边界、Session ≠ Context Window、Many Brains Many Hands。每个模式给定位 + 推论 + 工程落地的具体做法，可以直接拿去面试讲 Agent 架构。"
+  },
+  {
+    "slug": "2026-09-15-madrigal-pharma-multi-agent-platform",
+    "title": "Madrigal Pharma 多 Agent 平台：医药数据的\"看不见的归一化\"+ Skills 联邦制 + Trace 反哺 Eval",
+    "date": "2026-09-15",
+    "tags": [
+      "Agent",
+      "多 Agent",
+      "医药 RAG",
+      "Deep Agents",
+      "工程实践"
+    ],
+    "summary": "制药公司 Madrigal 用 LangChain / Deep Agents 搭多 Agent 平台，关键思想：把所有数据源归一化成一致的 tool interface（Agent 不关心数据从哪来）；modular skill 把单一用例变成平台；trace → eval dataset 是生产反馈的闭环。新用例从\"几周\"降到\"几小时\"。"
+  },
+  {
+    "slug": "2026-09-15-log-platform-mcp",
+    "title": "日志平台 MCP + Claude Code Skill：自动化 BUG 排查 — 读《日志诊断 Skill》",
+    "date": "2026-09-15",
+    "tags": [
+      "日志平台",
+      "MCP",
+      "Claude Code",
+      "Skill",
+      "BUG排查",
+      "自动化诊断",
+      "SQL BUG"
+    ],
+    "summary": "得物技术（作者阿程）把日志查询 MCP 和 Claude Code Skill 结合，实现 /log-diagnosis 一行命令自动完成 查日志 → 找关键信息 → 扫描代码 → 定位根因 全流程。涵盖：MCP 鉴权（secretKey → accessToken，1 小时有效，最多同时 5 个）、Skill 执行链路（分页拉取最多 20 页日志 + traceId 第 9-16 位解析时间范围）、queryString 语法、实战案例 — 发现 SQL 字段 customer_tag 遗漏空字符串处理的隐蔽 BUG。"
+  },
+  {
+    "slug": "2026-09-15-llm-agent-alert-troubleshooter",
+    "title": "告警排查 Agent 不是替代运维：把 20 分钟的拼凑工作压到 4 分钟",
+    "date": "2026-09-15",
+    "tags": [
+      "LLM Agent",
+      "告警排查",
+      "ReAct",
+      "工程落地"
+    ],
+    "summary": "这篇不讲\"AI 排查告警\"，讲怎么用 ReAct Agent 把\"打开三个平台拼凑数据\"这种 20 分钟的体力活压到 4 分钟。核心是 SupervisorAgent + 四个 @Tool（queryLogs / queryMetrics / queryTrace / queryEndpointErrors）+ 工具超时隔离 + 幻觉控制四道闸。结论验收 Agent + 多轮交叉验证才是让 AI 排查能上生产的工程关键。"
+  },
+  {
+    "slug": "2026-09-15-langgraph-three-years-patterns",
+    "title": "LangGraph 3 年：什么时候用 graph / 什么时候用 harness / 什么时候用 loop——决策框架",
+    "date": "2026-09-15",
+    "tags": [
+      "Agent",
+      "LangGraph",
+      "工程哲学",
+      "决策框架",
+      "工程实践"
+    ],
+    "summary": "LangGraph 3 年的核心经验：什么时候把 Agent 表达为 graph（结构已知、路径确定）、什么时候用 agent harness（结构未知、靠模型推理）、什么时候用 loop（最简版本）。3 个关键 lesson：agent graph 通常不是 DAG、loop 就是简单 graph、动态 transition 重要。附决策框架 + 简历项目骨架。"
+  },
+  {
+    "slug": "2026-09-15-knowledge-qa-compound-retrieval-agent",
+    "title": "知识问答复合检索 Agent：Agent 自主决策 + 三阶段质量 Pipeline + 多实例 SSE 断点续传",
+    "date": "2026-09-15",
+    "tags": [
+      "RAG",
+      "Multi-Agent",
+      "HarnessAgent",
+      "Middleware",
+      "工程落地"
+    ],
+    "summary": "这篇不讲\"AI 知识问答\"，讲怎么在 AgentScope 2.0 HarnessAgent 上做\"四源融合检索\"——Agent 自主决策（搜索→评估→决策循环）替代预设 RAG 流程，三阶段质量 Pipeline（FastPass → Reranker → LLM Grading）在 Middleware 里做精筛，多实例 SSE 断点续传解决生产可靠性。核心是把 Agent 决策权、Middleware 关注点分离、SSE 三路径恢复做出来。"
+  },
+  {
+    "slug": "2026-09-15-klarna-customer-support-multi-agent",
+    "title": "Klarna AI Assistant：85M 用户、70% 自动化、80% 解决提速——3 个早期 multi-agent 工程决策",
+    "date": "2026-09-15",
+    "tags": [
+      "Agent",
+      "Klarna",
+      "LangGraph",
+      "早期 multi-agent",
+      "工程实践"
+    ],
+    "summary": "Klarna AI Assistant 用 LangGraph + LangSmith 服务 85M 月活用户，70% 重复任务自动化、解决时间 -80%、效果等同 700 个全职员工。3 个早期 multi-agent 决策：controllable routing、context-aware dynamic prompt、test-driven prompt iteration。LangChain 因此设计了 meta-prompting。"
+  },
+  {
+    "slug": "2026-09-15-hermes-agent-buried-workflow",
+    "title": "Hermes Agent 改造埋点流程：把 AI 边界画在\"判断前\"，人在判断后",
+    "date": "2026-09-15",
+    "tags": [
+      "Agent",
+      "数据研发",
+      "工作流编排",
+      "工程落地"
+    ],
+    "summary": "这篇不讲\"AI 自动接需求\"，讲怎么把 AI 边界画在\"判断前\"——Agent 负责把材料、历史、候选方案、系统预演和风险证据组织起来，人负责业务语义、指标口径、敏感字段、生产放行。核心是单 Agent 编排 + 多能力模块（固化流程契约），把可复用 SKILL 作为团队作业制度。"
+  },
+  {
+    "slug": "2026-09-15-harness-thinking-fullstack-sdd",
+    "title": "Harness 思维 + 全栈 SDD 读文笔记：给 AI 一个模仿对象，比让他自由发挥更省事",
+    "date": "2026-09-15",
+    "tags": [
+      "Harness 思维",
+      "SDD",
+      "Codebase Indexing",
+      "Subagent",
+      "全栈 AI 开发"
+    ],
+    "summary": "得物技术 作者盖伦 讲全栈 AI 开发中 Harness 思维 + 多仓工作区 + SDD 流程 + 多 Agent 并行的实践；核心反直觉判断：AI 写代码采纳率低的真正原因是没给模仿对象，不是模型不够强。"
+  },
+  {
+    "slug": "2026-09-15-harness-design-gan-evaluator",
+    "title": "Harness 设计实战：Generator-Evaluator 模式的 6 个工程教训",
+    "date": "2026-09-15",
+    "tags": [
+      "Claude",
+      "AI 工程",
+      "Harness",
+      "Agent 架构"
+    ],
+    "summary": "把 Anthropic 长时 Agent Harness 设计文章拆成 6 个工程教训：Context Anxiety 与 Reset 的必要性、Self-Evaluation 偏差、GAN 启发的 Generator-Evaluator、Sprint 契约与文件 handoff、Evaluator 调优要花几轮、Harness 是活系统（每次升级模型要重审）。每个模式配定位 + 数据 + 工程落地。"
+  },
+  {
+    "slug": "2026-09-15-governed-agents-cost-control-compliance",
+    "title": "Governed Agents 框架：把 LLM Gateway 当成 Agent 的 runtime control plane——5 层治理 + 简历级骨架",
+    "date": "2026-09-15",
+    "tags": [
+      "Agent",
+      "LLM Gateway",
+      "治理",
+      "成本控制",
+      "合规",
+      "工程实践"
+    ],
+    "summary": "把 LLM Gateway 定位为 Agent 的 runtime control plane（不是简单的 model router）。5 个治理动作：identity / spend / model routing / context efficiency / guardrails。Govern / Decide / Protect / Observe / Assure 5 步运转框架。附完整简历项目骨架。"
+  },
+  {
+    "slug": "2026-09-15-galaxy-mcp-data-warehouse",
+    "title": "Galaxy MCP 把数仓 Agent 化，但真正的护城河是规范化的 I/O",
+    "date": "2026-09-15",
+    "tags": [
+      "Agent",
+      "MCP",
+      "数据仓库",
+      "AI 工程化"
+    ],
+    "summary": "得物技术把 Claude Code 集成进内部数仓平台 Galaxy，提出'认知运行时 × 执行运行时'解耦架构和'规范化 I/O'契约；落地 6 个场景（视觉埋点、OneData、周报、策略孵化、智能测试、Spark UI 调优），提效 3-10 倍。认同 SDD 是真正稳定的底座，但 push back 三处：MCP 工具原子化粒度没说清、Spec-to-Code 的版本管理缺位、Vibe Coding 与 SDD 的边界没量化。"
+  },
+  {
+    "slug": "2026-09-15-flinkspec-bp-claw-prd-to-spec",
+    "title": "BP Claw 把 PRD 转高质量需求：AI Coding 的瓶颈在输入不在模型",
+    "date": "2026-09-15",
+    "tags": [
+      "AI Coding",
+      "Agent",
+      "PRD",
+      "实时数仓",
+      "FlinkSpec"
+    ],
+    "summary": "得物技术推出 BP Claw（AI 数据 BP），把 PM 的非标 PRD 转成 AI 可消费的高质量需求文档，作为 FlinkSpec 流水线的上游输入。认同它'问题在源头不在模型'的核心判断，但 push back 三处：PRD 评分 5 维度权重没说清、'参照不是卡点'与阻断 BLOCK-N 矛盾、长 PRD 分段生成的失败语义没定义。"
+  },
+  {
+    "slug": "2026-09-15-flink-clickhouse-sink-batch-dynamic-schema",
+    "title": "读文笔记：Flink ClickHouse Sink 的生产级攒批与动态表结构",
+    "date": "2026-09-15",
+    "tags": [
+      "Flink",
+      "ClickHouse",
+      "数据集成",
+      "流计算",
+      "后端"
+    ],
+    "summary": "得物技术把 flink-connector-jdbc 写入 ClickHouse 的三个生产痛点（无数据量攒批、固定表结构、分布式表热点）拆开重写：metaSize+timeout 双触发、本地表直写、ClusterIpsUtils 动态发现节点；并用 Checkpoint 配合两种语义（UnexceptionableSink vs ExceptionsThrowableSink）覆盖 At-Most-Once 与 At-Least-Once 两种业务诉求。"
+  },
+  {
+    "slug": "2026-09-15-finance-data-warehouse-ai",
+    "title": "财务数仓 AI 全链路增强，但真正难的是 L3 级人机协作的边界划法",
+    "date": "2026-09-15",
+    "tags": [
+      "数据仓库",
+      "AI Coding",
+      "财务数仓",
+      "LLM 应用"
+    ],
+    "summary": "得物技术把财务数仓场景的 AI 落地拆成 4 个环节（建模、SQL Coding、数据测试、需求文档转化），借助 Claude + Cursor + 飞书 MCP 提效。认同他们'规范即 Prompt、迭代是常态、海量文件阅读'的三方法论，但 push back 三处：'L3 时刻'比喻不严谨、规范文档的演进机制没说清、AI 测试 SQL 的'问题发现能力提升'缺少对照实验。"
+  },
+  {
+    "slug": "2026-09-15-extended-thinking-engineering",
+    "title": "Extended Thinking 实战：把 Sonnet/Opus 的深度推理变成工程能力",
+    "date": "2026-09-15",
+    "tags": [
+      "Claude",
+      "AI 工程",
+      "Reasoning"
+    ],
+    "summary": "把 claude-cookbooks/extended_thinking 的 2 个 notebook 拆成 3 个工程模式：基础启用与 budget 调参 / thinking 与 tool_use 交错 / signature 续接与 streaming。每条给最小代码 + 工程踩坑提示，对齐 anthropic-sdk-python 当前接口。"
+  },
+  {
+    "slug": "2026-09-15-eval-and-observability-patterns",
+    "title": "评测与可观测：从 Usage 监控到 Agent 基准复现的 6 个工程模式",
+    "date": "2026-09-15",
+    "tags": [
+      "Claude",
+      "AI 工程",
+      "Evals",
+      "Observability"
+    ],
+    "summary": "把 claude-cookbooks 里 observability / tool_evaluation / evals / third_party 4 个目录合并成 6 个工程模式：Usage & Cost Admin API 监控 / Tool Evaluation XML 框架 / Agentic Search harness / Programmatic Tool Calling 杠杆 / Model-as-Judge F1 评分 / 第三方生态地图。每个模式一行定位 + 最小代码 + 2-3 条工程踩坑提示。"
+  },
+  {
+    "slug": "2026-09-15-effective-harness-init-coding",
+    "title": "长时 Agent Harness：Initializer + Coding Agent 双角色模式的 5 个工程实践",
+    "date": "2026-09-15",
+    "tags": [
+      "Claude",
+      "AI 工程",
+      "Harness",
+      "长任务"
+    ],
+    "summary": "把 Anthropic Effective Harnesses for Long-Running Agents 文章拆成 5 个工程实践：长时 Agent 的两大失败模式（one-shotting / premature victory）、Initializer + Coding 双角色分工、JSON Feature List 防过度触发、Clean State 协议（git + progress + init.sh）、Puppeteer MCP 闭环自测。配 YAML 示例 + 5 步启动 checklist + 面试可讲的设计取舍。"
+  },
+  {
+    "slug": "2026-09-15-demystifying-ai-agent-evals",
+    "title": "AI Agent 评测实操：从 0 到 1 搭建评测体系的 8 个工程模式",
+    "date": "2026-09-15",
+    "tags": [
+      "Claude",
+      "AI 工程",
+      "Evals",
+      "Agent"
+    ],
+    "summary": "把 Anthropic Demystifying Evals 文章拆成 8 个可落地的工程模式：评测词汇表、三种 Grader 选择、Capability vs Regression 区分、4 类 Agent 的评测配方、pass@k vs pass^k、8 步 Roadmap、Grader 反模式、Swiss Cheese 多层监控。每个模式给定位 + 代码 / YAML 示例 + 落地 checklist。"
+  },
+  {
+    "slug": "2026-09-15-data-warehouse-ai-coding-harness",
+    "title": "数仓 AI Coding Harness 读文笔记：把 Claude Code 改造成 95%+ 规范遵守率的护栏系统",
+    "date": "2026-09-15",
+    "tags": [
+      "Harness",
+      "数仓",
+      "Claude Code",
+      "Hooks",
+      "Subagent",
+      "CLAUDE.md"
+    ],
+    "summary": "得物技术 作者丹克 讲数仓场景下如何用 Claude Code 的 CLAUDE.md + Hooks + Subagent + Memory 五层防御，把 SQL 规范遵守率从 70~80% 拉到 95%+、需求一次通过率从 50% 拉到 90%、主 context compact 频率降 50~70%；核心反直觉判断：Claude Code 的 compact 不是 bug，是约束——你必须用 hooks 和 subagent 重新分配它的 context。"
+  },
+  {
+    "slug": "2026-09-15-data-platform-pipeline-asset-management",
+    "title": "得物数仓把发布做成流水线，但真正的难点是给每个任务打上风险等级",
+    "date": "2026-09-15",
+    "tags": [
+      "数据仓库",
+      "数据治理",
+      "工程效能",
+      "发布流水线"
+    ],
+    "summary": "得物技术讲了一个数仓发布门禁的全貌：消费场景 × P0/P1/P2 风险等级 + DQC 强/弱规则 + 七步静态扫描到数据比对流水线。认同它把风险等级和发布准出规则绑死的思路，但 push back 三处：强弱规则阈值没说清、CodeReview 仍是人肉节点、3TB 以上的表直接放弃验证是个隐性债。"
+  },
+  {
+    "slug": "2026-09-15-cx-agents-five-patterns-production",
+    "title": "CX Agent 生产实践：Lyft / Vodafone / LATAM 三家 5 个共同模式 + 简历级项目骨架",
+    "date": "2026-09-15",
+    "tags": [
+      "Agent",
+      "CX",
+      "多 Agent",
+      "LangGraph",
+      "工程实践"
+    ],
+    "summary": "把 LangChain 三家 CX 客户案例（Lyft 65% deflection + 35% resolution、Vodafone 90% 正确率 + 82% resolution、Concierge 13% → 1% out-of-scope）抽出 5 个跨企业可复用的工程模式，每个模式给定位 + 数据 + 工程提示 + 简历项目骨架。"
+  },
+  {
+    "slug": "2026-09-15-customer-service-agent-harness",
+    "title": "智能客服 Agent：从 Single-Agent 到 Harness 架构 + 数据飞轮",
+    "date": "2026-09-15",
+    "tags": [
+      "智能客服",
+      "Multi-Agent",
+      "Harness",
+      "DPO",
+      "工程落地"
+    ],
+    "summary": "这篇不讲\"AI 客服\"，讲智能客服 Agent 怎么从 Single-Agent → Multi-Agent → Harness 架构演进，以及 PE 自动化 + DPO 训练数据飞轮。核心是 Harness 把跨场景复用做出来，PE 自动化流水线让 Prompt 持续优化，DPO 训练让模型学会\"正确决策\"。"
+  },
+  {
+    "slug": "2026-09-15-cost-optimization-engineering",
+    "title": "Claude API 成本优化：从 prompt caching 到 model ladder 的 7 个 Pareto 工程模式",
+    "date": "2026-09-15",
+    "tags": [
+      "Claude",
+      "AI 工程",
+      "成本优化",
+      "Pareto"
+    ],
+    "summary": "把 claude-cookbooks/cost_optimization 的 1.2MB 主教程拆成 7 个工程模式：评测基线 / prompt caching / 输入 token 管理 / agent-loop 效率 / 输出 token 管理 / Batch API / model×effort ladder。每个模式给出一行定位 + 最小代码 + 工程踩坑提示，附 Pareto 选型表与\"哪类任务该用哪类杠杆\"对照。"
+  },
+  {
+    "slug": "2026-09-15-context-engineering-patterns",
+    "title": "Context Engineering 实操：让 LLM 注意力预算花在刀刃上的 6 个工程模式",
+    "date": "2026-09-15",
+    "tags": [
+      "Claude",
+      "AI 工程",
+      "Context Engineering",
+      "Agent"
+    ],
+    "summary": "把 Anthropic Effective Context Engineering 文章拆成 6 个工程模式：Context Rot 与注意力预算、System Prompt 的 right altitude、Tools 的最小可用集、Just-in-time retrieval、长任务三件套（compaction / note-taking / sub-agents）、Hybrid 策略（upfront + JIT）。配 code 示例 + 面试可讲的设计取舍 + 落地 checklist。"
+  },
+  {
+    "slug": "2026-09-15-coding-agent-violin-from-scratch",
+    "title": "Coding Agent 不复杂：拆开看就是 while 循环加三层分离",
+    "date": "2026-09-15",
+    "tags": [
+      "Coding Agent",
+      "架构设计",
+      "多协议适配",
+      "工程落地"
+    ],
+    "summary": "得物 Violin 这篇把 Coding Agent 拆给你看——三层架构（模型适配 / agent-core / 产品层）、EventBus 驱动、Agent Loop 一个 while 循环搞定。核心是它把\"AI Coding Agent\"这个看似高深的东西还原成一个标准的、可工程化的客户端-服务端架构。会这个套路，你也能写一个 Claude Code。"
+  },
+  {
+    "slug": "2026-09-15-code-execution-with-mcp",
+    "title": "Code Execution with MCP：把 MCP 当代码 API 而不是工具调用的 5 个工程模式",
+    "date": "2026-09-15",
+    "tags": [
+      "Claude",
+      "AI 工程",
+      "MCP",
+      "Code Execution"
+    ],
+    "summary": "把 Anthropic Code Execution with MCP 工程文章拆成 5 个工程模式：MCP 当代码 API 而非工具调用（节省 98.7% token）、文件系统渐进披露、代码里 filter 替代 context 污染、Privacy-Preserving PII Tokenization、State 持久化与 Skills 复用。每个模式给定位 + 代码 + 落地边界。"
+  },
+  {
+    "slug": "2026-09-15-claude-skills-engineering",
+    "title": "Claude Skills 实战：让 Claude 生成 Excel / PPT / PDF 的 6 个工程模式",
+    "date": "2026-09-15",
+    "tags": [
+      "Claude",
+      "AI 工程",
+      "Skills",
+      "Agent"
+    ],
+    "summary": "把 claude-cookbooks/skills 的 3 个 notebook + 3 个 custom skill 提炼成 6 个工程模式：内置 Skill 调用 / Container+Code Execution / Files API 下载 / Custom Skill 编写 / 渐进式加载 / 多 Skill 组合。每个模式一行定位 + 最小代码 + 工程踩坑提示。"
+  },
+  {
+    "slug": "2026-09-15-claude-cookbook-misc-engineering",
+    "title": "Claude API 工程实战：从 claude-cookbooks/misc 提炼的 14 个最小可用模式",
+    "date": "2026-09-15",
+    "tags": [
+      "Claude",
+      "AI 工程",
+      "LLM"
+    ],
+    "summary": "把 anthropics/claude-cookbooks 的 misc 目录拆成 14 个独立模式，按「成本/输出可控/质量保障/长上下文/工作流增强」五个主题分组，每条给出一行定位 + 最小代码 + 工程踩坑提示。所有代码对齐 anthropic-sdk-python ≥ 0.40 的当前接口。"
+  },
+  {
+    "slug": "2026-09-15-claude-code-self-evolving-memory",
+    "title": "让 Coding Agent 学会你的习惯：观察 + 提炼 + 注入的自学习闭环",
+    "date": "2026-09-15",
+    "tags": [
+      "AI Coding",
+      "Claude Code",
+      "Hook",
+      "自学习",
+      "记忆系统"
+    ],
+    "summary": "这篇不讲\"AI 帮你写代码\"，讲\"AI 学会你写代码的方式\"。核心是用 Hook 把工具调用 100% 抓成观测流，会话结束时用统计 + 语义两条路径提炼 Instinct 规则，下次会话 SessionStart 时把规则注入系统提示。三个环扣在一起，AI Coding Agent 才能从\"工具\"变成\"伙伴\"。"
+  },
+  {
+    "slug": "2026-09-15-claude-code-sandboxing-isolation",
+    "title": "Claude Code 沙箱设计：文件系统 + 网络双重隔离的 5 个工程模式",
+    "date": "2026-09-15",
+    "tags": [
+      "Claude",
+      "AI 工程",
+      "安全",
+      "Sandbox"
+    ],
+    "summary": "把 Anthropic Claude Code Sandboxing 工程文章拆成 5 个工程模式：filesystem + network 双隔离缺一不可、OS 级 sandbox（bubblewrap / seatbelt）替代容器方案、proxy 化网络访问、scoped credential + 内容校验、Claude Code on the web 的 cloud sandbox。配数据（permission prompt 降 84%）+ 落地配置 + 面试可讲的安全模型取舍。"
+  },
+  {
+    "slug": "2026-09-15-claude-code-development-flow",
+    "title": "Claude Code 核心功能：对话流、Plan、子代理 — 读《AI编程实践》",
+    "date": "2026-09-15",
+    "tags": [
+      "Claude Code",
+      "AI编程",
+      "对话流设计",
+      "Plan模式",
+      "子代理",
+      "MCP"
+    ],
+    "summary": "得物技术团队对 Claude Code 在企业级场景的深度实践总结：对话流设计（语义鸿沟/约束衰减/目标偏移）、Plan 模式（三步法 WBS 拆分）、四角色子代理（架构师/审查员/实现者/前端生成器）、CLAUDE.md 控制在 200 字、SKILL + MCP 沉淀复用。"
+  },
+  {
+    "slug": "2026-09-15-claude-code-best-practices",
+    "title": "Claude Code 实战：把 Coding Agent 用出 10x 效率的 6 个工程模式",
+    "date": "2026-09-15",
+    "tags": [
+      "Claude",
+      "AI 工程",
+      "Claude Code",
+      "Agent"
+    ],
+    "summary": "把 Anthropic Claude Code Best Practices 官方文档拆成 6 个工程模式：Verify 工作流（测试 / build / screenshot 是 must-have）、Explore→Plan→Code→Commit 四段、CLAUDE.md 极简主义、Permission + Sandbox + Auto mode 三层防御、Context 主动管理（/clear / /compact / subagent）、Parallel Sessions + Fan-out + Adversarial Review 扩展模式。配具体命令 + 失败模式 + 面试可讲的设计取舍。"
+  },
+  {
+    "slug": "2026-09-15-claude-agent-sdk-engineering",
+    "title": "Claude Agent SDK 实战：从 One-Liner 到 K8s 部署的 5 个工程模式",
+    "date": "2026-09-15",
+    "tags": [
+      "Claude",
+      "AI 工程",
+      "Agent SDK",
+      "MCP"
+    ],
+    "summary": "把 claude-cookbooks/claude_agent_sdk 目录的 9 个 notebook 提炼成 5 个工程模式：最小上手 / 生产治理 / MCP 集成 / 多 tier 部署 / 动态工作流规模化，每个模式给出一行定位 + 最小代码 + 工程踩坑提示。"
+  },
+  {
+    "slug": "2026-09-15-building-effective-agents-patterns",
+    "title": "Building Effective Agents 拆解：Workflows vs Agents 的 6 个工程取舍",
+    "date": "2026-09-15",
+    "tags": [
+      "Claude",
+      "AI 工程",
+      "Agent",
+      "Workflow"
+    ],
+    "summary": "把 Anthropic Building Effective Agents 拆成 6 个工程取舍：workflows vs agents 的边界（确定路径 vs 自主决策）、5 个 workflow 模式（prompt chaining / routing / parallelization / orchestrator-workers / evaluator-optimizer）、3 个核心原则（simplicity / transparency / well-crafted ACI）、customer support + coding agent 两个工程落地参考、prompt engineering your tools 的元教训。配代码示例 + 面试可讲的设计决策。"
+  },
+  {
+    "slug": "2026-09-15-auto-mode-defense-architecture",
+    "title": "Claude Code Auto Mode：用两层防御替代人工审批的 6 个工程模式",
+    "date": "2026-09-15",
+    "tags": [
+      "Claude",
+      "AI 工程",
+      "安全",
+      "Agent"
+    ],
+    "summary": "把 Anthropic Auto Mode 工程文章拆成 6 个可落地的工程模式：审批疲劳的实证、两层防御架构（PI probe + transcript classifier）、三档 tier 决策、Reasoning-Blind Classifier、Subagent 双向闸门、Deny-and-Continue。配自评数据（0.4% FPR / 17% FNR）和工程落地做法。"
+  },
+  {
+    "slug": "2026-09-15-ai-resistant-eval-design",
+    "title": "AI-Resistant 面试设计：当模型比候选人更强，怎么保住 Signal",
+    "date": "2026-09-15",
+    "tags": [
+      "Claude",
+      "AI 工程",
+      "面试",
+      "Eval"
+    ],
+    "summary": "把 Anthropic 性能工程团队 take-home test 三轮迭代的复盘拆成 6 个工程教训：AI 能力侵蚀面试信号的实证、为什么\"禁 AI\"和\"抬高 bar\"都不对、第一次换题失败（bank conflict 训练数据太多）、Zachtronics 风格题库胜出、Realism vs AI-Resistance 的取舍。每条给定位 + 数据 + 面试官和候选人都能用上的工程做法。"
+  },
+  {
+    "slug": "2026-09-15-ai-native-ui-testing-vlm",
+    "title": "读文笔记：AI Native UI 测试——VLM 跨平台统一与自愈",
+    "date": "2026-09-15",
+    "tags": [
+      "AI Native",
+      "VLM",
+      "UI 测试",
+      "自愈",
+      "跨平台"
+    ],
+    "summary": "得物 ai_uitester 用 VLM 作为执行引擎，把『截图→理解→执行』作为闭环。三大能力：用例平台 JSON 自动转化 Pipeline（树展平+LLM 增强+断点续传）、AI 智能调试（失败分类器+置信度机制+三真实自愈案例）、VLM 驱动的跨平台统一（同一 JSON 三端通用）。置信度阈值 0.5，『宁可不点击也不点错』是关键铁律。"
+  },
+  {
+    "slug": "2026-09-15-ai-e2e-testing",
+    "title": "读文笔记：AI 驱动的 E2E 测试——从运营行为到自动化用例",
+    "date": "2026-09-15",
+    "tags": [
+      "E2E 测试",
+      "Midscene",
+      "Qwen2.5-VL",
+      "AI 测试",
+      "自动化"
+    ],
+    "summary": "得物技术把线上运营真实操作日志作为测试用例种子，用 Midscene + Qwen2.5-VL-72B 多模态模型做元素定位和断言，搭出四阶段流程（智能用例生成→灵活执行触发→AI 驱动执行→平台化数据运营）。核心选型：Midscene 胜在 JS 技术栈 + Puppeteer 兜底，browser-use 败在 Python 栈不匹配。"
+  },
+  {
+    "slug": "2026-09-15-ai-coding-tools-poc",
+    "title": "AI 编程工具链 POC：多模型切换 + IDE/Terminal 协同 — 读《从 IDE 到 Terminal》",
+    "date": "2026-09-15",
+    "tags": [
+      "AI编程",
+      "Claude Code",
+      "POC",
+      "多Agent",
+      "MCP",
+      "工作流",
+      "IDE自动化"
+    ],
+    "summary": "得物技术（作者羊羽）的 AI 编程 POC 全流程实战：工具选型标准（模型可插拔 + 工具自举）、Shell 函数切换 GLM/Kimi/七牛多模型（通过 ANTHROPIC_BASE_URL 环境变量注入）、三屏 IDE + iTerm2 三面板布局、IDE 工具栏一键启动项目专属 CC 会话、主从架构多 Agent 协作、CC 六大扩展机制（command/skill/subAgent/MCP/hook/plugin）。"
+  },
+  {
+    "slug": "2026-09-15-ai-coding-to-ai-builder",
+    "title": "从 AI Coding 到 AI Builder 读文笔记：得物推荐 Harness 把 PDCA 拆成七阶段护栏 + 混合 Agent",
+    "date": "2026-09-15",
+    "tags": [
+      "Harness",
+      "AI Builder",
+      "PDCA",
+      "Highway",
+      "ATV",
+      "推荐系统"
+    ],
+    "summary": "得物技术 作者三白 讲推荐系统如何用 PDCA 七阶段护栏 + Highway/ATV 混合 Agent 把 AI 从 Do 阶段扩展到完整迭代飞轮；核心反直觉判断：好的 Harness 不是铁笼而是环境——它让 AI 觉得自己在自由行动，但每一步都天然处在可验证、可回滚、可复用的工程上下文里。"
+  },
+  {
+    "slug": "2026-09-15-ai-coding-harness-version-contract",
+    "title": "得物小摊 Delivery Harness 读文笔记：Version Contract / Evidence Gate 把单人全栈交付拉成可验收",
+    "date": "2026-09-15",
+    "tags": [
+      "Harness",
+      "AI Coding",
+      "Agent",
+      "交付工程",
+      "版本合同"
+    ],
+    "summary": "得物技术 作者正飞 讲单人同时推进 H5/后台/Node/Go 四层时，如何用 Version Contract + Execution Boundary + Evidence Gate + Repair Loop 把 AI 输出固化为可被评审的交付链；核心反直觉判断：AI 提速越快，越需要把工程判断从 Prompt 里搬出去。"
+  },
+  {
+    "slug": "2026-09-15-ai-coding-context-management",
+    "title": "AI 编码真正的瓶颈：上下文管理失效 — 读《Claude Code + OpenSpec》",
+    "date": "2026-09-15",
+    "tags": [
+      "上下文工程",
+      "Claude Code",
+      "OpenSpec",
+      "SDD规格驱动",
+      "MCP",
+      "Auto Memory"
+    ],
+    "summary": "得物技术（作者后羿）深度解构 AI 编码真正的瓶颈是上下文管理（不是模型能力）：DORA 报告显示 AI 采用率 +25% 反而交付稳定性下降 7.2%；GPT-4o 在 1K Token 99.3% 准确率 vs 32K Token 69.7%；Claude Code 终端原生代理循环 + MCP 按需加载 + CLAUDE.md + Auto Memory；OpenSpec SDD 规格驱动开发（提案/应用/归档三阶段），CC + OpenSpec 实战重构优惠券结算逻辑。"
+  },
+  {
+    "slug": "2026-09-15-ai-agent-api-security-audit",
+    "title": "AI Agent 做安全审计不是替代人工：通用 Agent + 业务 Skill 的人机协同",
+    "date": "2026-09-15",
+    "tags": [
+      "AI Agent",
+      "安全审计",
+      "Skill 设计",
+      "MCP",
+      "Token 优化"
+    ],
+    "summary": "这篇不讲\"AI 自动审漏洞\"，讲怎么用通用 Agent（Claude Code / OpenCode）做底座，把业务逻辑（漏洞模式、检测流程、报告模板）封装在 Skill 里，实现 100% 路由覆盖 + 分钟级响应。同时把 Token 消耗降低 95%——MCP 改 CLI、Early-Exit、YAML 返回格式。"
+  },
+  {
+    "slug": "2026-09-15-agent-skills-progressive-disclosure",
+    "title": "Agent Skills 设计：渐进披露让 Claude 按需加载专业能力的 5 个工程模式",
+    "date": "2026-09-15",
+    "tags": [
+      "Claude",
+      "AI 工程",
+      "Agent",
+      "Skills"
+    ],
+    "summary": "把 Anthropic Agent Skills 工程文章拆成 5 个工程模式：渐进披露三档（name/description → SKILL.md → 附加文件）、Skills + Code Execution 的组合、PDF skill 实战拆解、4 条 Skill 开发原则（eval-driven / structure for scale / Claude 视角 / iterate with Claude）、Skill 安全审计。配目录结构 + 面试可讲的设计取舍。"
+  },
+  {
+    "slug": "2026-09-15-agent-sidekick-bounded-responsibilities",
+    "title": "monday.com Sidekick：为什么\"加更多 tool\"反而让 Agent 更差——5 层架构 + Tool/Subagent/Sandbox 决策树",
+    "date": "2026-09-15",
+    "tags": [
+      "Agent",
+      "Sidekick",
+      "多 Agent",
+      "工程教训",
+      "工程实践"
+    ],
+    "summary": "monday.com Sidekick 从单 Agent + N tools 起步，在生产里发现\"加 tool 反而让 Agent 更差\"——5 个具体失败模式。重构成 5 层架构（context/permission → orchestrator → subagents → tools → sandbox），并给出 tool vs subagent vs sandbox 的决策树。附完整简历项目骨架。"
+  },
+  {
+    "slug": "2026-09-15-agent-paid-media-workspace-five-lessons",
+    "title": "LangChain 自己的 Paid Media Agent：把 Agent 当新员工，给电脑、配任务、用代码代替推理",
+    "date": "2026-09-15",
+    "tags": [
+      "Agent",
+      "LangChain",
+      "Deep Agents",
+      "工程实践"
+    ],
+    "summary": "LangChain 内部 6 个月把付费投放占比从 0 拉到 20%，CPL 降 30%，分析报告从 18 分钟 / $3 降到 85 秒 / 1/40 成本。核心思想：把 Agent 当知识工作者——给沙箱 + 软件 + 业务 wiki；用代码做确定性计算，让模型只做判断；子 Agent 隔离 context 但隔离不止是 context。"
+  },
+  {
+    "slug": "2026-09-15-advanced-tool-use-three-features",
+    "title": "高级 Tool Use 三大特性：Tool Search、Programmatic Calling、Tool Examples 的 5 个工程模式",
+    "date": "2026-09-15",
+    "tags": [
+      "Claude",
+      "AI 工程",
+      "Tool Use",
+      "MCP"
+    ],
+    "summary": "把 Anthropic Advanced Tool Use 工程文章拆成 5 个工程模式：Tool Search Tool 让 Claude 按需加载（节省 85% token，accuracy 从 49% → 74%）、Programmatic Tool Calling 让代码代替推理做编排（token 降 37%、accuracy 提升 5 个百分点）、Tool Use Examples 替代 schema 模糊（accuracy 从 72% → 90%）。每个模式给定位 + 代码 + 落地边界。"
+  },
+  {
+    "slug": "2026-09-14-vector-rag-retires",
+    "title": "向量 RAG 退场，Agent 多轮检索接班",
+    "date": "2026-09-14",
+    "tags": [
+      "Agent",
+      "RAG",
+      "向量检索",
+      "PostgreSQL",
+      "读文笔记"
+    ],
+    "summary": "冯若航没宣布 RAG 死亡，他把\"作为架构的 RAG\"和\"作为算子的向量召回\"切开了——前者退场，后者降级。最硬的证据是 Claude Code 选了 grep 加 glob，资本选了 PG 而非向量库。文章把这个判断往前推一步：MCP 让检索从流水线变成随手可调的工具，这才是 RAG 退场的真正推手，不是窗口变大。"
+  },
+  {
+    "slug": "2026-09-14-token-not-real-bottleneck",
+    "title": "Token 不是真瓶颈，深度工程才是窗口",
+    "date": "2026-09-14",
+    "tags": [
+      "AI 教育",
+      "读文笔记",
+      "工程成长"
+    ],
+    "summary": "冯若航把蒋炎岩\"没 Token 就退学\"的截图升格成\"Token 是新实验耗材、ladder 被 AI 整把抽掉\"的时代判断。认同 ladder 变形与作品集趋势，但 push back 三处：真稀缺的不是 Token 钱，是带场景的训练；ladder 没消失，是变形了；给 average 的人留的窗口在 AI 啃不动的深度工程，不在\"开十个订阅\"。"
+  },
+  {
+    "slug": "2026-09-14-ten-years-after-ai",
+    "title": "十年之后",
+    "date": "2026-09-14",
+    "tags": [
+      "AI",
+      "未来",
+      "随笔"
+    ],
+    "summary": "从 2036 年往回看——AI 时代的真正变化不在能力跃迁，而在社会吸收的速度。我们 2026 年关于 Agent、白领失业、AGI 的预测，几乎全错了。错的部分比对的部分更值得讲。"
+  },
+  {
+    "slug": "2026-09-14-scale-yourself-not-subscription",
+    "title": "蹬掉 10 个订阅不难，难的是把自己 scale 起来",
+    "date": "2026-09-14",
+    "tags": [
+      "AI",
+      "Codex",
+      "Agent",
+      "自动化",
+      "复利",
+      "读文笔记"
+    ],
+    "summary": "冯若航把\"如何凑齐 10 个 200 美元 Codex 订阅\"拆成两层：买得到是技术活，蹬得完是体系活。订阅费从来不是瓶颈，能持续堆出可被 AI 自动化的手工活、搭出能自己运转的复利体系、把验收范式从细节转向宏观——这才是真正的稀缺资源。"
+  },
+  {
+    "slug": "2026-09-14-docs-over-code-ai-engineering",
+    "title": "文档驱动：AI 工程的护城河不在代码，在文档",
+    "date": "2026-09-14",
+    "tags": [
+      "Agent",
+      "AI 工程",
+      "文档驱动"
+    ],
+    "summary": "冯若航把 AI 软件工程的四条核心做法中的第一条——文档驱动——从\"代码的补充\"重定位为\"代码的输入、工作记忆与验收凭据\"。认同文档前置的方向，但 push back 两条：70-80% Token 用于 QC 的比例被简化、\"每个 Issue 一份设计文档\"的边界没说清；并扩展到 MCP/schema/ADR 这条隐线。"
+  },
+  {
+    "slug": "2026-09-14-agi-machinegun-acceptance-scarce",
+    "title": "AGI 机关枪发下来了，可谁来验收",
+    "date": "2026-09-14",
+    "tags": [
+      "AI",
+      "Agent",
+      "读文笔记",
+      "工程判断"
+    ],
+    "summary": "老冯把\"AGI 机关枪\"叙事推到极致，但最锋利的不是\"门外汉也能烧\"，而是\"代码无限、信任不无限\"和 80/20 法则——稀缺的是 selection（知道什么值得做）和 acceptance（知道哪里可能有问题），不是 execution；蒋老板的\"门外汉\"其实是\"有品味的门外汉\"，这条叙事张力文章没解开。"
+  },
+  {
+    "slug": "2026-09-14-agents-third-data-egress-point",
+    "title": "Agent 是第三个数据外泄点",
+    "date": "2026-09-14",
+    "tags": [
+      "Agent",
+      "本地 AI",
+      "数据主权",
+      "MCP"
+    ],
+    "summary": "冯若航把\"本地 AI\"框定为政治账而非经济账。这篇认同他的核心论点，但把推论再往前一步：Agent 不是模型问题的延续，而是突变——它把数据外泄从\"事实\"和\"意图\"两个维度扩展到了\"动作\"，并让\"数据分级\"这条建议在工程上变得不再可行。"
+  },
+  {
+    "slug": "2026-08-31-agent-as-person-org-design",
+    "title": "把 Agent 当人：AI 组织建设的一个务实视角",
+    "date": "2026-08-31",
+    "tags": [
+      "Agent",
+      "组织设计",
+      "读文笔记"
+    ],
+    "summary": "一篇主张\"Agent 是人而非工具\"的文章，核心价值在于把 AI 组织建设从架构重构问题降级成权限模型的增量问题。但它绕开了责任归属。"
+  }
+]
