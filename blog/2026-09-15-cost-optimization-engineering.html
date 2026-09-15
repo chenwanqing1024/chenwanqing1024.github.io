@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="把
+claude-cookbooks/cost_optimization 的 1.2MB 主教程拆成 7
+个工程模式：评测基线 / prompt caching / 输入 token 管理 / agent-loop
+效率 / 输出 token 管理 / Batch API / model×effort
+ladder。每个模式给出一行定位 + 最小代码 + 工程踩坑提示，附 Pareto
+选型表与”哪类任务该用哪类杠杆”对照。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>Claude API 成本优化：从 prompt caching 到 model ladder 的 7
+个 Pareto 工程模式 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>Claude API 成本优化：从 prompt caching 到 model ladder
+的 7 个 Pareto 工程模式</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI
+工程</span> <span class="badge bg-secondary">成本优化</span> <span class="badge bg-secondary">Pareto</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://github.com/anthropics/claude-cookbooks/tree/main/cost_optimization" target="_blank" rel="noopener">claude-cookbooks
+/ cost_optimization</a> · Anthropic Applied AI Team
+            </div>
+
+<h2 id="引子">引子</h2>
+<p><code>cost_optimization/cost_optimization.ipynb</code> 是 Anthropic
+Applied AI
+团队给客户的<strong>成本审计清单</strong>——用一个真实业务场景（保险公司索赔定损
+Agent）跑完 7 个优化策略，每个策略都在 10
+条人工标注的索赔上做<strong><code>pass rate × cost per task</code></strong>的
+Pareto 比较。最终从 baseline $0.29/task → 优化后
+<strong>$0.03/task</strong>（90%
+节省），且<strong>不掉准确率</strong>。</p>
+<p>这篇文章把它拆成 7 个工程模式，按 <strong>“先看准 → 不动智能天花板 →
+改架构”</strong>
+的顺序排列——核心论点：<strong>模型降级是最后的杠杆</strong>，先用
+caching / batching / context engineering 把”花出去的
+token”压下来，最后才换便宜模型。每个模式一行定位 + 最小代码 +
+工程踩坑提示。</p>
+<hr />
+<h2 id="先看准建评测-跑-baseline">1. 先看准：建评测 + 跑 baseline</h2>
+<p><strong>一行定位</strong>：所有优化动作之前，先建一个<strong>冻结的评测集
++ 双指标（pass rate × cost）</strong>，没有这一步后面所有”省了
+30%“都是自欺欺人。</p>
+<p><strong>最小代码</strong>：</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>PRICING <span class="op">=</span> {</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;claude-opus-4-8&quot;</span>:    {<span class="st">&quot;in&quot;</span>: <span class="fl">5.00</span>, <span class="st">&quot;out&quot;</span>: <span class="fl">25.00</span>},</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;claude-sonnet-4-6&quot;</span>:  {<span class="st">&quot;in&quot;</span>: <span class="fl">2.00</span>, <span class="st">&quot;out&quot;</span>: <span class="fl">10.00</span>},</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;claude-haiku-4-5&quot;</span>:   {<span class="st">&quot;in&quot;</span>: <span class="fl">1.00</span>, <span class="st">&quot;out&quot;</span>:  <span class="fl">5.00</span>},</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> usage_cost(usage, model<span class="op">=</span>MODEL, batch<span class="op">=</span><span class="va">False</span>):</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>    p <span class="op">=</span> PRICING[model]<span class="op">;</span> m <span class="op">=</span> <span class="dv">1_000_000</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>    cc <span class="op">=</span> <span class="bu">getattr</span>(usage, <span class="st">&quot;cache_creation&quot;</span>, <span class="va">None</span>)</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>    w5m <span class="op">=</span> <span class="bu">getattr</span>(cc, <span class="st">&quot;ephemeral_5m_input_tokens&quot;</span>, <span class="dv">0</span>) <span class="kw">or</span> <span class="dv">0</span></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>    w1h <span class="op">=</span> <span class="bu">getattr</span>(cc, <span class="st">&quot;ephemeral_1h_input_tokens&quot;</span>, <span class="dv">0</span>) <span class="kw">or</span> <span class="dv">0</span></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">not</span> (w5m <span class="kw">or</span> w1h):</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>        w5m <span class="op">=</span> usage.cache_creation_input_tokens <span class="kw">or</span> <span class="dv">0</span></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>    cost <span class="op">=</span> (</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>        (usage.input_tokens <span class="kw">or</span> <span class="dv">0</span>) <span class="op">*</span> p[<span class="st">&quot;in&quot;</span>] <span class="op">/</span> m</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>        <span class="op">+</span> w5m <span class="op">*</span> p[<span class="st">&quot;in&quot;</span>] <span class="op">*</span> <span class="fl">1.25</span> <span class="op">/</span> m              <span class="co"># 5min cache 写入 × 1.25</span></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>        <span class="op">+</span> w1h <span class="op">*</span> p[<span class="st">&quot;in&quot;</span>] <span class="op">*</span> <span class="fl">2.00</span> <span class="op">/</span> m              <span class="co"># 1h  cache 写入 × 2</span></span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>        <span class="op">+</span> (usage.cache_read_input_tokens <span class="kw">or</span> <span class="dv">0</span>) <span class="op">*</span> p[<span class="st">&quot;in&quot;</span>] <span class="op">*</span> <span class="fl">0.10</span> <span class="op">/</span> m   <span class="co"># cache 读 × 0.1</span></span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>        <span class="op">+</span> (usage.output_tokens <span class="kw">or</span> <span class="dv">0</span>) <span class="op">*</span> p[<span class="st">&quot;out&quot;</span>] <span class="op">/</span> m</span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> cost <span class="op">*</span> (<span class="fl">0.5</span> <span class="cf">if</span> batch <span class="cf">else</span> <span class="fl">1.0</span>)      <span class="co"># Batch API 5 折</span></span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a><span class="co"># 评测：跑 10 条索赔，看 pass rate + cost/task + turns</span></span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a>EVAL_CLAIMS <span class="op">=</span> [...]  <span class="co"># 10 条人工标注</span></span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> run_eval(adjudicate_fn, label, trial<span class="op">=</span><span class="dv">1</span>):</span>
+<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a>    correct, total_cost, total_turns <span class="op">=</span> <span class="dv">0</span>, <span class="fl">0.0</span>, <span class="dv">0</span></span>
+<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> c <span class="kw">in</span> EVAL_CLAIMS:</span>
+<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a>        verdict, cost, n <span class="op">=</span> adjudicate_fn(c)</span>
+<span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> verdict <span class="op">==</span> c[<span class="st">&quot;expected&quot;</span>]: correct <span class="op">+=</span> <span class="dv">1</span></span>
+<span id="cb1-30"><a href="#cb1-30" aria-hidden="true" tabindex="-1"></a>        total_cost <span class="op">+=</span> cost<span class="op">;</span> total_turns <span class="op">+=</span> n</span>
+<span id="cb1-31"><a href="#cb1-31" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> {<span class="st">&quot;pass_rate&quot;</span>: correct<span class="op">/</span><span class="bu">len</span>(EVAL_CLAIMS),</span>
+<span id="cb1-32"><a href="#cb1-32" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;per_task&quot;</span>: total_cost<span class="op">/</span><span class="bu">len</span>(EVAL_CLAIMS),</span>
+<span id="cb1-33"><a href="#cb1-33" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;turns&quot;</span>: total_turns<span class="op">/</span><span class="bu">len</span>(EVAL_CLAIMS)}</span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li><strong>成本单位是”per task” 不是 “per
+token”</strong>。贵的模型如果少两轮，可能比便宜的更省钱。Cookbook 的核心
+KPI 就是 <strong>$/task</strong>，每条评估样本一个数。</li>
+<li><strong>同一配置至少跑 2 次</strong>。Agent
+输出非确定性——单次跑出来的 pass rate 误差可能 ±15%。Cookbook 全部配置跑
+2 trial 取均值。</li>
+<li><strong>建立质量基线后冻结它</strong>。后续所有优化不能低于这个 pass
+rate——<strong>优化降本是 OK 的，优化降智不是</strong>。</li>
+</ul>
+<hr />
+<h2 id="prompt-cachingauto-cache-explicit-breakpoint">2. Prompt
+Caching：auto cache → explicit breakpoint</h2>
+<p><strong>一行定位</strong>：把<strong>不变的 prefix</strong>（system
+prompt + tool schema）缓存到服务端，重复利用——首调用 1.25×
+写入，<strong>后续 5min/0.1×</strong> 读取。</p>
+<p><strong>最小代码</strong>：</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 最简单：top-level auto cache（一行启用）</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>r <span class="op">=</span> client.messages.create(</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span>MODEL, max_tokens<span class="op">=</span><span class="dv">4096</span>, system<span class="op">=</span>SYSTEM_PROMPT, tools<span class="op">=</span>TOOLS,</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    messages<span class="op">=</span>messages,</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    cache_control<span class="op">=</span>{<span class="st">&quot;type&quot;</span>: <span class="st">&quot;ephemeral&quot;</span>},   <span class="co"># 服务端自动放 breakpoint</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;cache_w=</span><span class="sc">{</span>r<span class="sc">.</span>usage<span class="sc">.</span>cache_creation_input_tokens<span class="sc">}</span><span class="ss">, &quot;</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f&quot;cache_r=</span><span class="sc">{</span>r<span class="sc">.</span>usage<span class="sc">.</span>cache_read_input_tokens<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 进阶：显式 breakpoint + 多层 prefix（不同 TTL）</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>r <span class="op">=</span> client.messages.create(</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span>MODEL, max_tokens<span class="op">=</span><span class="dv">4096</span>,</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>    system<span class="op">=</span>[</span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>        {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;text&quot;</span>, <span class="st">&quot;text&quot;</span>: POLICY_MANUAL,</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>         <span class="st">&quot;cache_control&quot;</span>: {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;ephemeral&quot;</span>, <span class="st">&quot;ttl&quot;</span>: <span class="st">&quot;1h&quot;</span>}},  <span class="co"># 长 TTL</span></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>        {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;text&quot;</span>, <span class="st">&quot;text&quot;</span>: PER_CLAIM_INTAKE},            <span class="co"># 每次不同</span></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>    ],</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>    tools<span class="op">=</span>TOOLS,</span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>    messages<span class="op">=</span>messages,</span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li><strong>byte-stable 是命中前提</strong>。<strong>timestamp / request
+id / user name 出现在 prefix 里 = 永远 0
+命中</strong>。动态内容<strong>必须移到 user turn</strong>——Cookbook
+实验：unstable → 44% 命中失败。</li>
+<li><strong>变量放前面 vs 后面差异巨大</strong>。Cookbook
+测试：动态变量在 manual 前 → 每次都 cache_write；manual 在前 →
+写一次读多次，<strong>省 54%</strong>。</li>
+<li><strong>cache_control 只能放 4 个 breakpoint</strong>。多于 4 层
+prefix 用 auto cache（一个 breakpoint 自适应滑动）。</li>
+<li><strong>TTL 选择</strong>：5min 写入 ×1.25、读取 ×0.1；1h 写入
+×2、读取 ×0.1。<strong>调用间隔 &gt;5min 用 1h</strong>，否则用
+5min（写入便宜）。</li>
+<li><strong>看 <code>cache_read_input_tokens</code> 而不是
+cost</strong>。<strong>命中率是领先指标</strong>——cost 是滞后结果。</li>
+</ul>
+<hr />
+<h2 id="输入-token-管理把大块参考挪出-prefix">3. 输入 token
+管理：把”大块参考”挪出 prefix</h2>
+<p><strong>一行定位</strong>：prefix
+里凡是”大多数情况用不到”的内容，都该用 tool / skill / files API
+推迟到真正需要时再加载——而不是预先全塞进 system。</p>
+<p><strong>三个子杠杆</strong>：</p>
+<h3 id="大文档挪到-tool-后面">3.1 大文档挪到 tool 后面</h3>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 把 11K token 的 underwriting manual 从 system 挪到 read_manual 工具</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>TOOLS <span class="op">=</span> [</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    {<span class="st">&quot;name&quot;</span>: <span class="st">&quot;read_manual&quot;</span>, <span class="st">&quot;description&quot;</span>: <span class="st">&quot;按章节读取 underwriting manual&quot;</span>,</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>     <span class="st">&quot;input_schema&quot;</span>: {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;object&quot;</span>,</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>                      <span class="st">&quot;properties&quot;</span>: {<span class="st">&quot;section&quot;</span>: {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;string&quot;</span>,</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>                                                 <span class="st">&quot;description&quot;</span>: <span class="st">&quot;章节号或关键词&quot;</span>}},</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>                      <span class="st">&quot;required&quot;</span>: [<span class="st">&quot;section&quot;</span>]}},</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>    <span class="co"># ... 其它工具</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 90% 的索赔不需要读 manual → 平均 prefix 减 11K token</span></span></code></pre></div>
+<h3 id="tool-search-把不常用工具-defer-掉">3.2 Tool search 把不常用工具
+defer 掉</h3>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 当工具 schema &gt; 10K token 时（典型 MCP server），把不常用的 defer</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>common_tools <span class="op">=</span> [t <span class="cf">for</span> t <span class="kw">in</span> TOOLS <span class="cf">if</span> t[<span class="st">&quot;name&quot;</span>] <span class="kw">in</span> {<span class="st">&quot;get_claim&quot;</span>, <span class="st">&quot;approve_claim&quot;</span>}]</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>rare_tools <span class="op">=</span> [{<span class="op">**</span>t, <span class="st">&quot;defer_loading&quot;</span>: <span class="va">True</span>} <span class="cf">for</span> t <span class="kw">in</span> TOOLS <span class="cf">if</span> t[<span class="st">&quot;name&quot;</span>] <span class="kw">not</span> <span class="kw">in</span> {<span class="st">&quot;get_claim&quot;</span>, <span class="st">&quot;approve_claim&quot;</span>}]</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>tool_search <span class="op">=</span> {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;tool_search_tool_bm25_20251119&quot;</span>, <span class="st">&quot;name&quot;</span>: <span class="st">&quot;tool_search_tool_bm25&quot;</span>}</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>r <span class="op">=</span> client.messages.create(model<span class="op">=</span>MODEL, tools<span class="op">=</span>[<span class="op">*</span>common_tools, <span class="op">*</span>rare_tools, tool_search], ...)</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Claude 先调 tool_search 找到目标工具，再调用——prefix 体积减半</span></span></code></pre></div>
+<h3 id="大文件用-files-api-code-execution">3.3 大文件用 Files API + code
+execution</h3>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 5K 行的 CSV ledger 不能直接塞 context → 上传到 Files API，挂到 code execution 沙箱</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>file_id <span class="op">=</span> client.beta.files.upload(<span class="bu">file</span><span class="op">=</span><span class="bu">open</span>(<span class="st">&quot;ledger.csv&quot;</span>, <span class="st">&quot;rb&quot;</span>)).<span class="bu">id</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>resp <span class="op">=</span> client.beta.messages.create(</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span>MODEL,</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    tools<span class="op">=</span>[{<span class="st">&quot;type&quot;</span>: <span class="st">&quot;code_execution_20250825&quot;</span>, <span class="st">&quot;name&quot;</span>: <span class="st">&quot;code_execution&quot;</span>}],</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    messages<span class="op">=</span>[{<span class="st">&quot;role&quot;</span>: <span class="st">&quot;user&quot;</span>, <span class="st">&quot;content&quot;</span>: [</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>        {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;container_upload&quot;</span>, <span class="st">&quot;file_id&quot;</span>: file_id},   <span class="co"># ← 传到沙箱</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>        {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;text&quot;</span>, <span class="st">&quot;text&quot;</span>: <span class="st">&quot;用 pandas 求 P95 payout&quot;</span>},</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>    ]}],</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a><span class="co"># 主 context 只收到 1 行答案（&quot;P95 = $4,237&quot;），不是 100K token 的 CSV</span></span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li><strong>tool 化的判断标准</strong>：内容”大 + 命中率低”。manual 全在
+prefix 里 90% 用不到 → 挪 tool；FAQ 全在 prefix 里 100% 都查 → 留
+prefix。</li>
+<li><strong>tool search 在 &lt; 10K schema 时是负担</strong>——search
+step 的开销大于节省。<strong>超过 50 个工具时再上</strong>。</li>
+<li><strong>Files API + code execution 不只是省 token</strong>——还能让
+Claude 跑 numpy / pandas 处理大数据。<strong>这是 RAG
+之外另一种”大数据接入”路径</strong>。</li>
+</ul>
+<hr />
+<h2 id="agent-loop-效率context-editing-compaction-subagent">4.
+Agent-Loop 效率：context editing / compaction / subagent</h2>
+<p><strong>一行定位</strong>：Agent 多轮对话里<strong>中间结果（tool
+output、thinking）会无限堆积</strong>——必须主动剪枝或拆 subagent，否则
+context 越长每轮 input cost 越高。</p>
+<p><strong>三个子杠杆</strong>：</p>
+<h3 id="context-editing服务端剪枝">4.1 Context
+editing（服务端剪枝）</h3>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 加 context_management.edits 让 API 自动清理过时内容</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>r <span class="op">=</span> client.beta.messages.create(</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span>MODEL, tools<span class="op">=</span>TOOLS, messages<span class="op">=</span>messages, betas<span class="op">=</span>[<span class="st">&quot;context-management-2025-06-27&quot;</span>],</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    context_management<span class="op">=</span>{</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;edits&quot;</span>: [</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>            {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;clear_tool_uses_20250919&quot;</span>},     <span class="co"># 清理旧 tool_result</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>            {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;clear_thinking_20251015&quot;</span>},      <span class="co"># 清理旧 thinking 块</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>        ]</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    },</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a><span class="co"># 服务端在 token 超过阈值时自动清——客户端零代码</span></span></code></pre></div>
+<h3 id="compaction服务端压缩">4.2 Compaction（服务端压缩）</h3>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 不想丢信息？用 compact_20260112 把旧 turns 总结成 1 段</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>r <span class="op">=</span> client.beta.messages.create(</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span>MODEL, tools<span class="op">=</span>TOOLS, messages<span class="op">=</span>messages,</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    context_management<span class="op">=</span>{</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;edits&quot;</span>: [{<span class="st">&quot;type&quot;</span>: <span class="st">&quot;compact_20260112&quot;</span>,</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>                   <span class="st">&quot;instructions&quot;</span>: <span class="st">&quot;保留所有决策结论和已获取的关键数据&quot;</span>}]</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    },</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a><span class="co"># 默认 trigger: 150K input token。适合 long-horizon agent（computer use / deep research）</span></span></code></pre></div>
+<h3 id="subagent-拆解">4.3 Subagent 拆解</h3>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 独立子任务扔给 Haiku subagent，主 agent 只拿 1 行结果</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> precedents_subagent(query):</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="cf">await</span> client.messages.create(</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>        model<span class="op">=</span><span class="st">&quot;claude-haiku-4-5&quot;</span>, max_tokens<span class="op">=</span><span class="dv">256</span>,</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>        messages<span class="op">=</span>[{<span class="st">&quot;role&quot;</span>:<span class="st">&quot;user&quot;</span>,<span class="st">&quot;content&quot;</span>:</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>                   <span class="ss">f&quot;从 precedents ledger 里找与 </span><span class="sc">{</span>query<span class="sc">}</span><span class="ss"> 最相关的 3 条，返回 1 行摘要&quot;</span>}])</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a><span class="co"># 主 agent 不需要看到 5000 行 ledger，只看到 subagent 返回的 1 行</span></span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li><strong>clear_tool_uses / clear_thinking 在 turn
+数多时触发</strong>——保留 cache（不破
+prefix），但丢中间结果。<strong>适合”决策已下、证据不必留”的场景</strong>。</li>
+<li><strong>Compaction 保留信息、删体积</strong>。比 clear
+更适合”早期决策要回看”的场景——但<strong>触发条件默认 150K
+token</strong>，短 agent 用不上。</li>
+<li><strong>Subagent 最适合”独立子任务”</strong>——一旦子任务结果要被主
+agent 用 N 轮，<strong>不如留在主 context
+里</strong>。判断标准：子任务输出是不是 1-2 行可消费。</li>
+<li><strong>Subagent 可以用便宜模型</strong>——Haiku 跑事实收集 + Sonnet
+跑判断，<strong>成本差 5× 而质量不掉</strong>。</li>
+</ul>
+<hr />
+<h2 id="输出-token-管理max_tokens-prompt-stop-sequence">5. 输出 token
+管理：max_tokens / prompt / stop sequence</h2>
+<p><strong>一行定位</strong>：<strong>输出比输入贵 5×</strong>（Opus
+5/25 定价）——给模型更紧的生成约束，平均能省 30-50% 输出 token。</p>
+<p><strong>三个子杠杆</strong>：</p>
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. max_tokens：硬天花板（兜底用）</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>r <span class="op">=</span> client.messages.create(model<span class="op">=</span>MODEL, max_tokens<span class="op">=</span><span class="dv">1024</span>, messages<span class="op">=</span>...)</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="co"># ⚠️ hit ceiling 时 stop_reason=&quot;max_tokens&quot;——是兜底，不是日常调优工具</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. prompt 约束输出形状（最划算）</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>prompt_specific <span class="op">=</span> <span class="st">&quot;&quot;&quot;用恰好 3 句话总结这篇文章：</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="st">1. 第 1 句：核心方法</span></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a><span class="st">2. 第 2 句：实验结果</span></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a><span class="st">3. 第 3 句：局限性&quot;&quot;&quot;</span></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. stop sequence：内容感知截断</span></span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>r <span class="op">=</span> client.messages.create(</span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span>MODEL, max_tokens<span class="op">=</span><span class="dv">2048</span>,</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>    stop_sequences<span class="op">=</span>[<span class="st">&quot;&lt;CANNOT_REVIEW&gt;&quot;</span>, <span class="st">&quot;###END###&quot;</span>],</span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>    messages<span class="op">=</span>[{<span class="st">&quot;role&quot;</span>:<span class="st">&quot;user&quot;</span>,<span class="st">&quot;content&quot;</span>:</span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>               <span class="st">&quot;如果无法处理就立刻输出 &lt;CANNOT_REVIEW&gt;，否则正常回答&quot;</span>}]</span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a><span class="co"># 模型进入死胡同时不会被&quot;我想我需要更深入思考...&quot;这类话烧 token</span></span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li><strong><code>max_tokens</code>
+是兜底</strong>。设太大浪费，太小截断——Cookbook 推荐”略大于正常响应 +
+头空间”。</li>
+<li><strong>prompt 形状比 stop sequence 重要</strong>。“请用 100 字以内”
++ JSON schema 模板，平均节省 40% 输出 token。</li>
+<li><strong>stop sequence 适合”失败模式已知”</strong>——例如”无法处理 →
+输出 sentinel”，避免模型”试图解释失败”烧掉几千 token。</li>
+<li><strong>thinking 块是另一种输出</strong>——extended_thinking 开启时
+thinking token 也算 output。<strong>预算控制 = thinking
+budget</strong>（见 <a
+href="blog/posts/2026-09-15-extended-thinking-engineering.md">Extended
+Thinking 3 模式</a>）。</li>
+</ul>
+<hr />
+<h2 id="batch-api异步--50">6. Batch API：异步 -50%</h2>
+<p><strong>一行定位</strong>：把所有<strong>非交互、24h 内完成都
+OK</strong> 的请求扔进 batch 队列——<strong>token 单价直接 5
+折</strong>，且能叠 caching。</p>
+<p><strong>最小代码</strong>：</p>
+<div class="sourceCode" id="cb10"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 提交 batch（异步，1h 内返回）</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>batch <span class="op">=</span> client.messages.batches.create(</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    requests<span class="op">=</span>[</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>        {<span class="st">&quot;custom_id&quot;</span>: <span class="ss">f&quot;triage-</span><span class="sc">{</span>cid<span class="sc">}</span><span class="ss">&quot;</span>,</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>         <span class="st">&quot;params&quot;</span>: {<span class="st">&quot;model&quot;</span>: MODEL, <span class="st">&quot;max_tokens&quot;</span>: <span class="dv">512</span>,</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>                    <span class="st">&quot;messages&quot;</span>: [{<span class="st">&quot;role&quot;</span>:<span class="st">&quot;user&quot;</span>,<span class="st">&quot;content&quot;</span>: <span class="ss">f&quot;triage this claim: </span><span class="sc">{</span>claim<span class="sc">}</span><span class="ss">&quot;</span>}]}}</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> cid, claim <span class="kw">in</span> claims.items()</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>    ]</span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a><span class="co"># batch 自动 50% 折扣，与 cache_read × 0.1 叠加 → 实际 ≈ 2 折</span></span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a><span class="co"># 轮询结果</span></span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>results <span class="op">=</span> client.messages.batches.retrieve(batch.<span class="bu">id</span>)</span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> r <span class="kw">in</span> results.results:</span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(r.custom_id, r.result.message.content[<span class="dv">0</span>].text)</span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li><strong>batch 是 single-shot（不支持多轮 tool
+loop）</strong>。<strong>只能用于”无工具调用”的单轮请求</strong>——分类、抽取、批量生成。</li>
+<li><strong>典型用途</strong>：夜间跑评测、批量数据标注、离线报表生成、回归测试集跑分。</li>
+<li><strong>batch 与 caching 不冲突</strong>——batch 里 cache_read 仍是
+×0.1，叠 0.5 batch 折扣 = 实际 5% 输入价。</li>
+<li><strong>不要把 latency-critical 任务放 batch</strong>——batch 不保证
+SLA，可能 24h 跑完也可能 1h 跑完。</li>
+</ul>
+<hr />
+<h2 id="模型选型与-effort-ladder最后才动">7. 模型选型与 effort
+ladder：最后才动</h2>
+<p><strong>一行定位</strong>：在前面 6
+步全做完后，才考虑<strong>降模型档</strong>或<strong>降
+effort</strong>——这是”动智能天花板”的杠杆，留到最后。</p>
+<p><strong>最小代码（model + effort ladder）</strong>：</p>
+<div class="sourceCode" id="cb11"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>LADDER <span class="op">=</span> [</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    (<span class="st">&quot;opus · effort=high&quot;</span>,   OPUS,   <span class="st">&quot;high&quot;</span>),</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    (<span class="st">&quot;opus · effort=medium&quot;</span>, OPUS,   <span class="st">&quot;medium&quot;</span>),</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    (<span class="st">&quot;opus · effort=low&quot;</span>,    OPUS,   <span class="st">&quot;low&quot;</span>),</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>    (<span class="st">&quot;sonnet · effort=high&quot;</span>, SONNET, <span class="st">&quot;high&quot;</span>),</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>    (<span class="st">&quot;sonnet · effort=medium&quot;</span>, SONNET, <span class="st">&quot;medium&quot;</span>),</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>    (<span class="st">&quot;sonnet · effort=low&quot;</span>,  SONNET, <span class="st">&quot;low&quot;</span>),</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>    (<span class="st">&quot;haiku&quot;</span>,                HAIKU,  <span class="va">None</span>),     <span class="co"># Haiku 不支持 effort</span></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> label, model, effort <span class="kw">in</span> LADDER:</span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a>    trials <span class="op">=</span> []</span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> trial <span class="kw">in</span> (<span class="dv">1</span>, <span class="dv">2</span>):                        <span class="co"># 跑 2 次取均值（去随机性）</span></span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a>        run_eval(partial(adjudicate, model<span class="op">=</span>model, effort<span class="op">=</span>effort, cache<span class="op">=</span><span class="va">True</span>),</span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a>                 label, quiet<span class="op">=</span><span class="va">True</span>, trial<span class="op">=</span>trial)</span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a>        trials.append(<span class="bu">dict</span>(run_eval.last))</span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a>    LADDER_RESULTS.append((label, trials))</span>
+<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a><span class="co"># 画 Pareto frontier：横轴 $/10k tasks，纵轴 pass rate</span></span>
+<span id="cb11-19"><a href="#cb11-19" aria-hidden="true" tabindex="-1"></a><span class="co"># &quot;每档 cost 提升都带来 pass rate 提升&quot;才上 frontier，否则跳过</span></span></code></pre></div>
+<p><strong>进阶：Advisor tool——便宜的 driver + 贵的顾问</strong>：</p>
+<div class="sourceCode" id="cb12"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Sonnet 当 driver，遇到难的请 Opus 当顾问</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>advisor <span class="op">=</span> {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;advisor_20260301&quot;</span>, <span class="st">&quot;name&quot;</span>: <span class="st">&quot;advisor&quot;</span>, <span class="st">&quot;model&quot;</span>: OPUS}</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>r <span class="op">=</span> client.beta.messages.create(</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span>SONNET, effort<span class="op">=</span><span class="st">&quot;low&quot;</span>,            <span class="co"># driver 用便宜 + 低 effort</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>    tools<span class="op">=</span>TOOLS <span class="op">+</span> [advisor],               <span class="co"># 多一个 advisor 工具</span></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>    messages<span class="op">=</span>messages,</span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>    betas<span class="op">=</span>[<span class="st">&quot;advisor-tool-2026-03-01&quot;</span>],</span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Sonnet Low + Opus advisor ≈ Sonnet Medium 的质量，但 cost 低一档</span></span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li><strong><code>effort</code> 比换模型便宜</strong>。Opus-low 比
+Sonnet-high <strong>便宜 60%</strong>，而 Sonnet-high
+通常不需要——<strong>先降 effort、再降模型</strong>。</li>
+<li><strong>Haiku 不支持 effort</strong>。但 Haiku + Opus advisor
+通常能挽回 Haiku 单独的 60% pass rate →
+85%+。<strong>适合”大多数简单、少数复杂”的 spiky
+workload</strong>。</li>
+<li><strong>Advisor 的 gating signal 要设计好</strong>。如果让 driver
+自己判断”该不该问”——那 driver 没智能判断。<strong>给一个明确的
+threshold</strong>（如”payout &gt; $10K → 必问”、“fraud score ≥ 5 →
+必问”）。</li>
+<li><strong>模型分解 vs advisor</strong>：模型分解是”拆任务，每个 task
+用合适的模型”（每个 subagent 各自独立 context）；advisor 是”一个 driver
+全程跑，难的步骤再 call
+advisor”。<strong>前者更便宜、后者更易接入</strong>。</li>
+<li><strong>降模型失败的标志是”漏判”</strong>。pass rate 掉 ≥5%
+就<strong>回退一档</strong>——质量回退的成本远高于省下的 token。</li>
+</ul>
+<hr />
+<h2 id="pareto-选型表哪个杠杆对哪类任务有效">Pareto
+选型表：哪个杠杆对哪类任务有效</h2>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>你的痛点</th>
+<th>优先杠杆</th>
+<th>跳过条件</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>同样的 prefix 重复计费</strong></td>
+<td>Prompt caching（auto → explicit）</td>
+<td>Prefix 每次都变（动态内容混进 system）</td>
+</tr>
+<tr class="even">
+<td><strong>大参考文档在每个 prompt 里</strong></td>
+<td>挪到 tool / Files API</td>
+<td>每个 call 都要查大部分文档</td>
+</tr>
+<tr class="odd">
+<td><strong>tool schema 超过 10K token</strong></td>
+<td>Tool search <code>defer_loading</code></td>
+<td>工具数 &lt; 50</td>
+</tr>
+<tr class="even">
+<td><strong>大文件 / 图片 / PDF 占用 context</strong></td>
+<td>Files API + code execution</td>
+<td>不需要 extract / compute</td>
+</tr>
+<tr class="odd">
+<td><strong>Agent 多轮 context 不断膨胀</strong></td>
+<td>Context editing → compaction → subagent</td>
+<td>单轮或短 agent</td>
+</tr>
+<tr class="even">
+<td><strong>输出太长 / 不稳定</strong></td>
+<td>prompt 约束 + stop sequence + <code>max_tokens</code> 兜底</td>
+<td>输出本身必须详尽</td>
+</tr>
+<tr class="odd">
+<td><strong>离线 / 异步 / 非实时</strong></td>
+<td>Batch API（5 折）</td>
+<td>任何 latency-critical</td>
+</tr>
+<tr class="even">
+<td><strong>前面全做了还想再省</strong></td>
+<td>effort ladder → model ladder → advisor tool</td>
+<td>已经是 baseline pass rate</td>
+</tr>
+</tbody>
+</table>
+<h2 id="落地清单">落地清单</h2>
+<table>
+<thead>
+<tr class="header">
+<th>阶段</th>
+<th>动作</th>
+<th>预期节省</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>上线前</td>
+<td>#1 建评测 + 跑 baseline</td>
+<td>量化起点</td>
+</tr>
+<tr class="even">
+<td>上线 1 周内</td>
+<td>#2 prompt caching（auto cache）</td>
+<td>30-50% input</td>
+</tr>
+<tr class="odd">
+<td>1 个月</td>
+<td>#3 输入 token 管理（大 doc / 工具 defer）</td>
+<td>20-40% input</td>
+</tr>
+<tr class="even">
+<td>3 个月</td>
+<td>#4 agent-loop 效率（context 编辑）</td>
+<td>30-50% 总成本</td>
+</tr>
+<tr class="odd">
+<td>6 个月</td>
+<td>#5 输出 token 管理（prompt 约束）</td>
+<td>20-30% output</td>
+</tr>
+<tr class="even">
+<td>长期</td>
+<td>#6 Batch API + #7 模型/ effort ladder</td>
+<td>综合 50-90%</td>
+</tr>
+</tbody>
+</table>
+<h2 id="与其它模式的关系">与其它模式的关系</h2>
+<ul>
+<li><strong>Prompt Caching 是 token_use 必备</strong>：参考 <a
+href="blog/posts/2026-09-15-tool-use-engineering-patterns.md">Tool Use 7
+模式</a> #2 提到 “system + tools 可缓存”——本文是 caching
+的深度实操。</li>
+<li><strong>Files API + code execution 与 Skills 重叠</strong>：<a
+href="blog/posts/2026-09-15-claude-skills-engineering.md">Skills 6
+模式</a> 给”专家包”，本文给”大数据 +
+计算”——<strong>两者都把大体积内容移出主 context</strong>。</li>
+<li><strong>Subagent 与 patterns/agents 直接相关</strong>：<a
+href="blog/posts/2026-09-15-patterns-agents-engineering.md">patterns/agents
+6 模式</a> #6 async multi-agent 给”subagent 生命周期管理”，本文 §4.3
+是”subagent 用于成本”。</li>
+<li><strong>Extended Thinking 与 effort</strong>：本文 #7 的
+<code>effort</code> 参数与 <a
+href="blog/posts/2026-09-15-extended-thinking-engineering.md">extended_thinking</a>
+的 <code>budget_tokens</code> <strong>正交</strong>——effort
+控制”想多久”，thinking 块大小是它的实现机制。</li>
+<li><strong>RAG 的 chunking 决策 = 成本决策</strong>：<a
+href="blog/posts/2026-09-15-rag-engineering-patterns.md">RAG 5 模式</a>
+#1 提到 chunk_size 影响 recall &amp; cost——chunk 越小、context
+越短、单次 cost 越低，但召回率下降。</li>
+</ul>
+<p>参考资料：</p>
+<ul>
+<li><a
+href="https://github.com/anthropics/claude-cookbooks/tree/main/cost_optimization">claude-cookbooks/cost_optimization</a></li>
+<li><a
+href="https://docs.claude.com/en/docs/build-with-claude/prompt-caching">Prompt
+Caching 官方文档</a></li>
+<li><a
+href="https://docs.claude.com/en/docs/build-with-claude/context-editing">Context
+Editing 官方文档</a></li>
+<li><a
+href="https://docs.claude.com/en/docs/build-with-claude/compaction">Compaction
+官方文档</a></li>
+<li><a
+href="https://docs.claude.com/en/docs/build-with-claude/batch-processing">Batch
+API 官方文档</a></li>
+<li><a
+href="https://docs.claude.com/en/docs/agents-and-tools/tool-use/tool-search-tool">Tool
+Search Tool 官方文档</a></li>
+<li>配套阅读：<a
+href="blog/posts/2026-09-15-tool-use-engineering-patterns.md">Tool Use 7
+模式</a>、<a
+href="blog/posts/2026-09-15-patterns-agents-engineering.md">Agent 6
+模式</a></li>
+</ul>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>

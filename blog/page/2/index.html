@@ -69,6 +69,11 @@
                     <p class="mb-1">把 claude-cookbooks/extended_thinking 的 2 个 notebook 拆成 3 个工程模式：基础启用与 budget 调参 / thinking 与 tool_use 交错 / signature 续接与 streaming。每条给最小代码 + 工程踩坑提示，对齐 anthropic-sdk-python 当前接口。</p>
                 </div>
                 <div class="mb-4">
+                    <h5 class="mb-1"><a href="2026-09-15-cost-optimization-engineering.html">Claude API 成本优化：从 prompt caching 到 model ladder 的 7 个 Pareto 工程模式</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">成本优化</span> <span class="badge bg-secondary">Pareto</span> </small></p>
+                    <p class="mb-1">把 claude-cookbooks/cost_optimization 的 1.2MB 主教程拆成 7 个工程模式：评测基线 / prompt caching / 输入 token 管理 / agent-loop 效率 / 输出 token 管理 / Batch API / model×effort ladder。每个模式给出一行定位 + 最小代码 + 工程踩坑提示，附 Pareto 选型表与&quot;哪类任务该用哪类杠杆&quot;对照。</p>
+                </div>
+                <div class="mb-4">
                     <h5 class="mb-1"><a href="2026-09-15-claude-skills-engineering.html">Claude Skills 实战：让 Claude 生成 Excel / PPT / PDF 的 6 个工程模式</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
                     <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">Skills</span> <span class="badge bg-secondary">Agent</span> </small></p>
                     <p class="mb-1">把 claude-cookbooks/skills 的 3 个 notebook + 3 个 custom skill 提炼成 6 个工程模式：内置 Skill 调用 / Container+Code Execution / Files API 下载 / Custom Skill 编写 / 渐进式加载 / 多 Skill 组合。每个模式一行定位 + 最小代码 + 工程踩坑提示。</p>
@@ -82,11 +87,6 @@
                     <h5 class="mb-1"><a href="2026-09-15-claude-agent-sdk-engineering.html">Claude Agent SDK 实战：从 One-Liner 到 K8s 部署的 5 个工程模式</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
                     <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">Agent SDK</span> <span class="badge bg-secondary">MCP</span> </small></p>
                     <p class="mb-1">把 claude-cookbooks/claude_agent_sdk 目录的 9 个 notebook 提炼成 5 个工程模式：最小上手 / 生产治理 / MCP 集成 / 多 tier 部署 / 动态工作流规模化，每个模式给出一行定位 + 最小代码 + 工程踩坑提示。</p>
-                </div>
-                <div class="mb-4">
-                    <h5 class="mb-1"><a href="2026-09-14-vector-rag-retires.html">向量 RAG 退场，Agent 多轮检索接班</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
-                    <p class="text-muted mb-1"><small>2026-09-14 <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">RAG</span> <span class="badge bg-secondary">向量检索</span> <span class="badge bg-secondary">PostgreSQL</span> <span class="badge bg-secondary">读文笔记</span> </small></p>
-                    <p class="mb-1">冯若航没宣布 RAG 死亡，他把&quot;作为架构的 RAG&quot;和&quot;作为算子的向量召回&quot;切开了——前者退场，后者降级。最硬的证据是 Claude Code 选了 grep 加 glob，资本选了 PG 而非向量库。文章把这个判断往前推一步：MCP 让检索从流水线变成随手可调的工具，这才是 RAG 退场的真正推手，不是窗口变大。</p>
                 </div>
             </div>
         </div>
