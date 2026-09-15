@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Klarna AI Assistant 用 LangGraph +
+LangSmith 服务 85M 月活用户，70% 重复任务自动化、解决时间 -80%、效果等同
+700 个全职员工。3 个早期 multi-agent 决策：controllable
+routing、context-aware dynamic prompt、test-driven prompt
+iteration。LangChain 因此设计了 meta-prompting。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>Klarna AI Assistant：85M 用户、70% 自动化、80% 解决提速——3
+个早期 multi-agent 工程决策 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>Klarna AI Assistant：85M 用户、70% 自动化、80%
+解决提速——3 个早期 multi-agent 工程决策</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">Klarna</span> <span class="badge bg-secondary">LangGraph</span> <span class="badge bg-secondary">早期
+multi-agent</span> <span class="badge bg-secondary">工程实践</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://www.langchain.com/blog/customers-klarna" target="_blank" rel="noopener">How
+Klarna’s AI assistant redefined customer support at scale for 85 million
+active users</a> · LangChain Team
+            </div>
+
+<h2 id="引子">引子</h2>
+<p>Klarna AI Assistant 服务 <strong>85 million 月活用户、250
+万日交易</strong>——把 <strong>70%
+重复支持任务自动化</strong>、<strong>解决时间 -80%</strong>、效果等同
+<strong>700 个全职客服</strong>。这是 LangChain
+生态<strong>最早一批大规模 multi-agent 生产案例</strong>之一（2025 年 2
+月）。</p>
+<p>面试讲 CX Agent / 早期 multi-agent 演进 / 客服 Agent，这篇文章给的 3
+个工程决策都是教科书级别。</p>
+<hr />
+<h2 id="决策-1controllable-agent-routing延迟可靠性成本三赢">决策
+1：Controllable agent routing——延迟、可靠性、成本三赢</h2>
+<p>Klarna 用 <strong>LangGraph</strong> 搭 multi-agent
+系统，<strong>路由可控</strong>（controllable routing）：</p>
+<ul>
+<li>不同任务走不同 path（payment / refund / escalation）</li>
+<li>Routing 决策可解释、可追溯、可优化</li>
+<li><strong>降低 latency</strong>（不像 single-agent loop 那样乱试
+tool）</li>
+<li><strong>提升 reliability</strong>（路由错了能明确知道哪一步错）</li>
+<li><strong>降低 operational cost</strong>（少了重复 tool call）</li>
+</ul>
+<p><strong>早期 multi-agent 的核心原则</strong>：</p>
+<blockquote>
+<p>“<strong>Don’t let one agent do everything. Make routing
+deterministic and observable.</strong>”</p>
+</blockquote>
+<p><strong>面试可讲角度</strong>：这是 <em>controlled dispatch</em>
+的工程化。<strong>Multi-agent
+的价值不只是”分工”，是”路由可控”</strong>——路由错了立刻知道哪步错，单
+agent loop 错了要在 trace 里找半天。</p>
+<hr />
+<h2 id="决策-2context-aware-dynamic-prompt按场景调-prompt">决策
+2：Context-aware dynamic prompt——按场景调 prompt</h2>
+<p>Klarna 用 <strong>dynamic prompt tailoring</strong>（按场景调
+prompt）：</p>
+<ul>
+<li>不是一套 prompt 打天下</li>
+<li>按 task type / user state / historical context 调 prompt</li>
+<li><strong>Token cost 下降、latency 下降、relevance 上升</strong></li>
+</ul>
+<p><strong>核心模式</strong>：</p>
+<pre><code>[User request + context]
+       ↓
+[Task classifier]
+       ↓
+[Select prompt template for this task type]
+       ↓
+[Inject context (user history / state)]
+       ↓
+[LLM call]</code></pre>
+<p><strong>面试可讲角度</strong>：这是 <em>prompt engineering as
+code</em> 的早期形态。<strong>Prompt 不该是 string literal——该是
+templated + parameterized + context-aware</strong>。<strong>同一个 Agent
+在不同场景下应该用不同 prompt</strong>，<strong>不是把所有指令塞一个
+prompt</strong>。</p>
+<p><strong>对比</strong>：和 Paid Media Agent 的 5 层 context
+分层、Sunday Sidekick 的 layered architecture
+是同一思想——<strong>不要把所有上下文塞一个 prompt</strong>。</p>
+<hr />
+<h2 id="决策-3test-driven-prompt-iteration把-prompt-当代码迭代">决策
+3：Test-driven prompt iteration——把 prompt 当代码迭代</h2>
+<p>Klarna 用 <strong>LangSmith</strong> 做 test-driven prompt
+development：</p>
+<ol type="1">
+<li><strong>记录每一步行为</strong>——step-by-step trace（不是只有
+input/output）</li>
+<li><strong>抓 critical use cases</strong>——高频 / 高风险场景</li>
+<li><strong>LLM-as-judge 评分</strong>——自动 eval</li>
+<li><strong>Prompt 迭代</strong>——基于 eval 结果改 prompt</li>
+<li><strong>回归测试</strong>——每次 prompt 改动跑同一组 scenario</li>
+</ol>
+<p><strong>关键工程</strong>：</p>
+<blockquote>
+<p>“Leveraging LangSmith, Klarna rigorously tested critical use cases
+for their AI assistant, then validated and refined agent performance
+with <strong>LLM evaluations</strong> and prompt iteration.”</p>
+</blockquote>
+<p><strong>这一步直接催生了 LangSmith 的 meta-prompting
+功能</strong>：</p>
+<blockquote>
+<p>“Klarna helped inspire and design advanced capabilities like
+<strong>meta-prompting</strong>. Meta-prompting allows users to suggest
+specific improvements to the prompts, by prompting them and seeing how
+the optimized prompt impacted response quality.”</p>
+</blockquote>
+<p><strong>面试可讲角度</strong>：这是 <em>prompt as code</em>
+的早期成熟形态。<strong>Prompt 改动要像代码改动一样有 test、有 eval、有
+regression</strong>。<strong>LangSmith 的 meta-prompting 能力直接来自
+Klarna 的工程实践</strong>——开源工具的核心能力往往来自真实生产反馈。</p>
+<hr />
+<h2 id="成果数字直接抄到简历">成果数字（直接抄到简历）</h2>
+<pre><code>70%      重复支持任务自动化
+80% ↓    平均解决时间下降
+= 700 FTE 等效人力
+2.5M     已处理对话数
+85M      月活用户</code></pre>
+<hr />
+<h2
+id="简历可直接借用的项目骨架客服-cx-agent-类">简历可直接借用的项目骨架（客服
+/ CX Agent 类）</h2>
+<pre><code>项目名：[公司名] AI 客服 / CX Agent 平台
+
+角色：核心工程师 / AI Lead
+
+3 个关键工程决策：
+1. Controllable multi-agent routing：每个 task type 独立 path，路由可解释
+2. Context-aware dynamic prompt：按场景调 prompt，token cost + latency 双降
+3. Test-driven prompt iteration：trace + LLM-as-judge + regression test 三件套
+
+工具栈：
+- LangGraph（controllable state machine）
+- LangSmith（trace + eval + dataset）
+
+成果（量化）：
+- 自动化率：[A]% 重复任务
+- 解决时间：[X]% ↓
+- 等效人力：[N] FTE
+- 覆盖用户：[M] 月活</code></pre>
+<p><strong>面试常被问到的延伸问题</strong>： - “Multi-agent routing
+怎么设计？” → <strong>task classifier 先决定走哪条 path</strong>——path
+可观察、可优化、可 debug - “Prompt 怎么管理？” → <strong>prompt template
+按场景分类 + versioned + parameterized</strong>——不要一个 string literal
+打天下 - “Prompt 改动怎么知道没退化？” → <strong>eval dataset +
+LLM-as-judge + regression test</strong>——每次改动跑同一组 scenario -
+“LangSmith 怎么帮上忙？” → <strong>trace 让 routing
+错误可定位</strong>，eval 让 prompt 改动可量化</p>
+<hr />
+<h2 id="配套阅读">配套阅读</h2>
+<ul>
+<li><strong>同主题更新版</strong>：<a
+href="blog/posts/2026-09-15-cx-agents-five-patterns-production.md">CX
+Agents Lyft / Vodafone / LATAM</a> — 2026 年最新的 CX Agent 演进</li>
+<li><strong>架构演进</strong>：<a
+href="blog/posts/2026-09-15-agent-sidekick-bounded-responsibilities.md">Sidekick</a>
+— 单 Agent → 多层架构的演进路径</li>
+<li><strong>底层框架</strong>：<a
+href="blog/posts/2026-09-15-langgraph-three-years-patterns.md">3 Years
+of Graph Engineering with LangGraph</a> — LangGraph 的设计哲学</li>
+</ul>
+<p>参考资料：</p>
+<ul>
+<li><a href="https://www.langchain.com/blog/customers-klarna">Klarna AI
+Assistant</a> — LangChain Team</li>
+<li><a href="https://www.langchain.com/langgraph">LangGraph</a></li>
+<li><a href="https://www.langchain.com/langsmith">LangSmith</a></li>
+</ul>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>

@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="把 Anthropic Claude Code Best
+Practices 官方文档拆成 6 个工程模式：Verify 工作流（测试 / build /
+screenshot 是 must-have）、Explore→Plan→Code→Commit 四段、CLAUDE.md
+极简主义、Permission + Sandbox + Auto mode 三层防御、Context
+主动管理（/clear / /compact / subagent）、Parallel Sessions + Fan-out +
+Adversarial Review 扩展模式。配具体命令 + 失败模式 +
+面试可讲的设计取舍。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>Claude Code 实战：把 Coding Agent 用出 10x 效率的 6
+个工程模式 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>Claude Code 实战：把 Coding Agent 用出 10x 效率的 6
+个工程模式</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI
+工程</span> <span class="badge bg-secondary">Claude
+Code</span> <span class="badge bg-secondary">Agent</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://www.code.claude.com/docs/en/best-practices" target="_blank" rel="noopener">Best
+practices for Claude Code</a> · Anthropic
+            </div>
+
+<h2 id="引子">引子</h2>
+<p>Claude Code 不是”另一个 chat-with-code 工具”——<strong>它是 agentic
+coding environment</strong>——<strong>Claude 自己
+explore、plan、implement</strong>，<strong>你 watch、redirect、or step
+away
+entirely</strong>。<strong>这改变工作模式</strong>——<strong>不是”你写 +
+Claude review”，是”你描述 + Claude build”</strong>。<strong>但 autonomy
+有 learning
+curve</strong>——<strong>你必须理解约束才能用好</strong>。Anthropic 官方
+best practices 文档的 6 个工程模式——<strong>核心论点是 context window
+是核心资源，verify 是 must-have，配置 / prompt / 工作流 三层都需要
+discipline</strong>。<strong>这是 2025 年 coding agent
+的官方权威指南</strong>。</p>
+<p>下面拆 6 个工程模式，按”<strong>verify → 工作流 → 配置 → 权限 →
+context → 并行</strong>”递进。</p>
+<hr />
+<h2 id="verify-工作流测试-build-screenshot-是-must-have">1. Verify
+工作流：测试 / Build / Screenshot 是 Must-Have</h2>
+<p><strong>一行定位</strong>：<strong>没有 verify loop = 你就是
+verification loop</strong>——<strong>Claude 做完不知道对不对，全靠你人肉
+check</strong>。</p>
+<p><strong>Anthropic 的核心论点</strong>：</p>
+<blockquote>
+<p>“Give Claude a check it can run: tests, a build, a screenshot to
+compare. It’s the difference between a session you watch and one you
+walk away from.”</p>
+</blockquote>
+<p><strong>Claude 行为模式</strong>：“Claude stops when the work looks
+done. Without a check it can run, ‘looks done’ is the only signal
+available.”</p>
+<p><strong>Verify 的 4 个层次</strong>（从最简单到最强）：</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>层次</th>
+<th>机制</th>
+<th>适用</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>In-prompt</strong></td>
+<td>一句话让 Claude 自己 run + iterate</td>
+<td>任何任务</td>
+</tr>
+<tr class="even">
+<td><strong><code>/goal</code> condition</strong></td>
+<td>跨 session 持续 check，Claude auto iterate</td>
+<td>unattended runs</td>
+</tr>
+<tr class="odd">
+<td><strong>Stop hook</strong></td>
+<td>deterministic script gate stop</td>
+<td>必须通过才结束</td>
+</tr>
+<tr class="even">
+<td><strong>Adversarial review</strong></td>
+<td>独立 subagent 找 gap</td>
+<td>重要改动</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Verify 形式</strong>（any 都能用）： - <strong>Test
+suite</strong>（unit / integration）。 - <strong>Build exit
+code</strong>。 - <strong>Linter / type check</strong>。 - <strong>Diff
+script against fixture</strong>。 - <strong>Browser screenshot</strong>
+对比 design。</p>
+<p><strong>Good vs Bad prompt 对比</strong>：</p>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>❌ Before</th>
+<th>✅ After</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>“implement a function that validates email addresses”</td>
+<td>“write a validateEmail function. example test cases:
+user@example.com is true, invalid is false, user@.com is false. run the
+tests after implementing”</td>
+</tr>
+<tr class="even">
+<td>“make the dashboard look better”</td>
+<td>“[paste screenshot] implement this design. take a screenshot of the
+result and compare it to the original. list differences and fix
+them”</td>
+</tr>
+<tr class="odd">
+<td>“the build is failing”</td>
+<td>“the build fails with this error: [paste error]. fix it and verify
+the build succeeds. address the root cause, don’t suppress the
+error”</td>
+</tr>
+</tbody>
+</table>
+<p><strong>面试可讲的角度</strong>：这是 <em>closed-loop
+automation</em>——<strong>有 verify loop = Claude 自己
+iterate</strong>，<strong>没 verify = 你 manual
+iterate</strong>。<strong>类比 CI</strong>——CI 没跑 =
+你人肉测。<strong>Verify 是 coding agent 时代的 unit test</strong>。</p>
+<p><strong>工程落地</strong>： - ☐ <strong>每个 task 必配 verify
+手段</strong>——<strong>没 verify 的 task 不要 ship</strong> - ☐
+<strong>Verify 形式选最便宜的</strong>——test &gt; build &gt;
+screenshot（screenshot 贵） - ☐ <strong><code>/goal</code> 适合
+unattended</strong>——<strong>long-running task 让 Claude 自己
+iterate</strong> - ☐ <strong>Stop hook 适合 critical
+gate</strong>——migration / schema change</p>
+<hr />
+<h2 id="explore-plan-code-commit-四段工作流">2. Explore → Plan → Code →
+Commit 四段工作流</h2>
+<p><strong>一行定位</strong>：<strong>让 Claude 直接 code = solve
+错问题</strong>——<strong>Explore / Plan / Code / Commit 四段分离避免
+wasted work</strong>。</p>
+<p><strong>4 阶段工作流</strong>：</p>
+<h3 id="stage-1-exploreplan-mode-读-理解">Stage 1: Explore（plan mode 读
++ 理解）</h3>
+<ul>
+<li><p><strong>按 <code>Shift+Tab</code> 进 plan mode</strong> 或
+<code>claude --permission-mode plan</code>。</p></li>
+<li><p>Claude <strong>只读不写</strong>——读文件 + 答问题 +
+不改任何东西。</p></li>
+<li><p>Example prompt：</p>
+<pre><code>read /src/auth and understand how we handle sessions and login.
+also look at how we manage environment variables for secrets.</code></pre></li>
+</ul>
+<h3 id="stage-2-plan写详细-implementation-plan">Stage 2: Plan（写详细
+implementation plan）</h3>
+<ul>
+<li><p>在 plan mode 让 Claude <strong>写 detailed
+plan</strong>。</p></li>
+<li><p><strong>按 <code>Ctrl+G</code> 在文本编辑器打开
+plan</strong>——<strong>你可以直接编辑</strong>。</p></li>
+<li><p>Example prompt：</p>
+<pre><code>I want to add Google OAuth. What files need to change?
+What&#39;s the session flow? Create a plan.</code></pre></li>
+</ul>
+<h3 id="stage-3-implement按-plan-code-verify">Stage 3: Implement（按
+plan code + verify）</h3>
+<ul>
+<li><p><strong>退出 plan mode</strong>（approve plan 或
+<code>Shift+Tab</code>）。</p></li>
+<li><p>Claude 按 plan code + 跑 test + 修。</p></li>
+<li><p>Example prompt：</p>
+<pre><code>implement the OAuth flow from your plan. write tests for the
+callback handler, run the test suite and fix any failures.</code></pre></li>
+</ul>
+<h3 id="stage-4-commitcommit-pr">Stage 4: Commit（commit + PR）</h3>
+<ul>
+<li><p>让 Claude commit + push + open PR。</p></li>
+<li><p>Example prompt：</p>
+<pre><code>commit with a descriptive message and open a PR</code></pre></li>
+</ul>
+<p><strong>什么时候 skip plan</strong>： - ✅ <strong>Task
+简单明确</strong>——typo / log line / rename。 - ✅ <strong>Diff
+能一句话描述</strong>——“if you can describe the diff in one sentence,
+skip the plan”。</p>
+<p><strong>什么时候用 plan</strong>： - ⚠️ <strong>不确定
+approach</strong>。 - ⚠️ <strong>改多个文件</strong>。 - ⚠️
+<strong>不熟悉被改的 code</strong>。</p>
+<p><strong>面试可讲的角度</strong>：这是 <em>separation of
+concerns</em>——<strong>Explore / Plan / Code / Commit 各自的 mental mode
+不同</strong>。<strong>类比 TDD</strong>：red / green / refactor
+三段分离。<strong>Coding agent 也需要 phase separation</strong>。</p>
+<p><strong>工程落地</strong>： - ☐ <strong>默认进 plan
+mode</strong>——<strong>不是默认直接 code</strong> - ☐ <strong>Plan
+文件存到 git</strong>——<strong>review + iteration 持久化</strong> - ☐
+<strong>Plan 必含 verify step</strong>——<strong>end-to-end verification
+是 plan 的最后一步</strong> - ☐ <strong>小 task skip
+plan</strong>——<strong>但大 task 必 plan</strong></p>
+<hr />
+<h2 id="claude.md-极简主义每行必问删了会错吗">3. CLAUDE.md
+极简主义：每行必问”删了会错吗？”</h2>
+<p><strong>一行定位</strong>：<strong>CLAUDE.md 是 Claude 每次 session
+都读的 persistent context</strong>——<strong>bloat 越大，关键 rule
+越被忽略</strong>。</p>
+<p><strong>Anthropic 的关键论断</strong>：</p>
+<blockquote>
+<p>“If Claude keeps doing something you don’t want despite having a rule
+against it, the file is probably too long and the rule is getting
+lost.”</p>
+</blockquote>
+<p><strong>起手</strong>：<code>/init</code> 帮你从 project structure
+生成 starter CLAUDE.md。<strong>然后精炼</strong>。</p>
+<p><strong>Good CLAUDE.md 示例</strong>：</p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu"># Code style</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Use ES modules (import/export) syntax, not CommonJS (require)</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Destructure imports when possible (eg. import { foo } from &#39;bar&#39;)</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="fu"># Workflow</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Be sure to typecheck when you&#39;re done making a series of code changes</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Prefer running single tests, and not the whole test suite, for performance</span></code></pre></div>
+<p><strong>Include vs Exclude 决策表</strong>：</p>
+<table>
+<thead>
+<tr class="header">
+<th>✅ Include</th>
+<th>❌ Exclude</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Claude 猜不到的 Bash 命令</td>
+<td>Claude 能从 code 读出来</td>
+</tr>
+<tr class="even">
+<td>与默认不同的 code style</td>
+<td>标准 language convention</td>
+</tr>
+<tr class="odd">
+<td>Testing instruction + preferred runner</td>
+<td>详细 API doc（用 link）</td>
+</tr>
+<tr class="even">
+<td>Repo etiquette（branch / PR 约定）</td>
+<td>频繁变的信息</td>
+</tr>
+<tr class="odd">
+<td>特定 architectural decision</td>
+<td>冗长 explanation / tutorial</td>
+</tr>
+<tr class="even">
+<td>常见 gotcha</td>
+<td>自我说明的 practice（“write clean code”）</td>
+</tr>
+</tbody>
+</table>
+<p><strong>调试 CLAUDE.md 的 3 个症状</strong>： - <strong>Claude
+老做你不要的事</strong> → <strong>file 太长，关键 rule 被 noise
+淹没</strong>。 - <strong>Claude 问 CLAUDE.md 答过的事</strong> →
+<strong>phrasing ambiguous</strong>。 - <strong>Specific instruction
+被忽略</strong> → <strong>加 “IMPORTANT”
+emphasis</strong>——但不要全加，<strong>全是 IMPORTANT =
+没人重要</strong>。</p>
+<p><strong>CLAUDE.md 维护纪律</strong>： - ☐ <strong>Git version
+control</strong>——<strong>team 共同维护</strong>。 - ☐ <strong>定期
+prune</strong>——<code>/doctor</code> 让 Claude 建议 cuts。 - ☐
+<strong>复杂 rule 转 hook</strong>——<strong>rule 不断违反 = 转
+deterministic hook</strong>。 - ☐ <strong>Domain-specific 走
+skill</strong>——<strong>CLAUDE.md 只放 broadly applicable</strong>。</p>
+<p><strong>面试可讲的角度</strong>：这是 <em>signal-to-noise
+ratio</em>——<strong>CLAUDE.md 是 high-signal
+文件</strong>。<strong>bloat = noise = lost rules</strong>。<strong>类比
+README</strong>——README 太长没人读，CLAUDE.md 一样。<strong>每行必
+question：“删了会错吗？”</strong>。</p>
+<p><strong>工程落地</strong>： - ☐ <strong>CLAUDE.md 保持 &lt; 100
+行</strong>——<strong>超过就要 prune</strong> - ☐ <strong>每行 include 必
+answer 三个问题</strong>：“删了会错？/ 不能从 code 推？/ 不会变？” - ☐
+<strong>Specific rule 配 “IMPORTANT”</strong>——<strong>但 limited
+数量</strong> - ☐ <strong>Domain rule 拆到
+skill</strong>——<strong>CLAUDE.md 不放 infrequently
+relevant</strong></p>
+<hr />
+<h2 id="权限-sandbox-auto-mode-三层防御">4. 权限 + Sandbox + Auto Mode
+三层防御</h2>
+<p><strong>一行定位</strong>：<strong>Manual mode 弹窗疲劳、permission
+allowlist 减干扰、sandbox 隔离、auto mode AI 判断</strong>——<strong>四档
+trade-off</strong>。</p>
+<p><strong>4 档权限模型</strong>：</p>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>模式</th>
+<th>Claude 自主</th>
+<th>人类审核</th>
+<th>适用</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Manual</strong></td>
+<td>不改</td>
+<td>弹 confirm</td>
+<td>谨慎 / 不可逆操作</td>
+</tr>
+<tr class="even">
+<td><strong>Permission allowlist</strong></td>
+<td>allowlist 内自主</td>
+<td>其他弹 confirm</td>
+<td>日常 dev</td>
+</tr>
+<tr class="odd">
+<td><strong>Sandbox</strong></td>
+<td>allowlist 内自主</td>
+<td>sandbox 边界拦</td>
+<td>高自由度</td>
+</tr>
+<tr class="even">
+<td><strong>Auto mode</strong></td>
+<td>AI classifier 判断</td>
+<td>AI block risky</td>
+<td>unattended</td>
+</tr>
+</tbody>
+</table>
+<p><strong>配置命令</strong>： - <code>/permissions</code>——<strong>配
+allowlist</strong>（如 <code>npm run lint</code> /
+<code>git commit</code>）。 - <code>/sandbox</code>——<strong>启 OS-level
+隔离</strong>（filesystem + network）。 -
+<code>claude --permission-mode auto -p "fix all lint errors"</code>——<strong>auto
+mode + non-interactive</strong>。</p>
+<p><strong>Manual mode 的痛点</strong>：</p>
+<blockquote>
+<p>“After the tenth approval you’re clicking through rather than
+reviewing. Two tools cut those interruptions in Manual mode…”</p>
+</blockquote>
+<p><strong>两件减干扰工具</strong>： 1. <strong>Permission
+allowlist</strong>——<strong>白名单内 no-prompt</strong>。 2.
+<strong>Sandboxing</strong>——<strong>sandbox 边界自动拦</strong>（见
+claude-code-sandboxing-isolation）。</p>
+<p><strong>Auto mode 机制</strong>（见
+auto-mode-defense-architecture）： - <strong>Classifier model</strong>
+提前 review 命令。 - <strong>Block scope escalation</strong> /
+<strong>unknown infrastructure</strong> / <strong>hostile-content-driven
+actions</strong>。 - <strong>Routine work no prompt</strong>。 -
+<strong>Auto mode + <code>-p</code>
+non-interactive</strong>——<strong>不弹窗，不停 run</strong>。</p>
+<p><strong>面试可讲的角度</strong>：这是 <em>defense in
+depth</em>——<strong>单层防御都有 edge case</strong>。<strong>手动 +
+allowlist + sandbox + auto classifier</strong>——<strong>每层独立 + 一起
+= 纵深防御</strong>。<strong>安全设计 = 减摩擦 +
+增安全</strong>（Anthropic 数据 sandbox 降 84% prompt）。</p>
+<p><strong>工程落地</strong>： - ☐ <strong>日常 dev 配
+allowlist</strong>——<strong>不要每次手动 approve</strong> - ☐
+<strong>Production 操作 manual mode</strong>——<strong>不可逆 = human
+必须看</strong> - ☐ <strong>Unattended run 配 sandbox + auto
+mode</strong>——<strong>双层防御</strong> - ☐
+<strong><code>--allowedTools</code> 配 fan-out</strong>——<strong>每个
+invocation scope 清楚</strong></p>
+<hr />
+<h2 id="context-主动管理clear-compact-subagent">5. Context
+主动管理：/clear / /compact / Subagent</h2>
+<p><strong>一行定位</strong>：<strong>Context window
+是核心资源</strong>——<strong>满 = 性能下降 + 早 instructions
+忘</strong>——<strong>主动管理是必备 skill</strong>。</p>
+<p><strong>Anthropic 的核心论断</strong>：</p>
+<blockquote>
+<p>“Most best practices are based on one constraint: Claude’s context
+window fills up fast, and performance degrades as it fills.”</p>
+</blockquote>
+<p><strong>Context 管理的 4 个工具</strong>：</p>
+<h3 id="clear-任务间重置">5.1 <code>/clear</code> —— 任务间重置</h3>
+<ul>
+<li><strong>任务不相关时用</strong>——<strong>上一个 task 的 context 完全
+irrelevant</strong>。</li>
+<li>频率：<strong>between tasks</strong>——<strong>不是 with 同一个
+task</strong>。</li>
+</ul>
+<h3 id="compact-自动-手动压缩">5.2 <code>/compact</code> —— 自动 +
+手动压缩</h3>
+<ul>
+<li><strong>Auto compaction</strong>——<strong>context 接近 limit 时自动
+trigger</strong>，summarize 历史。</li>
+<li><strong>Manual
+compaction</strong>——<code>/compact &lt;instructions&gt;</code> 主动
+trigger + 引导方向。</li>
+<li><strong>Example</strong>：<code>/compact Focus on the API changes</code>——<strong>让
+compaction 保你想保的</strong>。</li>
+</ul>
+<h3 id="rewind-esc-esc-部分压缩">5.3 <code>/rewind</code> +
+<code>Esc Esc</code> —— 部分压缩</h3>
+<ul>
+<li><strong><code>Esc + Esc</code></strong> 或
+<code>/rewind</code>——<strong>打开 rewind menu</strong>。</li>
+<li>选 checkpoint message：
+<ul>
+<li><strong>Summarize from here</strong>——<strong>从这点 forward
+压缩，前 keep 完整</strong>。</li>
+<li><strong>Summarize up to here</strong>——<strong>前面压缩，后 keep
+完整</strong>。</li>
+</ul></li>
+<li><strong>比 <code>/clear</code>
+灵活</strong>——<strong>只清一半</strong>。</li>
+</ul>
+<h3 id="subagent-context-隔离">5.4 Subagent —— context 隔离</h3>
+<ul>
+<li><p><strong>Research / exploration 用 subagent</strong>——<strong>main
+conversation context 保持 clean</strong>。</p></li>
+<li><p><strong>Example prompt</strong>：</p>
+<pre><code>Use subagents to investigate how our authentication system handles token
+refresh, and whether we have any existing OAuth utilities I should reuse.</code></pre></li>
+<li><p><strong>Subagent context 不进 main</strong>——<strong>only summary
+back</strong>。</p></li>
+</ul>
+<p><strong>Context 性能信号</strong>： - <strong>Context 满</strong>→
+Claude “forget” 早 instruction + mistake 变多。 - <strong>Status line
+监控</strong>——<code>/context</code> 查 current usage。 -
+<strong>/btw</strong> 适合不需要进 history 的问题——<strong>answer 不入
+context</strong>。</p>
+<p><strong>面试可讲的角度</strong>：这是 <em>working memory
+management</em>——<strong>类比人脑短时记忆 ~7 items</strong>。<strong>LLM
+一样——context 是稀缺资源</strong>。<strong>主动 /clear + /compact +
+subagent</strong>——<strong>类比 GC + off-heap
+storage</strong>。<strong>不管理 = performance cliff</strong>。</p>
+<p><strong>工程落地</strong>： - ☐ <strong>不同 task 之间
+<code>/clear</code></strong>——<strong>避免 irrelevant context
+污染</strong> - ☐ <strong>改 2 次以上还不 work → <code>/clear</code> +
+better prompt</strong>——<strong>failed approach 占 context
+反而有害</strong> - ☐ <strong>Investigation 用
+subagent</strong>——<strong>main conversation 保持 focused</strong> - ☐
+<strong>CLAUDE.md 配 compaction
+guidance</strong>——<code>"When compacting, preserve modified files + test commands"</code></p>
+<hr />
+<h2 id="parallel-sessions-fan-out-adversarial-review">6. Parallel
+Sessions + Fan-out + Adversarial Review</h2>
+<p><strong>一行定位</strong>：<strong>一个 Claude 不够 = parallel
+sessions / fan-out / adversarial review</strong>——<strong>scale out 是
+10x productivity 的来源</strong>。</p>
+<h3 id="multiple-claude-sessions-并行">6.1 Multiple Claude sessions
+并行</h3>
+<p><strong>Anthropic 官方支持的多种并行方式</strong>：</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>模式</th>
+<th>机制</th>
+<th>适用</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Worktrees</strong></td>
+<td>独立 git checkout，不撞 edit</td>
+<td>复杂多 branch</td>
+</tr>
+<tr class="even">
+<td><strong>Cross-session messaging</strong></td>
+<td>sessions 之间手动传 finding</td>
+<td>协作</td>
+</tr>
+<tr class="odd">
+<td><strong>Desktop app</strong></td>
+<td>UI 管理多 sessions</td>
+<td>视觉管理</td>
+</tr>
+<tr class="even">
+<td><strong>Claude Code on the web</strong></td>
+<td>Cloud session（Anthropic infra）</td>
+<td>不想本地</td>
+</tr>
+<tr class="odd">
+<td><strong>Agent view</strong></td>
+<td>后台跑 + 屏上看</td>
+<td>长期 background</td>
+</tr>
+<tr class="even">
+<td><strong>Agent teams</strong></td>
+<td>自动 coordination</td>
+<td>复杂多 task（experimental）</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Writer/Reviewer 模式</strong>（<strong>最经典</strong>）： -
+Session A 写 code。 - Session B 用 fresh context 审。 - Fresh context
+不会 bias toward “我刚写的 code”。</p>
+<pre><code>Session A: &quot;Implement a rate limiter for our API endpoints&quot;
+Session B: &quot;Review the rate limiter implementation in @src/middleware/rateLimiter.ts.
+            Look for edge cases, race conditions, and consistency with our existing
+            middleware patterns.&quot;
+Session A: &quot;Here&#39;s the review feedback: [Session B output]. Address these issues.&quot;</code></pre>
+<p><strong>面试可讲的角度</strong>：这是 <em>code review 的 anti-bias
+设计</em>——<strong>写 code 的人审自己 = bias</strong>。<strong>Fresh
+context 审 = independent judgement</strong>。<strong>类比：为什么 CR
+不能自己 approve 自己的 PR</strong>。</p>
+<h3 id="fan-out-across-files">6.2 Fan out across files</h3>
+<p><strong>机制</strong>：<code>/batch &lt;instruction&gt;</code> 让
+Claude 把 change 拆到 5-30 subagents，每个 worktree + 自己的 PR。</p>
+<p><strong>手动版</strong>（用 <code>claude -p</code> 写 loop）：</p>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Step 1: 让 Claude 写 file list</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="ex">claude</span> <span class="at">-p</span> <span class="st">&quot;list all 2,000 Python files that need migrating and save the list to files.txt&quot;</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Step 2: 写 loop script</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> file <span class="kw">in</span> <span class="va">$(</span><span class="fu">cat</span> files.txt<span class="va">)</span><span class="kw">;</span> <span class="cf">do</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>  <span class="ex">claude</span> <span class="at">-p</span> <span class="st">&quot;Migrate </span><span class="va">$file</span><span class="st"> from Python 2 to Python 3. Return OK or FAIL.&quot;</span> <span class="dt">\</span></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">--allowedTools</span> <span class="st">&quot;Edit,Bash(git commit *)&quot;</span></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a><span class="cf">done</span></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Step 3: 试 2-3 个 file → 调 prompt → 跑全量</span></span></code></pre></div>
+<p><strong>工程要点</strong>： - ☐ <strong><code>--allowedTools</code>
+scope permissions</strong>——<strong>unattended 必 narrow scope</strong>
+- ☐ <strong>先 2-3 file 试 → 调 prompt</strong>——<strong>避免 2000 file
+全错</strong> - ☐ <strong><code>/batch</code> 自动
+fan-out</strong>——<strong>适合 git repo 内的 migration</strong></p>
+<h3 id="adversarial-review-step">6.3 Adversarial review step</h3>
+<p><strong>机制</strong>：<strong>让独立 subagent 审
+diff</strong>——<strong>fresh context，only see diff +
+criteria</strong>。</p>
+<p><strong>Example prompt</strong>：</p>
+<pre><code>Use a subagent to review the rate limiter diff against PLAN.md. Check that
+every requirement is implemented, the listed edge cases have tests, and
+nothing outside the task&#39;s scope changed. Report gaps, not style preferences.</code></pre>
+<p><strong>Anthropic 的”reviewer 必 instruct 找 gap”警告</strong>：</p>
+<blockquote>
+<p>“A reviewer prompted to find gaps will usually report some, even when
+the work is sound… Chasing every finding leads to over-engineering.”</p>
+</blockquote>
+<p><strong>工程准则</strong>： - ☐ <strong>只 flag 影响 correctness /
+明确 requirements 的 gap</strong>。 - ☐ <strong>Style preference 标
+optional</strong>——<strong>别 over-engineer</strong>。 - ☐
+<strong>Subagent review 完，implementing session 收到 gap 直接
+fix</strong>——<strong>省去 copying between windows</strong>。</p>
+<p><strong>面试可讲的角度</strong>：这是 <em>adversarial
+validation</em>——<strong>类比 GAN</strong>——<strong>generator 写
+code，discriminator 找 gap</strong>。<strong>Independent check 比
+self-review 强 10x</strong>——<strong>fresh context = no
+bias</strong>。<strong>生产 critical 改动必上 adversarial
+review</strong>。</p>
+<p><strong>工程落地 checklist</strong>： - ☐ <strong>Critical 改动用
+Writer/Reviewer 双 session</strong>——<strong>fresh context
+review</strong> - ☐ <strong>Migration 用 fan-out + scope
+permissions</strong>——<strong><code>--allowedTools</code> 必
+narrow</strong> - ☐ <strong>先 2-3 sample 调
+prompt</strong>——<strong>避免大批量全错</strong> - ☐ <strong>Reviewer
+prompt 必 instruct “only correctness gap”</strong>——<strong>别
+over-engineer</strong></p>
+<hr />
+<h2 id="个常见失败模式">7 个常见失败模式</h2>
+<p><strong>Anthropic 列的 failure
+pattern</strong>——<strong>早期识别省时间</strong>：</p>
+<h3 id="failure-1-kitchen-sink-session万用-session">Failure 1: Kitchen
+sink session（万用 session）</h3>
+<ul>
+<li><strong>Symptom</strong>：开 session 干 task A → 中途问 unrelated
+question → 回到 task A。</li>
+<li><strong>Context 满 irrelevant info</strong>。</li>
+<li><strong>Fix</strong>：<code>/clear</code> between tasks。</li>
+</ul>
+<h3 id="failure-2-correcting-over-and-over反复纠正">Failure 2:
+Correcting over and over（反复纠正）</h3>
+<ul>
+<li><strong>Symptom</strong>：Claude 做错 → 你纠正 → 还错 →
+再纠正。</li>
+<li><strong>Context 满 failed approaches</strong>。</li>
+<li><strong>Fix</strong>：<strong>2 次失败后 <code>/clear</code> +
+better initial prompt</strong>（incorporate what you learned）。</li>
+</ul>
+<h3 id="failure-3-over-specified-claude.mdclaude.md-过长">Failure 3:
+Over-specified CLAUDE.md（CLAUDE.md 过长）</h3>
+<ul>
+<li><strong>Symptom</strong>：CLAUDE.md 长，<strong>重要 rule 淹没在
+noise</strong>。</li>
+<li><strong>Claude 忽略 half of it</strong>。</li>
+<li><strong>Fix</strong>：<strong>ruthlessly
+prune</strong>——<strong>已经做的对就别 rule</strong>。<strong>必要 rule
+转 hook</strong>。</li>
+</ul>
+<h3 id="failure-4-trust-then-verify-gap信任不验证">Failure 4:
+Trust-then-verify gap（信任不验证）</h3>
+<ul>
+<li><strong>Symptom</strong>：Claude 出 plausible-looking
+implementation，<strong>不处理 edge case</strong>。</li>
+<li><strong>Fix</strong>：<strong>always provide
+verification</strong>（test / script / screenshot）。<strong>不能 verify
+= 不 ship</strong>。</li>
+</ul>
+<h3 id="failure-5-infinite-exploration无限探索">Failure 5: Infinite
+exploration（无限探索）</h3>
+<ul>
+<li><strong>Symptom</strong>：“investigate X” 不 scope → Claude 读
+hundreds of files → context 满。</li>
+<li><strong>Fix</strong>：<strong>narrow scope</strong> +
+<strong>subagent for investigation</strong>（main context 保持
+clean）。</li>
+</ul>
+<h3 id="failure-6-跳过-verification-gate">Failure 6: 跳过 verification
+gate</h3>
+<ul>
+<li><strong>Symptom</strong>：没 verify loop，<strong>你手点 confirm
+直到放弃</strong>。</li>
+<li><strong>Fix</strong>：<strong>stage 1 verify loop
+必上</strong>。</li>
+</ul>
+<h3 id="failure-7-长期-session-不管理-context">Failure 7: 长期 session
+不管理 context</h3>
+<ul>
+<li><strong>Symptom</strong>：session 跑很久，<strong>context 满
+irrelevant</strong>。</li>
+<li><strong>Fix</strong>：<strong>/clear 任务间</strong> +
+<strong>/compact long-running</strong> + <strong>subagent for
+research</strong>。</li>
+</ul>
+<p><strong>工程落地</strong>： - ☐ <strong>每个 failure 模式配 detection
+signal</strong>——<strong>识别快 + 修得快</strong> - ☐ <strong>/clear
+是高频工具</strong>——<strong>不要等 context 满才清</strong> - ☐
+<strong>Verification 是 shipping 的硬门槛</strong>——<strong>没 verify 不
+done</strong></p>
+<hr />
+<h2 id="一句话总结">一句话总结</h2>
+<p>Claude Code best practices 的核心论点是<strong>“context window
+是核心资源，verify loop 是必须，配置 / 工作流 / prompt 三层都要
+discipline”</strong>——<strong>Verify 工作流（test / build /
+screenshot）+ Explore→Plan→Code→Commit 四段分离 + CLAUDE.md
+极简主义（每行必问”删了会错吗”）+ 权限 / sandbox / auto mode 三层防御 +
+Context 主动管理（/clear / /compact / subagent）+ Parallel sessions +
+Fan-out + Adversarial review 扩展</strong>。<strong>6
+个工程模式不是孤立技巧，是 “把 agent 用出 10x 效率”
+的系统方法论</strong>。<strong>Anthropic 自己说”develop your
+intuition”——模式是起点，不是教条</strong>。</p>
+<h2 id="配套阅读">配套阅读</h2>
+<ul>
+<li><strong>同主题</strong>：auto-mode-defense-architecture —
+reasoning-blind classifier 是 auto mode 核心</li>
+<li><strong>同主题</strong>：claude-code-sandboxing-isolation —
+filesystem + network 双隔离</li>
+<li><strong>执行机制</strong>：tool-use-engineering-patterns — tool
+choice / parallel / structured output</li>
+</ul>
+<p>参考资料：</p>
+<ul>
+<li><a href="https://www.code.claude.com/docs/en/best-practices">Best
+practices for Claude Code</a> — Anthropic</li>
+<li><a
+href="https://www.code.claude.com/docs/en/how-claude-code-works">How
+Claude Code works</a> — Agentic loop 内部机制</li>
+<li><a
+href="https://www.code.claude.com/docs/en/extend-claude-code">Extend
+Claude Code</a> — Skills / hooks / MCP / subagents</li>
+<li><a href="https://www.anthropic.com/claude-code">Claude Code
+overview</a> — 官方主页</li>
+</ul>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>

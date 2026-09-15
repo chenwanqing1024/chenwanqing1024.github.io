@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="把 LLM Gateway 定位为 Agent 的
+runtime control plane（不是简单的 model router）。5 个治理动作：identity
+/ spend / model routing / context efficiency / guardrails。Govern /
+Decide / Protect / Observe / Assure 5 步运转框架。附完整简历项目骨架。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>Governed Agents 框架：把 LLM Gateway 当成 Agent 的 runtime
+control plane——5 层治理 + 简历级骨架 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>Governed Agents 框架：把 LLM Gateway 当成 Agent 的
+runtime control plane——5 层治理 + 简历级骨架</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">LLM
+Gateway</span> <span class="badge bg-secondary">治理</span> <span class="badge bg-secondary">成本控制</span> <span class="badge bg-secondary">合规</span> <span class="badge bg-secondary">工程实践</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://www.langchain.com/blog/building-governed-agents-a-framework-for-cost-control-and-compliance" target="_blank" rel="noopener">Building
+Governed Agents: A Framework for Cost, Control, and
+Compliance</a> · Martha Janicki (LangChain)
+            </div>
+
+<h2 id="引子">引子</h2>
+<p>Agent 进入生产后，<strong>3 个新压力出现</strong>：token
+花销失控、uptime / continuity 要求、隐私 / 安全 / AI
+监管要求。<strong>LLM Gateway 不是简单的 model router</strong>——它是
+Agent 的 <strong>runtime control plane</strong>，把 policy 翻译成每次
+model call / tool call / agent hop 上的可执行决策。</p>
+<p>面试讲 Agent 治理 / 成本控制 / 合规设计，这 5 层架构 + 5
+步运转框架直接搬。</p>
+<hr />
+<h2 id="核心思想governance-把政策落到每次调用上">核心思想：Governance =
+把政策落到每次调用上</h2>
+<p><strong>Governance vs Gateway</strong>：</p>
+<ul>
+<li><strong>Governance</strong> = 规则（identity、ownership、risk
+tier、policy）</li>
+<li><strong>Gateway</strong> =
+强制执行（authenticate、route、redact、spend cap、retry）</li>
+</ul>
+<blockquote>
+<p>“An LLM gateway is the <strong>runtime control plane</strong> for
+those decisions. It gives enterprises a single place to: Authenticate
+usage / Select approved models / Minimize exposed context / Enforce data
+and spending policies / Manage failures / Retain evidence as to what
+decisions were made.”</p>
+</blockquote>
+<p><strong>关键判断</strong>：<strong>Gateway 是 infra 不是
+feature</strong>——它要和 tracing / evaluation / monitoring
+联动，否则它就是个 black box。</p>
+<hr />
+<h2 id="步运转框架">5 步运转框架</h2>
+<pre><code>[Govern]  ── Establish identity, ownership, risk tiers, policy
+     ↓
+[Decide]  ── Select models, escalate requests, fail over when needed
+     ↓
+[Protect] ── Enforce controls at each call boundary
+     ↓
+[Observe] ── Measure behavior outcomes
+     ↓
+[Assure]  ── Preserve decision lineage, manage change over time</code></pre>
+<p><strong>3 个常见起点</strong>（不同组织的优先压力不同）：</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>起点</th>
+<th>优先压力</th>
+<th>第一步</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Visibility-led</strong></td>
+<td>AI-native 组织，token 烧太快</td>
+<td>先 Observe（trace + token breakdown）</td>
+</tr>
+<tr class="even">
+<td><strong>Control-led</strong></td>
+<td>敏感数据组织（金融 / 医疗 / 政府）</td>
+<td>先 Protect（redaction + provider routing + residency）</td>
+</tr>
+<tr class="odd">
+<td><strong>Assurance-led</strong></td>
+<td>强监管组织</td>
+<td>先 Assure（policy versioning + audit logs + eval history）</td>
+</tr>
+</tbody>
+</table>
+<p><strong>所有成熟组织最终都需要 3
+个都做</strong>——但起点可以不同。</p>
+<p><strong>面试可讲角度</strong>：这是 <em>risk-driven
+prioritization</em> 的工程化。<strong>不同组织的合规 /
+业务压力不同，治理不是”全做”——是从最痛的点切入</strong>。</p>
+<hr />
+<h2 id="gateway-的基础先治理环境才能治理流量">Gateway
+的基础：先治理”环境”才能治理”流量”</h2>
+<p><strong>关键警告</strong>：</p>
+<blockquote>
+<p>“If the underlying platform is not secure, no amount of routing or
+policy logic above it can compensate.”</p>
+</blockquote>
+<p><strong>7 个基础能力</strong>（缺一不可）：</p>
+<ol type="1">
+<li><strong>Security</strong> — 加密（at rest / in
+transit）、shared-responsibility model、第三方安全验证</li>
+<li><strong>Authentication / Identity</strong> — SSO（SAML / OIDC）+ JIT
+provisioning + 接到企业 IdP（不是单独 login）</li>
+<li><strong>Audit logs</strong> — 不只记”谁跑了什么”，还要记”policy
+version / outcome / tools / providers”</li>
+<li><strong>User management</strong> — RBAC + SCIM 自动
+provisioning</li>
+<li><strong>Provider secrets</strong> — <strong>集中存</strong>（不要每
+Agent 写死 API key），rotation 一次完成</li>
+<li><strong>Data separation</strong> — team / workspace
+隔离，不能所有用户看所有 trace</li>
+<li><strong>Data residency</strong> — 监管要求的地域 / 基础设施隔离</li>
+</ol>
+<p><strong>面试可讲角度</strong>：这是 <em>defense in
+depth</em>。<strong>Gateway 上层的 policy enforcement
+依赖底层的基础设施安全</strong>——任何一层漏了，整条链路就破。</p>
+<hr />
+<h2 id="类交互4-类风险">4 类交互、4 类风险</h2>
+<p>Agent 不只调 LLM——还调 tool / MCP /
+A2A。<strong>每类交互有不同风险</strong>：</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>交互</th>
+<th>风险</th>
+<th>治理要求</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>LLM call</strong></td>
+<td>成本、模型可用性、私密数据进 provider logs</td>
+<td>spend limits、redaction、provider routing</td>
+</tr>
+<tr class="even">
+<td><strong>Tool call</strong></td>
+<td>误操作生产系统</td>
+<td>权限、audit trail</td>
+</tr>
+<tr class="odd">
+<td><strong>MCP call</strong></td>
+<td>数据出基础设施边界</td>
+<td>访问控制、logging</td>
+</tr>
+<tr class="even">
+<td><strong>A2A call</strong></td>
+<td>agent chain 复合错误 / 越权</td>
+<td>每 hop tracing、policy enforcement</td>
+</tr>
+</tbody>
+</table>
+<p><strong>关键判断</strong>：</p>
+<blockquote>
+<p>“For agents, <strong>the greatest risk is often not what the model
+says, but what the agent can do.</strong>”</p>
+</blockquote>
+<p><strong>模型输出过滤</strong>只是一部分。<strong>真正的治理是”agent
+能做什么”——哪些 tool、哪些 credentials、哪些动作需要 human
+approval</strong>。</p>
+<p><strong>面试可讲角度</strong>：这是 <em>action governance</em> vs
+<em>content governance</em>。<strong>大多数团队只做了 content
+filtering（prompt injection / PII / jailbreak），没做 action
+governance（哪些 tool / 哪些写操作 / 哪些凭证）</strong>。<strong>Action
+governance 才是 Agent 治理的核心</strong>。</p>
+<hr />
+<h2 id="个核心治理动作可直接落地">5 个核心治理动作（可直接落地）</h2>
+<h3 id="spend-controls-不是财务工具是事故信号">1. Spend controls —
+不是财务工具，是事故信号</h3>
+<p><strong>Spend 政策结构</strong>：</p>
+<pre><code>[Organization] → [Business Unit] → [Team] → [API Key] → [User]
+       ↓              ↓             ↓          ↓         ↓
+     月 cap         周 cap        日 cap     每 agent  单用户</code></pre>
+<p><strong>关键工程</strong>： - <strong>每 agent / 每 workload 一个 API
+key</strong>——这样不用专门追踪系统就能 cap - <strong>Daily + weekly +
+monthly 多层 cap</strong>——避免月 cap 太宽导致月末才发现失控 -
+<strong>Default policies</strong>——避免每个 team 单独配置 -
+<strong>Sudden spend spike = agent 异常信号</strong>——比 alert
+更早发现问题</p>
+<p><strong>面试可讲角度</strong>：<strong>Spend policy 不是财务问题，是
+observability 工具</strong>。<strong>Spend 异常通常是 agent bug
+的第一个信号</strong>——比 latency / error rate 更灵敏。</p>
+<h3 id="model-routing-不是便宜任务用便宜模型那么简单">2. Model routing —
+不是”便宜任务用便宜模型”那么简单</h3>
+<p><strong>真模型路由</strong>：</p>
+<pre><code>[Task profile: difficulty / latency budget / cost budget / risk tier]
+       ↓
+[Routing policy]
+       ↓
+[Model selection]  ← 不是&quot;hardcoded 哪个模型&quot;，是按 profile 选</code></pre>
+<p><strong>关键判断</strong>：</p>
+<blockquote>
+<p>“Most people think of model routing as a way to send easy prompts to
+cheaper models, but <strong>it also matches each task with a model that
+is approved for that use case and meets the required standards for
+quality, latency, cost, and risk.</strong>”</p>
+</blockquote>
+<p><strong>路由 = 投资组合管理</strong>：把对的 model
+用在对的任务上。<strong>不是”省钱”是”风险管理 + 性能优化 +
+成本优化”的三角平衡</strong>。</p>
+<h3 id="context-efficiency-token-用在哪就省在哪">3. Context efficiency —
+token 用在哪就省在哪</h3>
+<p><strong>Context 决定 token</strong>——token 决定 cost + latency。</p>
+<p><strong>治理思路</strong>： - <strong>Tracing 找 context
+growth</strong>——哪些调用在送大 context - <strong>Evals 决定能删多少
+context</strong>——删了不影响质量 - <strong>Monitoring 检测 quality
+regression</strong>——删过头了立即报警</p>
+<h3 id="failover-不是-fallback-到任意可用-model">4. Failover — 不是
+fallback 到”任意可用 model”</h3>
+<p><strong>Fallback 的硬规则</strong>：</p>
+<blockquote>
+<p>“<strong>A backup model is considered valid only when it is
+policy-equivalent</strong>, meaning it satisfies the same requirements
+for data handling, residency, and safety.”</p>
+</blockquote>
+<p><strong>不是 fallback 到 OpenAI 是 Anthropic</strong>——是 fallback
+到<strong>满足同样合规 + 数据 + 安全的</strong> model。</p>
+<p><strong>Fail-open vs Fail-closed</strong>： -
+<strong>Fail-open</strong>：gateway 挂了，请求直接过（适合低风险
+internal tool） - <strong>Fail-closed</strong>：gateway
+挂了，请求拒绝（适合高风险 external customer-facing）</p>
+<p><strong>按 workload risk 选</strong>——不要全 gateway 一种行为。</p>
+<h3 id="guardrails-pattern-based-model-based-双轨">5. Guardrails —
+pattern-based + model-based 双轨</h3>
+<p><strong>两类 guardrail</strong>：</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>类型</th>
+<th>检测方式</th>
+<th>适用</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Pattern-based</strong></td>
+<td>regex / rules</td>
+<td>SSN、信用卡、email、API key</td>
+</tr>
+<tr class="even">
+<td><strong>Model-based</strong></td>
+<td>NER / LLM judge</td>
+<td>姓名、地点、政治倾向、prompt injection</td>
+</tr>
+</tbody>
+</table>
+<p><strong>关键警告</strong>：</p>
+<blockquote>
+<p>“Guardrails reduce risk, but they do not eliminate it.
+<strong>Pattern-based controls may miss unfamiliar formats, while
+model-based detection is probabilistic and can produce both false
+positives and false negatives.</strong>”</p>
+</blockquote>
+<p><strong>Guardrail 必须配合其他防护</strong>： - <strong>Consequential
+actions 走 deterministic limits 或 human approval</strong>——不能只靠
+content detection - Guardrail
+是<strong>第一道防线</strong>，不是唯一防线</p>
+<p><strong>面试可讲角度</strong>：这是 <em>defense in depth for
+LLM</em>。<strong>任何 content filter 都不能 100%
+准确</strong>——必须配合 action gating（审批、确定性规则）、data
+minimization（敏感数据别进
+context）、human-in-the-loop（高风险动作必须人工）。</p>
+<hr />
+<h2 id="compliance-适配5-个主流监管框架">Compliance 适配：5
+个主流监管框架</h2>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>监管</th>
+<th>适用</th>
+<th>关键要求</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>CCPA</strong></td>
+<td>加州消费者</td>
+<td>知情权、删除权、opt-out</td>
+</tr>
+<tr class="even">
+<td><strong>GDPR</strong></td>
+<td>欧盟</td>
+<td>合法基础、访问 / 更正 / 删除权</td>
+</tr>
+<tr class="odd">
+<td><strong>EU AI Act</strong></td>
+<td>欧盟 AI 系统</td>
+<td>按 risk 分级 + 透明度 + human oversight</td>
+</tr>
+<tr class="even">
+<td><strong>HIPAA</strong></td>
+<td>美国医疗</td>
+<td>PHI 保护 + BAA 协议</td>
+</tr>
+<tr class="odd">
+<td>各行业细分</td>
+<td>金融 / 教育 / 政府</td>
+<td>行业特定</td>
+</tr>
+</tbody>
+</table>
+<p><strong>工程建议</strong>：<strong>不是”做哪个就做完所有”</strong>——按业务实际接触的合规要求精准施加
+controls，<strong>每多一个要求 = 多成本 + 多 latency +
+多复杂度</strong>。</p>
+<hr />
+<h2
+id="简历可直接借用的项目骨架llm-gateway-agent-治理类">简历可直接借用的项目骨架（LLM
+Gateway / Agent 治理类）</h2>
+<pre><code>项目名：[公司名] LLM Gateway / Agent Runtime Control Plane
+
+角色：核心工程师 / Platform Lead
+
+5 步运转框架：
+1. Govern — Identity / RBAC / Risk Tier / Policy
+2. Decide — Model routing + Escalation + Failover
+3. Protect — Per-call controls (redaction / permission / spending)
+4. Observe — Tracing + Token breakdown + Behavior metrics
+5. Assure — Policy versioning + Audit logs + Eval history
+
+7 个基础能力：
+Security / AuthN (SSO+SCIM) / Audit logs / User mgmt / Provider secrets / Data separation / Residency
+
+4 类交互治理：
+- LLM call → spend cap + redaction
+- Tool call → permission + audit
+- MCP call → access control + logging
+- A2A call → per-hop tracing + policy
+
+5 个核心治理动作：
+1. Spend controls（multi-tier cap + API key per workload）
+2. Model routing（按 profile 选 model，不是 hardcoded）
+3. Context efficiency（trace → eval → monitoring 闭环）
+4. Failover（policy-equivalent fallback + fail-open/closed by risk）
+5. Guardrails（pattern + model 双轨，配合 action gating）
+
+合规适配：[GDPR / EU AI Act / HIPAA / CCPA]
+
+成果（量化）：
+- Token cost：[A]% 下降
+- Spend spike detection 时间：[N] 小时 → [M] 分钟
+- Audit trail 完整性：[B]% 决策可追溯
+- Provider failover：[X] ms 内完成
+- 合规审计通过率：[Y]%</code></pre>
+<p><strong>面试常被问到的延伸问题</strong>： - “Gateway 和直接调
+provider API 有什么区别？” → <strong>Gateway 是 runtime control
+plane</strong>——authenticate / route / redact / cap / retry / audit
+一次完成，<strong>provider 直连没有这些</strong> - “Model routing
+怎么做？” → <strong>按 task profile（difficulty / latency / cost /
+risk）路由</strong>——不是 hardcoded 哪个模型，是 policy 驱动 - “Fallback
+model 怎么选？” → <strong>policy-equivalent</strong>——满足同样合规 +
+数据 + 安全要求的 model，<strong>不是任意可用</strong> - “Guardrail
+怎么做？” → <strong>pattern + model 双轨</strong>，但不能 100%
+准确，必须配合 action gating + data minimization + human-in-the-loop -
+“Spend 异常怎么发现？” → <strong>multi-tier cap + alert</strong>——sudden
+spend spike 通常是 agent bug 的第一个信号</p>
+<hr />
+<h2 id="配套阅读">配套阅读</h2>
+<ul>
+<li><strong>同主题执行</strong>：<a
+href="blog/posts/2026-09-15-claude-agent-sdk-engineering.md">Claude
+Agent SDK</a> — SDK 层的 budget cap / hook / permission 怎么对应 gateway
+概念</li>
+<li><strong>客户落地</strong>：<a
+href="blog/posts/2026-09-15-cx-agents-five-patterns-production.md">Klarna
+/ Vodafone / Lyft</a> — 大规模生产 Agent 怎么用 gateway 控成本</li>
+<li><strong>Tool design for control</strong>：<a
+href="blog/posts/2026-09-15-writing-tools-for-agents.md">Building Tools
+for Agents</a> — tool 描述怎么写才能让 Agent 在 gateway
+后端被有效路由</li>
+</ul>
+<p>参考资料：</p>
+<ul>
+<li><a
+href="https://www.langchain.com/blog/building-governed-agents-a-framework-for-cost-control-and-compliance">Building
+Governed Agents</a> — Martha Janicki, LangChain</li>
+<li><a href="https://www.langchain.com/langsmith/llm-gateway">LangSmith
+LLM Gateway</a></li>
+<li><a
+href="https://www.langchain.com/blog/the-agent-development-lifecycle">The
+Agent Development Lifecycle</a></li>
+</ul>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>

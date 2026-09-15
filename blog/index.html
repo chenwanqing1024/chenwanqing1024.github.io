@@ -64,6 +64,11 @@
             </div>
             <div class="card-body">
                 <div class="mb-4">
+                    <h5 class="mb-1"><a href="2026-09-15-writing-tools-for-agents.html">给 Agent 写 Tools 的 6 个工程原则：从 Function Call 到 Agent Ergonomics</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">Tool Use</span> <span class="badge bg-secondary">MCP</span> </small></p>
+                    <p class="mb-1">把 Anthropic Writing Tools for Agents 文章拆成 6 个工程原则：Tool 是 deterministic + non-deterministic 系统之间的契约、Prototype → Eval → Iterate 循环、用 Claude Code 自己改 Tools、Consolidate 工具（schedule_event &gt; list_users + create_event）、Namespacing 按 service/resource、返回 meaningful context、token-efficient 响应、prompt-engineering tool description。配具体例子 + 面试可讲的设计取舍。</p>
+                </div>
+                <div class="mb-4">
                     <h5 class="mb-1"><a href="2026-09-15-tool-use-engineering-patterns.html">Claude Tool Use 实战：从 tool_choice 到 tool_search 的 7 个工程模式</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
                     <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">Tool Use</span> <span class="badge bg-secondary">Agent</span> </small></p>
                     <p class="mb-1">把 claude-cookbooks/tool_use 目录拆成 7 个独立可复制的工程模式，按&quot;单工具控制 / 多工具编排 / 规模化&quot;三档排列。每个模式给出一行定位 + 最小代码 + 工程踩坑提示，对齐 anthropic-sdk-python 当前接口。</p>
@@ -74,19 +79,14 @@
                     <p class="mb-1">把 claude-cookbooks/capabilities 里除 RAG 之外的 6 个子目录提炼成各自的最小落地模式。每个能力一行定位 + 最小代码 + 3 条以内踩坑提示，附选型对照表。</p>
                 </div>
                 <div class="mb-4">
+                    <h5 class="mb-1"><a href="2026-09-15-stripe-kai-one-engineer-one-week.html">Stripe Kai：1 个工程师 + 1 周，用 Deep Agents 搭全公司 Agent——3 个工程决策 + 简历级骨架</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">Deep Agents</span> <span class="badge bg-secondary">Stripe</span> <span class="badge bg-secondary">内部平台</span> <span class="badge bg-secondary">工程实践</span> </small></p>
+                    <p class="mb-1">Stripe Knowledge AI Platform（Kai）从 296 用户涨到 5000+（4 周），83% 员工每周用，1 个工程师 1 周做出 MVP。3 个关键决策：把 Deep Agents 当 OS 而非工具、S3 虚拟文件系统 + sync in/out、agent skills 按 user profile 动态加载。附完整简历项目骨架。</p>
+                </div>
+                <div class="mb-4">
                     <h5 class="mb-1"><a href="2026-09-15-spec-driven-attribution.html">Spec-driven 真正值钱的不是抓 bug，是把 review 变得可追责</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
                     <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">AI 治理</span> <span class="badge bg-secondary">工程实践</span> </small></p>
                     <p class="mb-1">Nitin Garg 的实验砍到了骨头：spec baseline 把 review 的归因率从 0% 拉到 81%，但 recall 在统计上没动（0.525 vs 0.518）。认同他把 spec 当 governance artifact 的判断，但 push back 三处：staged generation 的&quot;翻倍&quot;有第二次过模型本身的 confound、5 个 reviewer 不足以撑住治理 ROI 的结论、Accountable 必须配上&quot;被 bounced 的后果&quot;才成立；并指出这套打法在数据湖仓里早就跑过了，spec 治理不是 AI 时代的新发明，是数据治理套了个 LLM 的壳。</p>
-                </div>
-                <div class="mb-4">
-                    <h5 class="mb-1"><a href="2026-09-15-rag-engineering-patterns.html">RAG 实战：从 Naive 到 Modular 的 5 个工程模式</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
-                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">RAG</span> <span class="badge bg-secondary">Agent</span> </small></p>
-                    <p class="mb-1">把 claude-cookbooks/capabilities/retrieval_augmented_generation 的 663KB 主教程 + Promptfoo 评测套件拆成 5 个工程模式：文档分块 / 检索选型 / 上下文注入与引用 / Promptfoo 评测闭环 / 架构演进路径。每个模式给出一行定位 + 最小代码 + 踩坑提示。</p>
-                </div>
-                <div class="mb-4">
-                    <h5 class="mb-1"><a href="2026-09-15-patterns-agents-engineering.html">Agent 模式工程化：从 Prompt Chaining 到 Async Subagent 的 6 个实战模式</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
-                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">Patterns</span> </small></p>
-                    <p class="mb-1">把 Anthropic &quot;Building Effective Agents&quot; 论文对应的 patterns/agents 4 个 notebook 拆成 6 个工程模式：prompt chaining / parallelization / routing / orchestrator-workers / evaluator-optimizer / async multi-agent。每个模式一行定位 + 最小代码 + 2-3 条工程踩坑提示。</p>
                 </div>
             </div>
         </div>
@@ -98,6 +98,11 @@
                 <li class="page-item"><a class="page-link" href="page/2/index.html">2</a></li>
                 <li class="page-item"><a class="page-link" href="page/3/index.html">3</a></li>
                 <li class="page-item"><a class="page-link" href="page/4/index.html">4</a></li>
+                <li class="page-item"><a class="page-link" href="page/5/index.html">5</a></li>
+                <li class="page-item"><a class="page-link" href="page/6/index.html">6</a></li>
+                <li class="page-item"><a class="page-link" href="page/7/index.html">7</a></li>
+                <li class="page-item"><a class="page-link" href="page/8/index.html">8</a></li>
+                <li class="page-item"><a class="page-link" href="page/9/index.html">9</a></li>
                 <li class="page-item"><a class="page-link" href="page/2/index.html">下一页 »</a></li>
             </ul>
         </nav>

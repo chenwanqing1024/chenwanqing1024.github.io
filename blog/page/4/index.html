@@ -64,24 +64,29 @@
             </div>
             <div class="card-body">
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="2026-09-14-docs-over-code-ai-engineering.html">文档驱动：AI 工程的护城河不在代码，在文档</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
-                    <p class="text-muted mb-1"><small>2026-09-14 <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">文档驱动</span> </small></p>
-                    <p class="mb-1">冯若航把 AI 软件工程的四条核心做法中的第一条——文档驱动——从&quot;代码的补充&quot;重定位为&quot;代码的输入、工作记忆与验收凭据&quot;。认同文档前置的方向，但 push back 两条：70-80% Token 用于 QC 的比例被简化、&quot;每个 Issue 一份设计文档&quot;的边界没说清；并扩展到 MCP/schema/ADR 这条隐线。</p>
+                    <h5 class="mb-1"><a href="2026-09-15-eval-and-observability-patterns.html">评测与可观测：从 Usage 监控到 Agent 基准复现的 6 个工程模式</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">Evals</span> <span class="badge bg-secondary">Observability</span> </small></p>
+                    <p class="mb-1">把 claude-cookbooks 里 observability / tool_evaluation / evals / third_party 4 个目录合并成 6 个工程模式：Usage &amp; Cost Admin API 监控 / Tool Evaluation XML 框架 / Agentic Search harness / Programmatic Tool Calling 杠杆 / Model-as-Judge F1 评分 / 第三方生态地图。每个模式一行定位 + 最小代码 + 2-3 条工程踩坑提示。</p>
                 </div>
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="2026-09-14-agi-machinegun-acceptance-scarce.html">AGI 机关枪发下来了，可谁来验收</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
-                    <p class="text-muted mb-1"><small>2026-09-14 <span class="badge bg-secondary">AI</span> <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">读文笔记</span> <span class="badge bg-secondary">工程判断</span> </small></p>
-                    <p class="mb-1">老冯把&quot;AGI 机关枪&quot;叙事推到极致，但最锋利的不是&quot;门外汉也能烧&quot;，而是&quot;代码无限、信任不无限&quot;和 80/20 法则——稀缺的是 selection（知道什么值得做）和 acceptance（知道哪里可能有问题），不是 execution；蒋老板的&quot;门外汉&quot;其实是&quot;有品味的门外汉&quot;，这条叙事张力文章没解开。</p>
+                    <h5 class="mb-1"><a href="2026-09-15-effective-harness-init-coding.html">长时 Agent Harness：Initializer + Coding Agent 双角色模式的 5 个工程实践</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">Harness</span> <span class="badge bg-secondary">长任务</span> </small></p>
+                    <p class="mb-1">把 Anthropic Effective Harnesses for Long-Running Agents 文章拆成 5 个工程实践：长时 Agent 的两大失败模式（one-shotting / premature victory）、Initializer + Coding 双角色分工、JSON Feature List 防过度触发、Clean State 协议（git + progress + init.sh）、Puppeteer MCP 闭环自测。配 YAML 示例 + 5 步启动 checklist + 面试可讲的设计取舍。</p>
                 </div>
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="2026-09-14-agents-third-data-egress-point.html">Agent 是第三个数据外泄点</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
-                    <p class="text-muted mb-1"><small>2026-09-14 <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">本地 AI</span> <span class="badge bg-secondary">数据主权</span> <span class="badge bg-secondary">MCP</span> </small></p>
-                    <p class="mb-1">冯若航把&quot;本地 AI&quot;框定为政治账而非经济账。这篇认同他的核心论点，但把推论再往前一步：Agent 不是模型问题的延续，而是突变——它把数据外泄从&quot;事实&quot;和&quot;意图&quot;两个维度扩展到了&quot;动作&quot;，并让&quot;数据分级&quot;这条建议在工程上变得不再可行。</p>
+                    <h5 class="mb-1"><a href="2026-09-15-demystifying-ai-agent-evals.html">AI Agent 评测实操：从 0 到 1 搭建评测体系的 8 个工程模式</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">Evals</span> <span class="badge bg-secondary">Agent</span> </small></p>
+                    <p class="mb-1">把 Anthropic Demystifying Evals 文章拆成 8 个可落地的工程模式：评测词汇表、三种 Grader 选择、Capability vs Regression 区分、4 类 Agent 的评测配方、pass@k vs pass^k、8 步 Roadmap、Grader 反模式、Swiss Cheese 多层监控。每个模式给定位 + 代码 / YAML 示例 + 落地 checklist。</p>
                 </div>
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="2026-08-31-agent-as-person-org-design.html">把 Agent 当人：AI 组织建设的一个务实视角</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
-                    <p class="text-muted mb-1"><small>2026-08-31 <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">组织设计</span> <span class="badge bg-secondary">读文笔记</span> </small></p>
-                    <p class="mb-1">一篇主张&quot;Agent 是人而非工具&quot;的文章，核心价值在于把 AI 组织建设从架构重构问题降级成权限模型的增量问题。但它绕开了责任归属。</p>
+                    <h5 class="mb-1"><a href="2026-09-15-cx-agents-five-patterns-production.html">CX Agent 生产实践：Lyft / Vodafone / LATAM 三家 5 个共同模式 + 简历级项目骨架</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">CX</span> <span class="badge bg-secondary">多 Agent</span> <span class="badge bg-secondary">LangGraph</span> <span class="badge bg-secondary">工程实践</span> </small></p>
+                    <p class="mb-1">把 LangChain 三家 CX 客户案例（Lyft 65% deflection + 35% resolution、Vodafone 90% 正确率 + 82% resolution、Concierge 13% → 1% out-of-scope）抽出 5 个跨企业可复用的工程模式，每个模式给定位 + 数据 + 工程提示 + 简历项目骨架。</p>
+                </div>
+                <div class="mb-4">
+                    <h5 class="mb-1"><a href="2026-09-15-cost-optimization-engineering.html">Claude API 成本优化：从 prompt caching 到 model ladder 的 7 个 Pareto 工程模式</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">成本优化</span> <span class="badge bg-secondary">Pareto</span> </small></p>
+                    <p class="mb-1">把 claude-cookbooks/cost_optimization 的 1.2MB 主教程拆成 7 个工程模式：评测基线 / prompt caching / 输入 token 管理 / agent-loop 效率 / 输出 token 管理 / Batch API / model×effort ladder。每个模式给出一行定位 + 最小代码 + 工程踩坑提示，附 Pareto 选型表与&quot;哪类任务该用哪类杠杆&quot;对照。</p>
                 </div>
             </div>
         </div>
@@ -93,7 +98,12 @@
                 <li class="page-item"><a class="page-link" href="../2/index.html">2</a></li>
                 <li class="page-item"><a class="page-link" href="../3/index.html">3</a></li>
                 <li class="page-item active" aria-current="page"><span class="page-link">4</span></li>
-                <li class="page-item disabled"><span class="page-link">下一页 »</span></li>
+                <li class="page-item"><a class="page-link" href="../5/index.html">5</a></li>
+                <li class="page-item"><a class="page-link" href="../6/index.html">6</a></li>
+                <li class="page-item"><a class="page-link" href="../7/index.html">7</a></li>
+                <li class="page-item"><a class="page-link" href="../8/index.html">8</a></li>
+                <li class="page-item"><a class="page-link" href="../9/index.html">9</a></li>
+                <li class="page-item"><a class="page-link" href="../5/index.html">下一页 »</a></li>
             </ul>
         </nav>
 

@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="monday.com Sidekick 从单 Agent + N
+tools 起步，在生产里发现”加 tool 反而让 Agent 更差”——5
+个具体失败模式。重构成 5 层架构（context/permission → orchestrator →
+subagents → tools → sandbox），并给出 tool vs subagent vs sandbox
+的决策树。附完整简历项目骨架。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>monday.com Sidekick：为什么”加更多 tool”反而让 Agent 更差——5
+层架构 + Tool/Subagent/Sandbox 决策树 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>monday.com Sidekick：为什么”加更多 tool”反而让 Agent
+更差——5 层架构 + Tool/Subagent/Sandbox 决策树</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">Sidekick</span> <span class="badge bg-secondary">多
+Agent</span> <span class="badge bg-secondary">工程教训</span> <span class="badge bg-secondary">工程实践</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://www.langchain.com/blog/building-monday-com-sidekick-why-capable-agents-need-more-than-just-tools" target="_blank" rel="noopener">Building
+monday.com Sidekick: why capable agents need more than just
+tools</a> · Omri Bruchim (monday.com)
+            </div>
+
+<h2 id="引子">引子</h2>
+<p>monday.com Sidekick V1：<strong>1 个 general-purpose Agent + 1 个
+growing list of tools</strong>。V1
+看起来”能力越来越强”，生产里发现”能力越来越弱”。</p>
+<p>V2 拆成 5 层架构 + tool/subagent/sandbox 三种 primitive
+严格区分。<strong>这是”加 tool 让 Agent
+变差”的最具体的工程教训</strong>——每个 Agent 项目都会撞上。</p>
+<p>面试讲 Agent 演进 / 架构重构，这 5 个失败模式 + 5 层架构直接搬。</p>
+<hr />
+<h2 id="v1-失败5-个具体的加-tool-让-agent-变差的-pattern">V1 失败：5
+个具体的”加 tool 让 Agent 变差”的 pattern</h2>
+<p>Sidekick 加了 N 个 tool 后踩的 5 个坑：</p>
+<h3 id="tool-selection-越来越不准">1. Tool selection 越来越不准</h3>
+<blockquote>
+<p>“Similar tools with overlapping descriptions made it harder for the
+model to pick the right one.”</p>
+</blockquote>
+<p><strong>重叠 description 的 tool
+让模型选择失败率上升</strong>——不是”更多选择更好”，是”更多选择更难选”。</p>
+<h3 id="tool-definitions-吃-context">2. Tool definitions 吃 context</h3>
+<blockquote>
+<p>“Supplying many schemas and instructions on every turn left less
+context for the user’s request and the actual work data.”</p>
+</blockquote>
+<p>每 turn 都把所有 tool schema 塞 context →
+<strong>剩下给”真正工作”的空间越来越少</strong>。</p>
+<h3 id="agent-太通用-单一-prompt-管所有域">3. Agent 太通用 → 单一 prompt
+管所有域</h3>
+<blockquote>
+<p>“A single prompt had to contain instructions for research, content
+generation, data analysis, board operations, file processing, and other
+domains.”</p>
+</blockquote>
+<p>一个 prompt 写 6 个 domain 的指令 → <strong>每个 domain
+的指令都不够具体</strong>。</p>
+<h3 id="长-workflow-容易断">4. 长 workflow 容易断</h3>
+<blockquote>
+<p>“A failure in one intermediate step could cause the entire reasoning
+loop to lose direction.”</p>
+</blockquote>
+<p>单 Agent 单 loop 的脆弱性——一个 step 失败 → 整个 loop 失去方向。</p>
+<h3 id="测试组合爆炸">5. 测试组合爆炸</h3>
+<blockquote>
+<p>“Adding one new tool could affect workflows that appeared unrelated
+to it.”</p>
+</blockquote>
+<p><strong>Tool N+1 加进去，所有现有 workflow 的 eval
+都要重跑</strong>——加 tool 是 O(N) 成本。</p>
+<p><strong>加上</strong>：Observability 难（fail 来自 planning / tool
+choice / tool execution / retrieved context / final response
+中哪一个？）、Latency / cost 随复杂度线性增长、Tool exploration
+不必要（Agent 自己乱试）。</p>
+<p><strong>面试可讲角度</strong>：这是 <em>capability vs
+reliability</em> 的反直觉关系。<strong>加 tool = 加不确定性 =
+减可靠性</strong>。<strong>Tool 不是越多越好</strong>。</p>
+<hr />
+<h2 id="v2-架构5-层边界清晰">V2 架构：5 层边界清晰</h2>
+<pre><code>[monday.com UI / 上下文]
+       ↓
+[Layer 1: Context + Permission Layer]
+  - 用户、account、workspace、board、document、dashboard、item
+  - 检索 monday.com 数据 / semantic search / conversation / files / memories
+  - 权限过滤（&quot;不是附加安全，是基础要求&quot;）
+       ↓
+[Layer 2: Orchestration Agent]
+  - 理解用户意图、维护 plan、决定怎么执行
+  - 简单任务直接答或调一个 tool
+  - 复杂任务 → 委派 subagent 或用 sandbox
+       ↓
+[Layer 3: Subagents]
+  - 狭窄目标 + 小 toolset
+  - 例：content-generation agent 不需要 board-management tool
+  - 隔离清晰、可独立评估
+       ↓
+[Layer 4: Tools]
+  - 受控访问 monday.com 和外部系统
+  - Bounded 操作（读 board / 搜文档 / 更新 item / 触发已知 action）
+  - 3-tier classification + tiled tool discovery（菜单式，不一次给整本菜单）
+       ↓
+[Layer 5: Sandbox]
+  - 复杂 + 迭代的工作（CSV 清洗 / 多步分析 / chart 生成）
+  - 隔离文件系统 + 代码执行
+  - 中间结果不进 main context
+       ↓
+[Observability + Evaluation Layer]
+  - 全部 trace：model calls / tool calls / delegation / sandbox 活动 / latency / token / failures
+  - Offline eval + production signals 双轨</code></pre>
+<p><strong>关键判断</strong>：</p>
+<blockquote>
+<p>“<strong>The real shift wasn’t ‘moving to multiple agents.’ It was
+drawing clearer boundaries between planning, domain-specific reasoning,
+tool use, and execution.</strong>”</p>
+</blockquote>
+<p>不是”加更多 Agent”，是<strong>划清边界</strong>。</p>
+<hr />
+<h2 id="tool-vs-subagent-vs-sandbox-决策树">Tool vs Subagent vs Sandbox
+决策树</h2>
+<p>这篇文章工程价值最高的部分：</p>
+<pre><code>                    这个任务怎么做？
+                          │
+        ┌─────────────────┼─────────────────┐
+        ↓                 ↓                  ↓
+   bounded action   narrower reasoning   intermediate state
+   明确输入输出       专注领域思考          会污染 main context
+        │                 │                  │
+        ↓                 ↓                  ↓
+     [TOOL]          [SUBAGENT]          [SANDBOX]
+   读 board / 改 item  risk analysis      CSV 清洗 / chart 生成
+   搜文档 / 发消息     research / 写作     长时间分析</code></pre>
+<p><strong>3 种 primitive 的本质区别</strong>：</p>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Primitive</th>
+<th>本质</th>
+<th>输入/输出</th>
+<th>Context 隔离</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Tool</strong></td>
+<td>受控访问</td>
+<td>明确输入、明确输出</td>
+<td>不隔离（main context 看到）</td>
+</tr>
+<tr class="even">
+<td><strong>Subagent</strong></td>
+<td>专门推理</td>
+<td>任务 + 限制 toolset</td>
+<td><strong>独立 context window</strong></td>
+</tr>
+<tr class="odd">
+<td><strong>Sandbox</strong></td>
+<td>工作环境</td>
+<td>文件 + 代码 + 迭代</td>
+<td><strong>独立文件系统 + 代码运行时</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>典型工作流（混合使用）</strong>：</p>
+<pre><code>User: &quot;Analyze project data from 3 boards + attached CSV, identify delivery risks, prepare exec update.&quot;
+
+1. Main orchestrator
+   → 用 monday.com tool 检索 3 个 board 数据
+2. Orchestrator 委派 risk analysis subagent
+   → Subagent 独立 context，专注 risk analysis
+3. Subagent 用 sandbox 处理 CSV
+   → Sandbox 隔离文件系统，CSV / 中间 dataframe 不进 subagent context
+   → Sandbox 返回 structured findings
+4. Main orchestrator 或 writing subagent
+   → 把 findings 写成 exec update</code></pre>
+<p><strong>3 种 primitive
+在同一工作流里全部用上</strong>——不是非此即彼。</p>
+<p><strong>面试可讲角度</strong>：这是 <em>orthogonal primitives</em>
+的工程设计。<strong>Tool 是”动词”，Subagent 是”主语”，Sandbox
+是”工作台”</strong>。一个工作流需要哪几个就用哪几个，<strong>不要试图用一种
+primitive 做所有事</strong>。</p>
+<p><strong>工程落地 checklist</strong>： - ☐ 给每个 task 标”tool /
+subagent / sandbox”——不要默认全用 tool - ☐ <strong>Tool 描述要
+non-overlapping</strong>——避免模型选择失败 - ☐ <strong>Tool discovery
+分层</strong>——不是一次性给所有 schema，按 task 类型激活对应 tier - ☐
+Subagent 给<strong>最小 toolset</strong>（3-5 个 max），独立 context
+window - ☐ Sandbox 只在”有大量中间状态 / 多步迭代”时启用——别滥用</p>
+<hr />
+<h2 id="observability-evaluation成功-有用">Observability +
+Evaluation：成功 ≠ 有用</h2>
+<blockquote>
+<p>“Successful execution is not equivalent to a useful result.
+<strong>We need to evaluate whether Sidekick selected the correct
+context, followed permissions, completed the task, and produced an
+answer the user could trust.</strong>”</p>
+</blockquote>
+<p><strong>4 个评估维度</strong>： 1. 选的 context 对不对 2.
+权限遵守了吗 3. 任务完成了吗 4. 答案可不可信</p>
+<p><strong>不是</strong>”API
+调用成功率高”——那是基础设施指标，不是用户体验指标。</p>
+<p><strong>面试可讲角度</strong>：这是 <em>vanity metrics vs product
+metrics</em> 的 Agent 化。<strong>Token 便宜 / latency 低 / tool call
+成功率高</strong>——这些都对，但<strong>用户任务完成度 +
+答案可信度</strong>才是产品指标。<strong>任何 Agent
+项目都要有”任务完成度”这一条 metric</strong>。</p>
+<p><strong>工程落地 checklist</strong>： - ☐ 离线 eval：固定 scenario
+set，每次 prompt 改动跑一次 - ☐ 生产 trace：自动归类失败 mode（routing
+错 / context 错 / tool 执行错 / 答案错） - ☐ 任务完成度评分——不是”API
+成功”，是”用户目标达到” - ☐ 权限遵守 audit——trace 里专门标记 agent
+是否访问了不该访问的资源</p>
+<hr />
+<h2 id="个-lessons直接讲简历里">5 个 Lessons（直接讲简历里）</h2>
+<h3 id="lesson-1不要默认给一个-agent-所有能力">Lesson 1：不要默认给一个
+Agent 所有能力</h3>
+<blockquote>
+<p>“More tools can make an agent less capable because they increase
+ambiguity and consume context.”</p>
+</blockquote>
+<p><strong>反面</strong>：给 Agent 装 100 个
+tool。<strong>正面</strong>：按需加载 + 最小 toolset。</p>
+<h3 id="lesson-2context-是架构的一部分">Lesson 2：Context
+是架构的一部分</h3>
+<blockquote>
+<p>“Retrieving information, filtering it through permissions, selecting
+what is relevant, and deciding what not to include are core system
+responsibilities.”</p>
+</blockquote>
+<p><strong>Context engineering 不是”加更多
+RAG”</strong>——是<strong>架构层设计</strong>：什么进来、什么过滤、什么留下、什么不收。</p>
+<h3
+id="lesson-3tool-用于-bounded-actionsandbox-用于-open-ended-work">Lesson
+3：tool 用于 bounded action，sandbox 用于 open-ended work</h3>
+<blockquote>
+<p>“Turning every operation into an API or MCP tool can create an
+enormous and inefficient interface.”</p>
+</blockquote>
+<p><strong>每个操作都包成 API</strong> = 巨大低效的
+interface。<strong>用 sandbox 隔离”复杂 + 迭代”的工作</strong>。</p>
+<h3 id="lesson-4可观测性从第一天设计">Lesson
+4：可观测性从第一天设计</h3>
+<blockquote>
+<p>“Agent behavior is probabilistic, and successful API calls do not
+prove that the user’s goal was achieved.”</p>
+</blockquote>
+<p><strong>Probabilistic 系统必须可观测</strong>——success ≠ useful。</p>
+<h3 id="lesson-5用户面前的简单-内部简单">Lesson 5：用户面前的简单 ≠
+内部简单</h3>
+<blockquote>
+<p>“A request can feel like a conversation with one assistant while
+being executed by several specialized components behind the scenes.”</p>
+</blockquote>
+<p><strong>用户体验</strong> = 一个 Assistant。<strong>内部架构</strong>
+= 5 层 + 3 primitive + 多 subagent +
+sandbox。<strong>这是工程的价值</strong>。</p>
+<hr />
+<h2
+id="简历可直接借用的项目骨架agent-架构演进-内部-ai-助手类">简历可直接借用的项目骨架（Agent
+架构演进 / 内部 AI 助手类）</h2>
+<pre><code>项目名：[业务名] AI 助手 / Sidekick（从 V1 单 Agent 到 V2 多层架构的重构）
+
+角色：核心工程师 / AI Engineering Group Lead
+
+V1 失败 → V2 重构故事（5 个失败模式 → 5 层架构 + 3 种 primitive 决策树）：
+1. Tool selection 失败 → Subagent + 小 toolset
+2. Tool 定义吃 context → 分层 tool discovery（菜单式）
+3. 单 prompt 管多域 → 每个 subagent 专注一个域
+4. 长 workflow 脆弱 → Orchestrator 委派 + sandbox 隔离
+5. 测试组合爆炸 → 每个 subagent 独立 eval
+
+5 层架构：
+- Context + Permission Layer
+- Orchestration Agent
+- Subagents（窄目标 + 小 toolset）
+- Tools（bounded action + 权限感知）
+- Sandbox（隔离文件 + 代码 + 长时迭代）
+
+3 种 primitive 决策树：
+- Bounded action → Tool
+- Narrower reasoning → Subagent
+- Intermediate state heavy → Sandbox
+
+可观测性 + 评估：
+- 4 个评估维度：context / permission / task completion / answer trust
+- Offline eval + 生产 trace 闭环
+
+成果（量化）：
+- Tool selection accuracy：[A]% → [B]%
+- Task completion rate：[X]% → [Y]%
+- Latency / cost：[P] → [Q]
+- 新场景上线时间：[N] 周 → [M] 周</code></pre>
+<p><strong>面试常被问到的延伸问题</strong>： - “为什么不让一个 Agent
+做所有事？” → <strong>capability vs reliability
+的反直觉关系</strong>——加 tool 加不确定性减可靠性；单 Agent 不能 scale
+多 domain - “Subagent 怎么通信？” → <strong>不直接通信</strong>——通过
+orchestrator 调度 + sandbox 文件共享 - “怎么决定用 tool 还是 subagent
+还是 sandbox？” → <strong>决策树</strong>：bounded action →
+tool；narrower reasoning → subagent；intermediate state heavy → sandbox
+- “Tool 太多怎么办？” → <strong>tiled tool discovery</strong>——按 task
+类型激活对应 tier，不一次给所有 schema - “怎么评估 Agent 真的有用？” →
+<strong>4 维评估</strong>：context / permission / task completion /
+answer trust——不是 API success</p>
+<hr />
+<h2 id="配套阅读">配套阅读</h2>
+<ul>
+<li><strong>同主题重构</strong>：<a
+href="blog/posts/2026-09-15-agent-paid-media-workspace-five-lessons.md">Paid
+Media Agent</a> — LangChain 自家 GTM Agent 同样的”v1 单 agent → v2
+多层”演进</li>
+<li><strong>multi-agent 路由</strong>：<a
+href="blog/posts/2026-09-15-cx-agents-five-patterns-production.md">Lyft
+/ Vodafone / LATAM</a> — Supervisor + Use Case subagent
+的另一组案例</li>
+<li><strong>底层 SDK</strong>：<a
+href="blog/posts/2026-09-15-claude-agent-sdk-engineering.md">Claude
+Agent SDK</a> — sandbox + hook + subagent 的 SDK 实现</li>
+</ul>
+<p>参考资料：</p>
+<ul>
+<li><a
+href="https://www.langchain.com/blog/building-monday-com-sidekick-why-capable-agents-need-more-than-just-tools">Building
+monday.com Sidekick</a> — Omri Bruchim</li>
+<li><a
+href="https://docs.langchain.com/oss/python/deepagents/overview">Deep
+Agents</a></li>
+<li><a href="https://docs.langchain.com/langsmith/sandboxes">LangSmith
+Sandbox</a></li>
+</ul>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>

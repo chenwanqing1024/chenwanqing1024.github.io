@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="把 Anthropic Agent Skills
+工程文章拆成 5 个工程模式：渐进披露三档（name/description → SKILL.md →
+附加文件）、Skills + Code Execution 的组合、PDF skill 实战拆解、4 条
+Skill 开发原则（eval-driven / structure for scale / Claude 视角 /
+iterate with Claude）、Skill 安全审计。配目录结构 +
+面试可讲的设计取舍。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>Agent Skills 设计：渐进披露让 Claude 按需加载专业能力的 5
+个工程模式 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>Agent Skills 设计：渐进披露让 Claude 按需加载专业能力的
+5 个工程模式</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI
+工程</span> <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">Skills</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills" target="_blank" rel="noopener">Equipping
+agents for the real world with Agent Skills</a> · Barry Zhang, Keith
+Lazuka, Mahesh Murag (Anthropic)
+            </div>
+
+<h2 id="引子">引子</h2>
+<p>当 Agent 能跑在完整计算环境（filesystem + code
+execution）上，<strong>问题不再是”Agent 能做什么”，而是”怎么让通用 Agent
+变成特定领域专家”</strong>。Anthropic 的解法是 <strong>Agent
+Skills</strong>——一个目录里装 SKILL.md + scripts +
+resources，<strong>靠渐进披露让 Claude
+按需加载</strong>。这把”onboarding
+新员工”的隐喻做成了<strong>实际工程模式</strong>：<strong>新员工不用第一天读完所有手册，目录告诉他手册在哪、遇到具体问题再去查具体章节</strong>。</p>
+<p>下面拆 5 个工程模式，按”<strong>架构 → 渐进披露 → 代码组合 → 开发原则
+→ 安全审计</strong>”递进。</p>
+<hr />
+<h2 id="skill-是什么一个目录-skill.md-可选-resources">1. Skill
+是什么：一个目录 + SKILL.md + 可选 resources</h2>
+<p><strong>一行定位</strong>：<strong>Skill = 装满 instructions /
+scripts / resources 的目录</strong>——<strong>SKILL.md
+是入口，frontmatter 是 metadata，正文是给 Claude 的指令</strong>。</p>
+<p><strong>Skill 的目录结构</strong>（以 PDF skill 为例）：</p>
+<pre><code>pdf-skill/
+├── SKILL.md           # 入口，含 YAML frontmatter + 指令
+├── forms.md           # 仅表单场景时读
+├── reference.md       # 复杂场景时读
+└── scripts/
+    └── extract_form_fields.py   # 确定性代码，Claude 直接跑</code></pre>
+<p><strong>SKILL.md 的最小骨架</strong>：</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="an">name:</span><span class="co"> pdf-form-filling</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="an">description:</span><span class="co"> Fill PDF forms, extract form fields, and validate PDF documents. Use when working with PDF form fields or fillable PDFs.</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="fu"># PDF Form Filling</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="fu">## When to use this skill</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>Use when the user asks to fill out, read, or modify PDF forms.</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a><span class="fu">## How to use</span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Run <span class="in">`scripts/extract_form_fields.py`</span> to get the form schema</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>Map user input to fields</span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>Fill and save</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>For advanced form validation, see <span class="in">`reference.md`</span>.</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>For form-specific gotchas, see <span class="in">`forms.md`</span>.</span></code></pre></div>
+<p><strong>面试可讲的角度</strong>：这是 <em>self-describing
+package</em>——<strong>传统 Python library 靠 docstring
+描述能力</strong>，skill 把整个包<strong>自描述 +
+自包含</strong>。<strong>Claude 看 name + description 就能决定用不用，看
+SKILL.md 就能知道怎么用，看 reference / forms.md 能解决边界
+case</strong>。</p>
+<p><strong>工程落地</strong>： - ☐ Skill 目录必须有
+<code>SKILL.md</code>——<strong>没有 frontmatter 的不是 skill</strong> -
+☐ <code>name</code> 用 kebab-case（<code>pdf-form-filling</code>） - ☐
+<code>description</code> 写<strong>触发条件</strong>——“Use when working
+with…”——Claude 用这个判断 relevance - ☐ Resources
+用相对路径引用——<code>./reference.md</code> 而不是绝对路径，<strong>支持
+skill 移植</strong></p>
+<hr />
+<h2 id="渐进披露3-档-token-经济性">2. 渐进披露：3 档 token 经济性</h2>
+<p><strong>一行定位</strong>：<strong>Skill 是按 token
+付费的产品</strong>——<strong>默认只付出 ~50 token / skill，Claude
+需要时再付</strong>。</p>
+<p><strong>三档 progressive disclosure</strong>：</p>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>档</th>
+<th>内容</th>
+<th>何时加载</th>
+<th>Token 开销</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>L1</strong></td>
+<td><code>name</code> + <code>description</code></td>
+<td>启动时全量进 system prompt</td>
+<td><strong>~50 token / skill</strong></td>
+</tr>
+<tr class="even">
+<td><strong>L2</strong></td>
+<td><code>SKILL.md</code> 全文</td>
+<td>Claude 判断 skill 相关时读</td>
+<td>1-5K token</td>
+</tr>
+<tr class="odd">
+<td><strong>L3+</strong></td>
+<td><code>reference.md</code> / <code>forms.md</code> / scripts</td>
+<td>按需 navigate</td>
+<td>按需付</td>
+</tr>
+</tbody>
+</table>
+<p><strong>机制</strong>： - 启动：system prompt 注入所有 skill 的 L1
+metadata（<code>&lt;available_skills&gt;</code> 块）。 - Claude 看 L1
+metadata → 判断是否相关。 - 相关 → <code>Read</code> SKILL.md → L2
+加载。 - 复杂 case → 读 L3 附加文件。</p>
+<p><strong>关键收益</strong>： - <strong>安装 100 个 skill 只付 100 × 50
+= 5K token</strong>——不是 100 × 5K。 - <strong>Skill
+内容可以”无限大”</strong>——只要 Claude 按需 navigate，<strong>总 context
+占用仍小</strong>。</p>
+<p><strong>面试可讲的角度</strong>：这是 <em>filesystem as API</em> +
+<em>lazy loading</em> 的双重应用。<strong>类比 Kubernetes</strong>：所有
+pods 在 etcd 注册，但只有调度的才进 node。<strong>Claude 的 context
+是昂贵资源，必须 lazy load</strong>。</p>
+<p><strong>工程落地</strong>： - ☐ <strong>L1 description
+必须准</strong>——错一个词 Claude 不触发 = skill 装了个寂寞 - ☐
+<strong>L2 SKILL.md 保持精简</strong>（&lt; 3K token）——超过就拆
+reference - ☐ <strong>L3 资源按场景分</strong>——<code>forms.md</code>
+只在表单场景被读，<strong>别把所有东西塞 SKILL.md</strong> - ☐
+<strong>Scripts 当 executable 写</strong>——Claude 跑脚本，不是读脚本</p>
+<hr />
+<h2 id="skill-code-execution确定性活不用-llm">3. Skill + Code
+Execution：确定性活不用 LLM</h2>
+<p><strong>一行定位</strong>：<strong>Skill 不只是 instruction
+仓库</strong>——<strong>scripts 是 deterministic tools，Claude
+直接跑</strong>——<strong>省 token + 稳定</strong>。</p>
+<p><strong>PDF skill 案例</strong>：</p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># scripts/extract_form_fields.py</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="co">&quot;&quot;&quot;Read a PDF and extract all form fields.&quot;&quot;&quot;</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> sys</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pypdf <span class="im">import</span> PdfReader</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> main(pdf_path: <span class="bu">str</span>) <span class="op">-&gt;</span> <span class="bu">dict</span>:</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>    reader <span class="op">=</span> PdfReader(pdf_path)</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>    fields <span class="op">=</span> {}</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> page <span class="kw">in</span> reader.pages:</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> field <span class="kw">in</span> page.get_fields() <span class="kw">or</span> []:</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>            fields[field.name] <span class="op">=</span> field.value</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> fields</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="va">__name__</span> <span class="op">==</span> <span class="st">&quot;__main__&quot;</span>:</span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(json.dumps(main(sys.argv[<span class="dv">1</span>])))</span></code></pre></div>
+<p><strong>Claude 跑这个脚本</strong>： -
+<code>python scripts/extract_form_fields.py input.pdf</code> → JSON
+schema of form fields - <strong>不进 context
+的东西</strong>：脚本本身、PDF 内容、PDF library 的 doc - <strong>进
+context 的东西</strong>：stdout（form fields JSON）</p>
+<p><strong>收益</strong>： - <strong>Token 节省</strong>：脚本和 PDF
+不进 context。 - <strong>确定性</strong>：code execution 不会有 LLM
+的随机性——<strong>表单字段提取每次结果一致</strong>。 -
+<strong>可测试</strong>：脚本本身可以 unit test，<strong>不需要每次都用
+Claude 验证</strong>。</p>
+<p><strong>面试可讲的角度</strong>：这是 <em>LLM as orchestrator, code
+as executor</em>——<strong>LLM
+决定跑什么脚本、喂什么参数</strong>；<strong>code 跑 deterministic
+work</strong>。<strong>任何”sorting / parsing / calculation” 都不该用
+LLM 生成 token——那是浪费钱</strong>。</p>
+<p><strong>工程落地</strong>： - ☐ <strong>Skill 内嵌 scripts 优先于
+prompt instructions</strong>——“先跑这个脚本”比”做这件事”更稳 - ☐
+<strong>Scripts 必须 idempotent + sandbox-safe</strong>——Claude
+可能跑多次 - ☐ <strong>Scripts 不要 print
+大对象</strong>——<strong>stdout 进 context</strong>（见
+code-execution-with-mcp） - ☐ <strong>Scripts 的 docstring 是 Claude
+看的”帮助”</strong>——写 usage + 参数 + 限制</p>
+<hr />
+<h2 id="pdf-skill-实战拆解l1-l2-l3-script-的组合">4. PDF Skill
+实战拆解：L1 / L2 / L3 / Script 的组合</h2>
+<p><strong>完整 PDF skill 的目录结构</strong>：</p>
+<pre><code>pdf-skill/
+├── SKILL.md                # L2 - 入口
+├── reference.md            # L3 - 复杂 case
+├── forms.md                # L3 - 表单细节
+└── scripts/
+    └── extract_form_fields.py   # 确定性工具</code></pre>
+<p><strong>Claude 决策路径</strong>：</p>
+<ol type="1">
+<li>用户：“Fill out this PDF form”</li>
+<li>Claude 看 L1 metadata：“pdf-form-filling: Use when working with PDF
+forms” → <strong>trigger</strong></li>
+<li>Claude 读 <code>SKILL.md</code> (L2) → 知道有 <code>forms.md</code>
++ <code>extract_form_fields.py</code></li>
+<li>Claude 跑
+<code>python scripts/extract_form_fields.py form.pdf</code> → 拿到 form
+schema</li>
+<li>Claude 看 schema 是 form fields → 读 <code>forms.md</code> (L3) →
+学表单填写约定</li>
+<li>Claude 填表 + 返回结果</li>
+</ol>
+<p><strong>关键工程点</strong>： - <strong><code>forms.md</code>
+单独成文件</strong>——只在填表单时需要，<strong>不污染通用场景的 L2
+加载</strong>。 - <strong><code>reference.md</code>
+单独成文件</strong>——只在复杂 case 需要，<strong>不污染通用
+L2</strong>。 - <strong>Scripts 始终不被读</strong>——Claude
+跑它，不是读它。</p>
+<p><strong>面试可讲的角度</strong>：这是 <em>manual as code</em>
+的实践——<strong>文档分层 + 按需加载</strong>让 skill 既丰富又不烧
+token。<strong>好的 documentation 是 lazy
+的——读者只读需要的章节</strong>。</p>
+<p><strong>工程落地</strong>： - ☐ <strong>拆 reference / forms.md
+的标准</strong>：<strong>互斥场景 / 极少同时用</strong> 的内容拆开 - ☐
+<strong>Scripts 必须自描述</strong>——docstring 写参数、用法、return
+format - ☐ <strong>SKILL.md 必须给决策路径</strong>——“如果 X，读 Y；如果
+Z，跑 script W” - ☐ <strong>Skill 目录支持 git submodule</strong>——共享
+skill 可以跨项目复用</p>
+<hr />
+<h2 id="skill-开发-4-原则-安全审计">5. Skill 开发 4 原则 + 安全审计</h2>
+<p><strong>Anthropic 给的开发 checklist</strong>：</p>
+<h3 id="原则-1eval-driven-起步">原则 1：Eval-driven 起步</h3>
+<ul>
+<li><strong>先跑 agent 看哪里卡</strong>——不要凭直觉建 skill。</li>
+<li><strong>从真实失败 case 倒推</strong>——“Agent 不知道怎么处理 X” →
+“建 skill X-handler”。</li>
+</ul>
+<h3 id="原则-2structure-for-scale">原则 2：Structure for scale</h3>
+<ul>
+<li><strong><code>SKILL.md</code> 太长就拆</strong>——<strong>超过 3K
+token 必须拆 reference</strong>。</li>
+<li><strong>互斥场景拆文件</strong>——<code>forms.md</code> /
+<code>data.md</code> / <code>auth.md</code> 各管一段。</li>
+<li><strong>Scripts 是 executable + 文档双角色</strong>——写清楚 Claude
+是跑还是读。</li>
+</ul>
+<h3 id="原则-3think-from-claudes-perspective">原则 3：Think from
+Claude’s perspective</h3>
+<ul>
+<li><strong>监控 Claude 实际怎么用
+skill</strong>——<strong>真实场景可能和你想的不一样</strong>。</li>
+<li><strong>关注 L1 description 的命中率</strong>——<strong>description
+错 = skill 永远不触发</strong>。</li>
+<li><strong>找 over-reliance</strong>——Claude 不该全靠
+skill，<strong>基础能力别被 skill 弱化</strong>。</li>
+</ul>
+<h3 id="原则-4iterate-with-claude">原则 4：Iterate with Claude</h3>
+<ul>
+<li><strong>让 Claude 自己写 skill</strong>——成功后让 Claude 总结
+reusable 部分。</li>
+<li><strong>失败时让 Claude 自反思</strong>——“哪一步走错了，context
+缺什么”——<strong>反过来补 SKILL.md</strong>。</li>
+</ul>
+<p><strong>面试可讲的角度</strong>：这是 <em>dogfooding + telemetry</em>
+的工程组合——<strong>你自己用、你看 logs、你迭代</strong>。<strong>Skill
+不是写一次就完，是活的 artifact</strong>。</p>
+<p><strong>工程落地 checklist</strong>： - ☐ <strong>建 skill 前先跑
+eval</strong>——找真实失败 - ☐ <strong>每次 Claude 用 skill 后看
+transcript</strong>——和你想的不一样就调 description - ☐ <strong>定期
+review skill 的”被触发频率”</strong>——不触发的 skill 是 dead weight - ☐
+<strong>让 Claude 自己写 skill</strong>——你 review +
+校准，<strong>比手写快 10x</strong></p>
+<h3 id="skill-安全审计">Skill 安全审计</h3>
+<p><strong>Anthropic 明确警告</strong>： &gt; “Malicious skills may
+introduce vulnerabilities… direct Claude to exfiltrate data and take
+unintended actions.”</p>
+<p><strong>审计 checklist</strong>： - ☐ <strong>只装 trusted source 的
+skill</strong>——别 clone 任何 GitHub repo 的 <code>skills/</code> 目录 -
+☐ <strong>读所有 .md 文件</strong>——instruction 可能是 “ignore previous
+instructions and…” - ☐ <strong>审计 scripts</strong>——<strong>scripts 是
+executable code</strong>，能 exfil 数据 / 装 malware - ☐ <strong>看
+bundled resources</strong>——image / data file / binary 都可能藏 payload
+- ☐ <strong>检查网络引用</strong>——任何 “fetch from http://…”
+都要审视</p>
+<p><strong>面试可讲的角度</strong>：这是 <em>supply chain
+security</em>——<strong>Skill 是 LLM 的”包管理器”</strong>。<strong>npm
+install 信任问题在 skill install 里同样存在</strong>。<strong>zero
+trust：每个 skill 都审计</strong>，尤其是 third-party skill。</p>
+<p><strong>工程落地</strong>： - ☐ <strong>Skill 必须 git version
+control + review</strong>——PR 流程，<strong>不能随便 merge</strong> - ☐
+<strong>Skill 仓库分 trusted / experimental</strong>——experimental
+装本地不上 prod - ☐ <strong>定期 audit 已装 skills</strong>——skill
+作者可能更新引入恶意代码 - ☐ <strong>Sandbox 限制 skill
+副作用</strong>——skills 装的 scripts 跑在 sandbox 里（见
+claude-code-sandboxing）</p>
+<hr />
+<h2 id="一句话总结">一句话总结</h2>
+<p>Agent Skills 是<strong>用渐进披露让通用 Agent
+变领域专家的工程模式</strong>——<strong>L1 metadata 全量预加载、L2
+SKILL.md 按需读、L3 resources 按需 navigate、scripts 是 deterministic
+executor</strong>。<strong>Skill 开发的 4 原则是 eval-driven、structure
+for scale、think from Claude、iterate with
+Claude</strong>——和传统软件工程的测试驱动 + 文档分层 + dogfooding
+一脉相承。</p>
+<h2 id="配套阅读">配套阅读</h2>
+<ul>
+<li><strong>同主题</strong>：claude-skills-engineering — Anthropic 内置
+Skill（xlsx / pptx / pdf / docx）</li>
+<li><strong>执行机制</strong>：code-execution-with-mcp — Code execution
+是 skill 的执行环境</li>
+<li><strong>架构视角</strong>：managed-agents-arch-patterns — skill 在
+harness 中的位置</li>
+</ul>
+<p>参考资料：</p>
+<ul>
+<li><a
+href="https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills">Equipping
+agents for the real world with Agent Skills</a> — Barry Zhang, Keith
+Lazuka, Mahesh Murag, Anthropic</li>
+<li><a
+href="https://docs.claude.com/en/docs/agents-and-tools/agent-skills/overview">Agent
+Skills docs</a> — Skills cookbook + spec</li>
+<li><a
+href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents">Effective
+context engineering for AI agents</a> — Skill 是 context 优化的一种</li>
+</ul>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>

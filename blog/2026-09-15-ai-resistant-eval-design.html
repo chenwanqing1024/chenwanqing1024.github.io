@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="把 Anthropic 性能工程团队
+take-home test 三轮迭代的复盘拆成 6 个工程教训：AI
+能力侵蚀面试信号的实证、为什么”禁 AI”和”抬高
+bar”都不对、第一次换题失败（bank conflict 训练数据太多）、Zachtronics
+风格题库胜出、Realism vs AI-Resistance 的取舍。每条给定位 + 数据 +
+面试官和候选人都能用上的工程做法。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>AI-Resistant 面试设计：当模型比候选人更强，怎么保住
+Signal - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>AI-Resistant 面试设计：当模型比候选人更强，怎么保住
+Signal</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI
+工程</span> <span class="badge bg-secondary">面试</span> <span class="badge bg-secondary">Eval</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://www.anthropic.com/engineering/AI-resistant-technical-evaluations" target="_blank" rel="noopener">Designing
+technical evaluations that resist AI assistance</a> · Tristan Hume
+(Anthropic Performance Engineering)
+            </div>
+
+<h2 id="引子">引子</h2>
+<p>这是 Anthropic 性能工程 lead Tristan Hume
+写的一篇招聘技术复盘——不是讲模型怎么变强，是讲<strong>当模型比你面试的候选人都强，take-home
+test 该怎么改</strong>。1000+ 候选人、3 轮迭代、4 个 Claude
+模型版本——整套故事的核心是一个事实：<strong>每发一个新 Claude
+模型，他们之前设计的题就被废一次</strong>。</p>
+<p>更值得所有面试官读的不是”他们最后用了什么题”，是<strong>他们对”AI
+能力侵蚀面试信号”这件事的应对</strong>。下面拆成 6 个工程教训。</p>
+<hr />
+<h2 id="ai-能力曲线每-6-个月吃掉一档面试">1. AI 能力曲线每 6
+个月吃掉一档面试</h2>
+<p><strong>一行定位</strong>：Claude 3.7 Sonnet 的时候 50% 候选人该把题
+delegate 给 Claude；Opus 4 出来，<strong>几乎所有 4 小时内的提交都比不过
+Opus 4</strong>；Opus 4.5 直接<strong>和 2
+小时最强人类打平</strong>。</p>
+<p><strong>Anthropic 的数据</strong>（take-home 性能 benchmark，cycle
+count 越低越快）：</p>
+<table>
+<thead>
+<tr class="header">
+<th>模型 / 条件</th>
+<th>Cycle count</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Claude Opus 4（test-time compute 数小时）</td>
+<td>2164</td>
+</tr>
+<tr class="even">
+<td>Claude Opus 4.5（普通 2 小时会话）</td>
+<td>1790</td>
+</tr>
+<tr class="odd">
+<td>Claude Opus 4.5（test-time compute 2 小时）</td>
+<td>1579</td>
+</tr>
+<tr class="even">
+<td>Claude Sonnet 4.5（更久）</td>
+<td>1548</td>
+</tr>
+<tr class="odd">
+<td>Claude Opus 4.5（test-time compute 11.5 小时）</td>
+<td>1487</td>
+</tr>
+<tr class="even">
+<td>Claude Opus 4.5（改进 harness）</td>
+<td>1363</td>
+</tr>
+</tbody>
+</table>
+<p><strong>含义</strong>：人类用 unlimited time 仍能打过 Opus
+4.5（最佳人类 ~1363 &lt; Opus 4.5 1363
+是平手，低于它的就是人类赢）——但<strong>有 deadline 的 take-home
+早就不行了</strong>。</p>
+<p><strong>面试可讲的角度</strong>：AI
+能力曲线<strong>比面试题迭代快</strong>。你 2024 年设计的”难”题，2025
+年就是 baseline。<strong>任何固定题库的信号半衰期 ~12
+个月</strong>——这是新现实。</p>
+<p><strong>工程落地</strong>： -
+<strong>任何面试题都应该”过期审计”</strong>——每年拿当年代最新模型跑一次，看是否还区分得出人类
+vs 模型。 -
+<strong>不要买”AI-resistant”题库</strong>——题库是死的，模型是活的。<strong>抗
+AI 的不是题，是设计原则</strong>（见模式 4-6）。</p>
+<hr />
+<h2 id="两条路都不对禁-ai-抬高-bar">2. 两条路都不对：禁 AI × 抬高
+bar</h2>
+<p><strong>一行定位</strong>：“禁止用 AI”和”必须超过 Claude Code
+才能过”——<strong>两条都会逼你失去想保留的东西</strong>。</p>
+<p><strong>Anthropic 的推理</strong>： - <strong>禁 AI</strong>：无法
+enforce（remote 监考不可靠）+ 不像真实工作（工作中 AI
+是允许的）。<strong>强制禁 = 测的是”能不能不借助 AI
+工作”，不是”工作能力”</strong>。 - <strong>抬高 bar 到”必须超过 Claude
+Code solo”</strong>：人类花 50% 时间读题、build mental model，剩下时间
+steer Claude Code，<strong>永远落后于 Claude
+自己</strong>。<strong>dominant strategy 变成”坐着看 Claude
+干活”</strong>——这又不测人类了。</p>
+<p><strong>面试可讲的角度</strong>：这是一个 <em>constraint
+satisfaction</em>——“区分人类” 和 “在 AI 协作下工作” 是两个
+constraint，<strong>单维设计满足不了</strong>。</p>
+<p><strong>工程落地</strong>： - <strong>不要 ban
+AI</strong>——除非岗位真的不用 AI。 - <strong>不要”必须超过
+AI”</strong>——人类 + AI 协作 ≠ AI
+solo，<strong>测的是协作能力，不是模型输出</strong>。 -
+<strong>第三种思路</strong>：让 AI 用得”好”成为考核维度——prompting
+质量、tooling 选择、判断何时介入。</p>
+<hr />
+<h2 id="第一次换题失败换-in-distribution-题没用">3. 第一次换题失败：换
+“in-distribution” 题没用</h2>
+<p><strong>一行定位</strong>：换题不是换难度——是换”AI
+训练数据覆盖程度”。<strong>in-distribution
+题目再难也会被攻破</strong>。</p>
+<p><strong>Anthropic 的踩坑</strong>： - 第一版 4
+小时模拟器，<strong>Opus 4 直接打过</strong>——但还有深度可挖。 -
+第二版（2 小时）改 machine feature，<strong>Opus 4.5
+也打过了</strong>——多跑两小时 harness 还超过最佳人类。 -
+第三次换题：挑了一个<strong>真实工程问题</strong>（2D TPU register 转置
++ bank conflict avoidance）。Anthropic 自己踩过的坑——结果 Opus 4.5
+<strong>想出了他们没想到的优化</strong>（transpose the computation
+而不是 transpose the data）。把这条 hack 堵上，<strong>再用 ultrathink
+长 thinking budget，又解了</strong>。 - <strong>失败原因</strong>：bank
+conflict / data transposition
+是<strong>整个领域公开踩过的坑</strong>——训练数据极其丰富，<strong>模型能从更大
+toolbox 里找 trick</strong>。</p>
+<p><strong>面试可讲的角度</strong>：<em>out-of-distribution</em> 是
+AI-resistant 题目的真正定义。<strong>模型能解是因为见过，类似问题在
+pretraining corpus
+里</strong>——所以难不是关键，<strong>不常见才是关键</strong>。</p>
+<p><strong>工程落地</strong>： - <strong>搜你的题在 GitHub / LeetCode /
+Stack Overflow 有没有相似解</strong>——有的话 AI 必破。 - <strong>问”这个
+trick 在哪个领域被广泛讨论过？“</strong>——讨论越广，模型越会。 -
+<strong>真独家问题需要真独家领域知识</strong>——公司内部的某条冷门
+codebase、某个新发布框架的细节、刚发生的某次事故复盘。</p>
+<hr />
+<h2 id="成功之道zachtronics-风格out-of-distribution-才安全">4.
+成功之道：Zachtronics 风格——out-of-distribution 才安全</h2>
+<p><strong>一行定位</strong>：<strong>极度受限的 instruction set +
+不给调试工具 + 多独立子问题</strong>——把题变成”人类 reasoning 能 win，AI
+toolbox 不能 win”。</p>
+<p><strong>Anthropic 的解</strong>： - 灵感来源：Zachtronics
+的编程解谜游戏（深圳 I/O、TIS-100）。 -
+设计：每题用<strong>极小、极窄的指令集</strong>（比如多芯片通信、每 chip
+10 条指令 + 1-2
+状态寄存器）。<strong>唯一允许的解：用奇怪的方式写程序</strong>（state
+编码进 instruction pointer / branch flag）。 -
+<strong>关键约束</strong>：<strong>不提供可视化或调试工具</strong>。starter
+code 只 check 答案是否
+valid。<strong>造调试工具本身就是考点</strong>——候选人是插 print 还是让
+AI 生成 debugger，是 judgment 题。 - 多个独立子问题 →
+<strong>总成绩方差小</strong>（不会一题定生死）。</p>
+<p><strong>面试可讲的角度</strong>：这是 <em>testing the meta-skill, not
+the skill</em>。测的不是”你会 VLIW
+优化”，是”面对一个奇怪约束系统，你怎么 reasoning”——<strong>这种能力
+in-context 学不到，模型靠 tool pattern matching 也没用</strong>。</p>
+<p><strong>工程落地</strong>： - <strong>新题设计 checklist</strong>： -
+☐ 训练数据覆盖不到（搜不到类似 trick） - ☐ 多个独立子题（降低方差） - ☐
+没有现成调试工具（逼候选人决策） - ☐ 边界清晰（valid / invalid
+容易判定） - <strong>不要追求”像真实工作”</strong>——Anthropic
+自己承认：“realism 可能不再是奢侈品”——<strong>AI-resistant 必须先于
+realistic</strong>。</p>
+<hr />
+<h2 id="realism-vs-ai-resistance必须做减法">5. Realism vs
+AI-Resistance：必须做减法</h2>
+<p><strong>一行定位</strong>：<strong>真实工作题 ≠ AI-resistant
+题</strong>。当前现实是：<strong>为了保住 signal，你必须放弃部分
+realism</strong>。</p>
+<p><strong>Anthropic 的取舍</strong>： - 原始 take-home
+工作得很好，因为它像真实工作（性能工程师实际做的事）。 -
+第二版更像真实工作（VLIW packing、SIMD），<strong>但也更容易被 Opus 4.5
+解</strong>。 - 第三版（Zachtronics
+风格）<strong>信号强，但和真实工作关系不大</strong>。 - Tristan
+自己说：<strong>“I’m still sad to have given up the
+realism”</strong>——但<strong>realism 是奢侈品</strong>。</p>
+<p><strong>面试可讲的角度</strong>：这是 <em>fitness function
+conflict</em>。当外部环境（AI 能力）变化，<strong>老的 fitness
+function（realism）必须让位</strong>。<strong>信号价值 &gt;
+表面真实</strong>。</p>
+<p><strong>工程落地</strong>： -
+<strong>明确写”测试目标”</strong>——每道题答”测的是哪项能力”，<strong>不要写”像不像真实工作”</strong>。
+- <strong>接受”题看起来怪”</strong>——只要对目标能力有效。 -
+<strong>多个小信号题 &gt; 一个大综合题</strong>——AI
+难做对小信号的合谋欺骗。</p>
+<hr />
+<h2 id="给面试官和候选人的双向清单">6. 给面试官和候选人的双向清单</h2>
+<p><strong>给面试官的工程清单</strong>：</p>
+<ul class="task-list">
+<li><label><input type="checkbox" />每年用当年代 SOTA
+模型测一次，过线就重审题库</label></li>
+<li><label><input type="checkbox" />题在 GitHub / Stack Overflow /
+LeetCode <strong>搜不到解</strong></label></li>
+<li><label><input
+type="checkbox" />多独立子问题（≥3）——降低方差</label></li>
+<li><label><input type="checkbox" />有 hard pass / fail
+阈值——不靠”整体感觉”</label></li>
+<li><label><input type="checkbox" />不强迫”必须超过
+AI”——<strong>测协作和 judgment，不是 solo 输出</strong></label></li>
+<li><label><input
+type="checkbox" />提供反馈循环——候选人做完能学到东西，不是黑盒</label></li>
+</ul>
+<p><strong>给候选人的工程清单</strong>（<strong>给候选人当 take-home
+准备时</strong>）：</p>
+<ul class="task-list">
+<li><label><input type="checkbox" />用 AI
+工具——但<strong>不要放弃判断</strong>：每一步都问”为什么这样”</label></li>
+<li><label><input type="checkbox" />Build tooling
+而不是只解一次——<strong>调试能力是考点本身</strong></label></li>
+<li><label><input type="checkbox" />留时间反思 trade-off——面试官会看注释
+/ commit history</label></li>
+<li><label><input type="checkbox" />如果题很怪（Zachtronics
+风格），<strong>别想着”标准解”</strong>——<strong>找到那个 weird
+constraint 的 weird trick</strong></label></li>
+</ul>
+<hr />
+<h2 id="一句话总结">一句话总结</h2>
+<p>当 AI 模型越来越强，<strong>面试题的设计从”考知识 / 考
+trick”变成了”考 out-of-distribution
+reasoning”</strong>。你必须放弃”像真实工作”的执念，<strong>换取”AI
+难破”的安全性</strong>。<strong>真正的抗 AI 题不是难，是少见 +
+有独立小信号 + 不给调试工具</strong>——逼候选人 reasoning 而不是 pattern
+match。</p>
+<h2 id="配套阅读">配套阅读</h2>
+<ul>
+<li><strong>同主题</strong>：demystifying-evals-for-ai-agents — AI 评估
+vs 人类评估的 metric 差异</li>
+<li><strong>评测视角</strong>：eval-and-observability-patterns —
+怎么测”LLM judge 自身质量”</li>
+<li><strong>执行机制</strong>：tool-use-engineering-patterns — AI
+工具协作的考核维度</li>
+</ul>
+<p>参考资料：</p>
+<ul>
+<li><a
+href="https://www.anthropic.com/engineering/AI-resistant-technical-evaluations">Designing
+technical evaluations that resist AI assistance</a> — Tristan Hume,
+Anthropic</li>
+<li><a href="https://github.com/anthropics/take-home">Take-home test on
+GitHub</a> — 开放挑战，sub-1487 cycles 有兴趣可以投递</li>
+<li><a
+href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents">Effective
+context engineering for AI agents</a> — 同样是”AI
+变强后假设过期”的元话题</li>
+</ul>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>

@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="把 LangChain 三家 CX
+客户案例（Lyft 65% deflection + 35% resolution、Vodafone 90% 正确率 +
+82% resolution、Concierge 13% → 1% out-of-scope）抽出 5
+个跨企业可复用的工程模式，每个模式给定位 + 数据 + 工程提示 +
+简历项目骨架。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>CX Agent 生产实践：Lyft / Vodafone / LATAM 三家 5 个共同模式
++ 简历级项目骨架 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>CX Agent 生产实践：Lyft / Vodafone / LATAM 三家 5
+个共同模式 + 简历级项目骨架</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">CX</span> <span class="badge bg-secondary">多
+Agent</span> <span class="badge bg-secondary">LangGraph</span> <span class="badge bg-secondary">工程实践</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://www.langchain.com/blog/customer-experience-cx-agents-in-production-lessons-from-lyft-vodafone-and-latam-airlines" target="_blank" rel="noopener">CX
+Agents in Production: Lessons from Lyft, Vodafone, and LATAM
+Airlines</a> · Jess Ou (LangChain)
+            </div>
+
+<h2 id="引子">引子</h2>
+<p>Lyft 每月 270K AI Assist 对话、65% deflection、35%
+resolution；Fastweb + Vodafone 的 Super TOBi 服务 950 万用户、90%
+正确、82% resolution；LATAM Concierge 13% → 1% out-of-scope。这些不是 PR
+数据——它们对应具体的工程决策。<strong>这篇文章抽 5
+个跨企业复用的模式</strong>，每个都给数据 + 工程落地 +
+简历项目骨架。</p>
+<p>面试讲 CX Agent 项目，这 5 条都能直接搬。</p>
+<hr />
+<h2 id="模式-1自服务化平台是规模化前提lyft">模式
+1：自服务化平台是规模化前提（Lyft）</h2>
+<p><strong>一行定位</strong>：当一个公司有 N 个 support /
+业务场景时，<strong>不能每个 Agent 都让 ML
+工程师写</strong>——必须有”运营 / PM / 领域专家能自己起一个新
+Agent”的平台。</p>
+<p>Lyft 的演进： - <strong>V1</strong>：ML 工程师手写每个 Agent，第一个
+driver Agent 用 <strong>6 个月</strong> -
+<strong>V2</strong>：平台化后，新 configurable Agent <strong>2
+周</strong> - 关键差异：<strong>Configurable Agent 用 JSON 配置 +
+LangSmith Prompt Hub 的 prompt</strong>，领域专家自己写，不用工程师</p>
+<p><strong>工程关键</strong>： -
+把”业务意图”和”工程实现”解耦——领域专家写 prompt + JSON
+schema，工程师提供 platform - <strong>Prompt Hub 版本化</strong>：所有
+prompt 进版本管理，diff 可追溯 - <strong>Configurable vs Specialized
+两层并存</strong>：高风险复杂场景（damage claim 含图片 + fraud
+detection）继续由 ML 工程师写，标准场景（账户查询、退款）由运营配置</p>
+<p><strong>面试可讲角度</strong>：这是 <em>self-service infra</em> 的
+Agent
+化。<strong>任何”被反复提的需求”，都该被平台化抽象出来</strong>——不是给更多人手，是给非工程师自助能力。</p>
+<hr />
+<h2 id="模式-2evaluation-是-shared-languagelyft">模式 2：Evaluation 是
+shared language（Lyft）</h2>
+<p>Lyft 开放 Agent 给非工程师后，<strong>真正的瓶颈不是平台，是 prompt
+质量和评估标准</strong>。他们建了一整套 evaluation flywheel：</p>
+<h3 id="pre-launchsimulation-rubric">Pre-launch：simulation +
+rubric</h3>
+<pre><code>simulated_user (LLM role-play) ↔ agent
+         ↓
+trajectory: messages + tool calls + state changes
+         ↓
+rubric scoring:
+  - code-based assertion (concession / escalation 正确)
+  - LLM-judge (educational content 是否合适)</code></pre>
+<p><strong>关键工程细节</strong>： -
+<strong>模拟用户必须调校</strong>——Lyft 早期模拟用户太”礼貌”（pass rate
+90% 但生产表现差），后来 fine-tune 在真实用户 verbatims 上，加
+persona（refund seeker、AI skeptic、想找人类的人） - <strong>Rubric 要
+narrow + behavior-specific</strong>——不要”回答
+helpfulness”这种通用指标，要”重复教育内容 &gt; 3 次就
+fail”这种具体行为规则 - <strong>Pass/fail 比 scalar score
+更有效</strong>——binary 结果直接对应一个具体的修复动作</p>
+<h3 id="post-launchtrace-annotation-queue-dataset">Post-launch：trace →
+annotation queue → dataset</h3>
+<pre><code>production trace
+    ↓ (failure detected)
+annotation queue（PM + QA 标注）
+    ↓ (labeled with failure mode)
+LangSmith dataset
+    ↓ (auto-fed into next eval run)
+regression-tested prompt / workflow change</code></pre>
+<p><strong>关键工程细节</strong>： - <strong>生产失败自动入 eval
+集</strong>——这是 evaluation flywheel 闭合的关键 - 成功的 trajectory
+还能作为 fine-tuning 数据，未来还能训基础模型 - LLM judge
+必须<strong>和人类 reviewer 校准</strong>——定期抽样对比，agreement rate
+不够就调整 judge prompt</p>
+<p><strong>面试可讲角度</strong>：这是 <em>CI/CD for
+prompts</em>。<strong>prompt 改动要像代码改动一样跑 regression
+test</strong>——你的 eval set 就是 prompt 的 test
+suite。<strong>生产数据反哺 eval 集</strong>才是 flywheel 闭合。</p>
+<hr />
+<h2
+id="模式-3supervisor-use-case-subagents-structured-action-tagsvodafone">模式
+3：Supervisor + Use Case subagents + structured action
+tags（Vodafone）</h2>
+<p>Fastweb + Vodafone 的 Super TOBi 架构：</p>
+<pre><code>[Supervisor Agent]
+   ↓ 路由 + guardrail + shaping
+[Use Case Agent 1: 账单]   ↘
+[Use Case Agent 2: 漫游]    ↘  tool calls + structured action tags
+[Use Case Agent 3: 销售]    ↗
+[Use Case Agent N: ...]     ↗
+   ↓
+[结构化动作标签] → 直接调交易 API（激活 / 停用 / 改支付）</code></pre>
+<p><strong>两个关键设计</strong>： 1. <strong>Supervisor 用 LLM Compiler
+模式</strong>——决定调用哪些 API、按什么顺序执行、最后怎么生成回答 2.
+<strong>结构化 action tags</strong>：Use Case Agent
+不仅返回自然语言，还能返回 action tag，让对话直接变成交易（“激活 offer /
+禁用服务 / 更新支付方式”）</p>
+<p><strong>Fastweb + Vodafone 用 Neo4j 存业务流程图</strong>：</p>
+<pre><code>procedure.md → LangGraph 解析 pipeline
+            → 提取步骤 / 条件 / action / API 依赖
+            → 写入 Neo4j 知识图谱（步骤 ↔ 条件 ↔ action ↔ API）
+            → CI/CD 部署，小时级更新</code></pre>
+<p><strong>当 consultant 提问时</strong>： - Supervisor 判断是结构化
+troubleshooting 还是开放性问答 - Troubleshooting → 检索 Neo4j procedure
+→ 逐步调用 API 测条件 → 命中即给 action - 开放问答 → vector store +
+Neo4j 混合检索 → 答案带源引用</p>
+<p><strong>核心数字</strong>：<strong>One-Call Resolution &gt;
+86%</strong>。</p>
+<p><strong>面试可讲角度</strong>：这是 <em>LLM Compiler pattern</em> +
+<em>knowledge graph as procedural
+memory</em>。<strong>业务知识（步骤、条件、action）不要写在 prompt
+里，写在图数据库里——可更新、可审计、可被多个 Agent
+共享</strong>。<strong>CI/CD 流程让业务专家能直接更新知识</strong>。</p>
+<hr />
+<h2 id="模式-4从生产-trace-重新设计架构latam">模式 4：从生产 trace
+重新设计架构（LATAM）</h2>
+<p>LATAM Concierge 早期用 triage agent：每个 specialist 自己 format
+自己的输出。</p>
+<p>LangSmith trace 揭穿了一个隐藏成本：<strong>~15% latency + token
+overhead 来自”每个 specialist 重复结构化”</strong>。</p>
+<p><strong>重构后</strong>：supervisor 保留最终输出权，所有 specialist
+只返回 raw findings，supervisor 在最后一步统一 format。</p>
+<p><strong>结果</strong>：<strong>cost 降 15%，quality
+不变</strong>。</p>
+<p><strong>另一个 trace 揭穿的故事</strong>：13% out-of-scope
+看起来是用户在乱问——<strong>实际 trace review 发现 95%
+是真实需求（check-in / 行李 / LATAM Pass），只是 Agent 没设计来
+handle</strong>。<strong>加一个 customer-care specialist，out-of-scope
+13% → 1%，return rate 提升 6%</strong>。</p>
+<p><strong>面试可讲角度</strong>：<strong>架构问题经常不会出现在
+aggregate dashboard 上，只出现在 trace 里</strong>——你必须看 trace
+才能找到。这是 <em>observability-driven architecture</em>。</p>
+<p><strong>工程落地 checklist</strong>： - ☐
+<strong>不要等”复盘会”才发现架构问题</strong>——每周抽 20 条 trace
+看，找到一个真实低效 pattern 立即重构 - ☐
+关注”看起来合理但实际没必要的步骤”（重复 format / 重复 retrieve / 重复
+validate） - ☐ Out-of-scope / failure cluster 是 roadmap 信号，不是
+bug</p>
+<hr />
+<h2 id="模式-5对话本身是-business-intelligencelatam-compass">模式
+5：对话本身是 business intelligence（LATAM Compass）</h2>
+<p>LATAM 做了 Compass——一个 ontology-driven
+pipeline，把<strong>非结构化对话</strong>（agent、UX research、call
+center、legal）转成<strong>结构化知识</strong>（BigQuery Graph）：</p>
+<pre><code>[非结构化源] → parser → Gemini mapper（按 ontology 抽实体关系）→ modeler → BigQuery Graph
+                                  ↑
+                         ontology registry（领域 schema）
+                                  ↓
+                         evaluation layer（抽得对不对）</code></pre>
+<p><strong>3 个关键设计</strong>： 1. <strong>Ontology
+是真正的资产</strong>——model 可换、pipeline 可升级，ontology
+包含”我们关心什么、概念怎么关联” 2. <strong>同一 pipeline 换 ontology
+支持不同用例</strong>——UX research（pain points / feature requests /
+user segments）、legal（parties / clauses / obligations） 3.
+<strong>生态系统现实 &gt; 技术纯洁性</strong>——LATAM 评估了 Spanner
+Graph（更适合图查询），但因为其他数据全在 BigQuery，<strong>改用
+BigQuery Graph</strong>——少一个 federated query 依赖</p>
+<p><strong>结果</strong>：UX research 从几周降到几天，每文档处理成本 ~1
+美分。</p>
+<p><strong>面试可讲角度</strong>：这是 <em>conversations as first-class
+data product</em>。<strong>Agent
+产出的对话不是”日志”——是结构化的业务信号</strong>。每条对话都包含
+intent、preference、context、future need——这些是传统 BI 拿不到的。</p>
+<p><strong>延伸</strong>：Compass 后续会把 Concierge（出行前）+ call
+center（出行中）+ 出行后反馈串成 shared graph，<strong>每个 agent
+都能用上其他 agent 的洞察</strong>。</p>
+<hr />
+<h2 id="个跨企业模式汇总">5 个跨企业模式汇总</h2>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>#</th>
+<th>模式</th>
+<th>数据点</th>
+<th>工程核心</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>1</td>
+<td>自服务化平台</td>
+<td>6 月 → 2 周</td>
+<td>业务意图 / 工程实现解耦</td>
+</tr>
+<tr class="even">
+<td>2</td>
+<td>Eval 是 shared language</td>
+<td>90% pass → 真实生产通过率</td>
+<td>rubric + simulation + production 反哺</td>
+</tr>
+<tr class="odd">
+<td>3</td>
+<td>Supervisor + subagents + graph</td>
+<td>90% 正确、82% resolution</td>
+<td>LLM Compiler + 知识图谱存流程</td>
+</tr>
+<tr class="even">
+<td>4</td>
+<td>Trace 驱动架构演进</td>
+<td>15% cost 降、out-of-scope 13%→1%</td>
+<td>每周抽 trace 看，找到 pattern 立即重构</td>
+</tr>
+<tr class="odd">
+<td>5</td>
+<td>对话是 BI 资产</td>
+<td>UX research 周 → 天</td>
+<td>ontology-driven pipeline + graph store</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2
+id="简历可直接借用的项目骨架cx-agent-类">简历可直接借用的项目骨架（CX
+Agent 类）</h2>
+<pre><code>项目名：智能客服 / CX Agent 平台
+
+架构：
+- Supervisor Agent（路由 + guardrail + 输入校验）
+- N 个 Use Case Subagents（每个对应一类业务场景）
+- 工具层：API + 知识图谱（业务流程 / FAQ）+ 向量库（开放问答）
+- 数据层：对话 trace → 结构化 BI（可选 Compass / 分析 pipeline）
+
+关键工程决策：
+1. 配置与实现分离：业务专家通过 Prompt Hub + JSON 配置自助上线新场景
+2. Eval flywheel：simulation rubric 上线前 + production trace 反哺 + LLM judge 与人类 reviewer 校准
+3. 知识图谱存业务流程：可更新、可审计、可被多 Agent 复用
+4. Trace-driven 重构：每周抽 trace 看，找到重复/低效步骤立刻重构
+5. 对话作为数据产品：ontology pipeline 把对话转结构化业务信号
+
+成果（量化）：
+- Resolution rate：[A]% 一次性解决
+- Correctness：[B]%
+- Out-of-scope：[X]% → [Y]%
+- Cost per conversation：[P] → [Q]</code></pre>
+<p><strong>面试常被问到的延伸问题</strong>： - “Supervisor
+路由错了怎么办？” → <strong>支持 subagent 中途把控制权交回
+supervisor</strong>（Lyft 的 meta-agent 设计） - “怎么评估 Agent？” →
+<strong>rubric 要 narrow + behavior-specific</strong>，不要通用指标；LLM
+judge 要和人类 reviewer 校准 - “Prompt 改了怎么知道没退化？” → eval set
+当 regression test，每次 prompt 改动都跑同一组 scenario -
+“怎么发现新需求？” → 看 trace 的 out-of-scope / failure
+cluster，<strong>不是看 dashboard 数字</strong> - “Agent
+改了业务流程怎么办？” → <strong>Neo4j 知识图谱 +
+CI/CD</strong>，业务专家直接更新 ontology，pipeline 几小时生效</p>
+<hr />
+<h2 id="配套阅读">配套阅读</h2>
+<ul>
+<li><strong>同主题同思想</strong>：<a
+href="blog/posts/2026-09-15-klarna-customer-support-multi-agent.md">Klarna</a>
+— 早期 CX Agent 的奠基案例（70% 自动化）</li>
+<li><strong>架构演进对比</strong>：<a
+href="blog/posts/2026-09-15-agent-sidekick-bounded-responsibilities.md">monday
+Sidekick</a> — 单 Agent → 多层架构的另一案例</li>
+<li><strong>Governance</strong>：<a
+href="blog/posts/2026-09-15-governed-agents-cost-control-compliance.md">Governed
+Agents</a> — 怎么给 Agent 加 cost / compliance 控制</li>
+</ul>
+<p>参考资料：</p>
+<ul>
+<li><a
+href="https://www.langchain.com/blog/customer-experience-cx-agents-in-production-lessons-from-lyft-vodafone-and-latam-airlines">CX
+Agents in Production</a> — Jess Ou, LangChain</li>
+<li><a
+href="https://www.langchain.com/blog/lyft-built-a-self-serve-ai-agent-platform-for-customer-support-with-langgraph-and-langsmith">Lyft
+self-serve platform</a></li>
+<li><a
+href="https://www.langchain.com/blog/customers-vodafone-italy">Vodafone
+Super TOBi</a></li>
+<li><a href="https://www.youtube.com/watch?v=RnLCl3ilRgo">LATAM
+Concierge interrupt</a></li>
+</ul>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>

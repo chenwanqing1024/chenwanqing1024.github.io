@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="把 Anthropic Effective Context
+Engineering 文章拆成 6 个工程模式：Context Rot 与注意力预算、System
+Prompt 的 right altitude、Tools 的最小可用集、Just-in-time
+retrieval、长任务三件套（compaction / note-taking / sub-agents）、Hybrid
+策略（upfront + JIT）。配 code 示例 + 面试可讲的设计取舍 + 落地
+checklist。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>Context Engineering 实操：让 LLM 注意力预算花在刀刃上的 6
+个工程模式 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>Context Engineering 实操：让 LLM 注意力预算花在刀刃上的
+6 个工程模式</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI
+工程</span> <span class="badge bg-secondary">Context
+Engineering</span> <span class="badge bg-secondary">Agent</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents" target="_blank" rel="noopener">Effective
+context engineering for AI agents</a> · Prithvi Rajasekaran, Ethan
+Dixon, Carly Ryan, Jeremy Hadfield (Anthropic Applied AI)
+            </div>
+
+<h2 id="引子">引子</h2>
+<p>Prompt engineering 已经过时——Anthropic 把”该往 LLM context
+里塞什么”的整体学科重新命名为 <strong>Context
+Engineering</strong>。这一篇是 Anthropic 对”怎么用 LLM
+注意力预算”的整套方法论：<strong>Context 是有限资源（attention
+budget）、System Prompt 要在 right altitude、Tools 要 minimal viable
+set、长任务三件套 compaction/note-taking/sub-agents、Just-in-time
+retrieval 优于 pre-computed</strong>。</p>
+<p>下面拆 6 个工程模式，按”<strong>为什么 → 系统 prompt → tools → 检索 →
+长任务 → hybrid</strong>”递进。</p>
+<hr />
+<h2 id="context-rotllm-注意力是有限资源">1. Context Rot：LLM
+注意力是有限资源</h2>
+<p><strong>一行定位</strong>：<strong>Context window 不是 unlimited
+bag——token 越多，每个 token 分到的注意力越少</strong>。<strong>Context
+是有 diminishing returns 的稀缺资源</strong>。</p>
+<p><strong>Anthropic 的数据</strong>： - “Needle in a haystack”
+benchmark：context 越长，<strong>模型精确回忆的能力下降</strong>。 -
+所有模型都有这特性——有些温和、有些剧烈，<strong>没有不存在的</strong>。
+- 根因：transformer 是 n² pairwise attention——<strong>n tokens = n²
+个关系对</strong>，关系越多注意力越薄。 -
+模型训练数据中短序列多、长序列少——<strong>模型对长 context-wide
+dependency 的”参数经验”本来就少</strong>。</p>
+<p><strong>面试可讲的角度</strong>：这是 <em>working memory</em> in
+cognitive science——<strong>人脑短时记忆 ~7 items</strong>，LLM
+注意力类似。<strong>别把 context 当 unlimited hard drive，当 scarce
+working memory 用</strong>。</p>
+<p><strong>工程落地</strong>： - ☐ <strong>不要试图把所有信息塞
+context</strong>——每加一个 token 都该问”这 token 真的必要吗？” - ☐
+<strong>监控 context 使用率</strong>——&gt; 60% 就要开始 compaction - ☐
+<strong>理解 context rot
+不可避免</strong>——<strong>正面对待而不是忽视</strong> - ☐
+<strong>架构层面减少 noise</strong>——clean schema / clear tool
+descriptions / structured examples</p>
+<hr />
+<h2 id="system-prompt-的-right-altitude具体但不-brittle">2. System
+Prompt 的 Right Altitude：具体但不 brittle</h2>
+<p><strong>一行定位</strong>：<strong>System Prompt 不是 if-else
+硬编码，也不是 vague 高层指引</strong>——<strong>在”具体到能指导行为 +
+灵活到能 generalize”的 sweet spot</strong>。</p>
+<p><strong>Anthropic 的两个反模式</strong>： - <strong>Too
+low</strong>：hardcode if-else logic——“if user says X, then call tool
+Y”——<strong>fragile、maintenance nightmare</strong>。 - <strong>Too
+high</strong>：vague 指引——“be a helpful assistant”——<strong>没有 signal
+给模型，falsely assume shared context</strong>。</p>
+<p><strong>Right altitude</strong>： - 用 XML tags / Markdown headers 分
+section：<code>&lt;background_information&gt;</code>
+<code>&lt;instructions&gt;</code> <code>## Tool guidance</code>
+<code>## Output description</code>。 -
+具体到<strong>告诉模型做事的原则</strong>，不具体到<strong>每一步做什么</strong>。
+- 例子比规则更有用——<strong>few-shot canonical examples &gt; rule
+list</strong>。 - <strong>从 minimal prompt +
+最强模型开始</strong>，再根据 failure mode 加 instruction。</p>
+<p><strong>面试可讲的角度</strong>：这是 <em>concrete vs abstract</em>
+的工程权衡——<strong>抽象让代码长寿，具体让代码当下正确</strong>。<strong>right
+altitude 是兼顾</strong>：<strong>现在能跑、未来能改</strong>。</p>
+<p><strong>工程落地 checklist</strong>： - ☐ <strong>分
+section</strong>——background / instructions / tool guidance / output
+description - ☐ <strong>写 canonical examples</strong>（3-5 个
+diverse）——<strong>不是 edge case 列表</strong> - ☐ <strong>避免 if-else
+硬编码</strong>——<strong>写原则不写步骤</strong> - ☐ <strong>定期 review
+prompt</strong>——模型变强后过度 specific 的 prompt 是 dead weight（见
+harness-design-gan-evaluator 的元教训）</p>
+<hr />
+<h2 id="tools最小可用集-清晰目的">3. Tools：最小可用集 + 清晰目的</h2>
+<p><strong>一行定位</strong>：<strong>Tools 是 agent 和
+环境之间的关系的契约</strong>——<strong>Tool 集合越 bloated，agent 决策越
+ambiguous</strong>。</p>
+<p><strong>Anthropic 的判断标准</strong>： -
+<strong>“人类工程师都没法决定用哪个 tool 时，AI agent 更不行”</strong>。
+- <strong>Tool 集合要 minimal viable set</strong>——能 cover
+任务，不多一个。 - <strong>Tool
+之间不重叠</strong>——<code>create_ticket</code> vs
+<code>create_incident</code> 这种相似的让 agent 迷茫。 - <strong>Tool
+input parameter 描述性 + 不歧义</strong>——用 model
+擅长的参数类型（<code>status: enum["active", "paused"]</code> 而不是
+magic string）。</p>
+<p><strong>Few-shot examples 加在 tool definition</strong>（见
+advanced-tool-use-three-features）：<strong>schema 说”语法”，examples
+说”惯用法”</strong>——accuracy 72% → 90%。</p>
+<p><strong>面试可讲的角度</strong>：这是 <em>API design</em> in LLM
+era——<strong>tool definition 是给 LLM 看的 API
+doc</strong>。<strong>好的 API 是 obvious to use</strong>。<strong>Tool
+design 质量决定 agent 上限</strong>。</p>
+<p><strong>工程落地</strong>： - ☐ <strong>每个 tool
+有明确单一目的</strong>——不要 <code>manage_user</code> 这种大杂烩 - ☐
+<strong>Tool 描述写”什么时候用”</strong>——不是”做什么”，是”trigger
+condition” - ☐ <strong>相似 tool 合并或拆分</strong>——重复功能让 agent
+选错 - ☐ <strong>Tool examples 加 few-shot</strong>——schema
+表达不出的”惯用法”用 example 教</p>
+<hr />
+<h2 id="just-in-time-retrieval让-agent-自己找-context">4. Just-in-Time
+Retrieval：让 Agent 自己找 Context</h2>
+<p><strong>一行定位</strong>：<strong>不要 pre-compute 所有 relevant
+data</strong>——<strong>给 Agent lightweight identifiers（file path /
+stored query / URL），让它自己 fetch</strong>。</p>
+<p><strong>传统做法的问题</strong>： - Embedding-based RAG 提前把所有
+relevant 文档 retrieve → context。 - <strong>问题是 stale
+indexing、complex syntax tree、过度 retrieve</strong>。</p>
+<p><strong>Just-in-time 做法</strong>： - Agent 持有 lightweight
+identifier（file path, stored query, web link）。 - 用 tools
+(<code>Read</code>, <code>Bash head/tail</code>, <code>Grep</code>,
+<code>Glob</code>) <strong>动态加载</strong>。 -
+<strong>类比</strong>：人脑不背 corpus，靠文件系统 / 书签 / inbox 当
+external memory。</p>
+<p><strong>优势</strong>： - <strong>没有 stale index
+问题</strong>——filesystem 永远新鲜。 - <strong>Progressive
+disclosure</strong>——Agent 探索 → 发现需要更多 → 再 fetch。 -
+<strong>Metadata 也是 context</strong>——file
+size（暗示复杂度）、filename
+convention（暗示用途）、timestamp（暗示相关度）。</p>
+<p><strong>Anthropic 的”hybrid strategy”</strong>： -
+<strong>CLAUDE.md</strong> upfront 加载——团队规则、稳定 context。 -
+<strong><code>Glob</code> / <code>Grep</code></strong> JIT
+探索——filesystem navigation 不需要预 computed index。 -
+<strong>混合</strong>：稳定的东西 upfront + 动态的东西 JIT。</p>
+<p><strong>面试可讲的角度</strong>：这是 <em>von Neumann
+architecture</em>——<strong>程序 vs
+数据分离</strong>。<strong>pre-computed retrieval 是把”知识”塞进
+context（程序），JIT 是让 context
+里只有”指针”（数据）</strong>。<strong>数据随时变，程序稳定</strong>。</p>
+<p><strong>工程落地</strong>： - ☐ <strong>Context 里只放
+identifier</strong>（file path / query / URL），不放 raw data - ☐
+<strong>Tool 让 Agent fetch</strong>——<code>Read</code> /
+<code>Bash head</code> / <code>WebFetch</code> 必须 available - ☐
+<strong>Metadata 给 model signal</strong>——filename convention / folder
+hierarchy / timestamp - ☐ <strong>不追求 100%
+pre-computed</strong>——<strong>stable 走 upfront，dynamic 走
+JIT</strong></p>
+<hr />
+<h2 id="长任务三件套compaction-note-taking-sub-agents">5.
+长任务三件套：Compaction / Note-taking / Sub-agents</h2>
+<p><strong>一行定位</strong>：<strong>长任务必然超 context
+window</strong>——<strong>用 compaction、note-taking、sub-agents
+三种工程策略扩展</strong>。</p>
+<h3 id="compaction压缩">Compaction（压缩）</h3>
+<ul>
+<li>把快到 context limit 的对话 summary，<strong>新开 context 用 summary
+启动</strong>。</li>
+<li><strong>艺术在于”什么保留 / 什么丢弃”</strong>——<strong>先 maximize
+recall，再 iterate precision</strong>。</li>
+<li><strong>Low-hanging 起点</strong>：清掉 tool call/result 的 raw
+output——deep history 里的 tool result 不需要再让 agent 看。</li>
+</ul>
+<p><strong>Claude Code 实践</strong>：让 model 自己总结 message history
+→ 保留 architectural decisions、unresolved bugs、implementation details
+→ 丢弃 redundant tool outputs → 加最近 5 个文件。</p>
+<h3 id="note-taking结构化笔记">Note-taking（结构化笔记）</h3>
+<ul>
+<li>Agent 定期写笔记到 context 外（NOTES.md / memory tool）。</li>
+<li>下次 session 读笔记 + 继续。</li>
+<li><strong>例子</strong>：Claude 玩 Pokémon 维持精确计数（“Pikachu 还差
+2 级到目标 10”）+ 区域地图 + 战斗策略笔记。</li>
+<li><strong>跨 session 持久</strong>：session 结束 → 写文件；session
+开始 → 读文件。</li>
+</ul>
+<p><strong>关键 insight</strong>：<strong>Note-taking 是 Agent
+的”外脑”</strong>——<strong>context 里只放 working set，外部文件当
+long-term memory</strong>。</p>
+<h3 id="sub-agents多-agent">Sub-agents（多 Agent）</h3>
+<ul>
+<li>每个 sub-agent 有<strong>自己的干净 context window</strong>。</li>
+<li>Main agent 持 plan，sub-agent 跑 deep work。</li>
+<li><strong>Sub-agent 返回 condensed summary</strong>（1-2K
+tokens），不是 raw exploration（10K+ tokens）。</li>
+<li><strong>清晰 separation of concerns</strong>——detail search context
+在 sub-agent 里，main agent 只 synthesize。</li>
+</ul>
+<p><strong>Trade-off 表</strong>：</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>策略</th>
+<th>适合场景</th>
+<th>不适合</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Compaction</strong></td>
+<td>多轮对话、需要 conversational flow</td>
+<td>单次决策、dense 数据</td>
+</tr>
+<tr class="even">
+<td><strong>Note-taking</strong></td>
+<td>iterative development with milestones</td>
+<td>单调 one-shot 任务</td>
+</tr>
+<tr class="odd">
+<td><strong>Sub-agents</strong></td>
+<td>复杂 research / 大量 parallel exploration</td>
+<td>强 sequential 任务</td>
+</tr>
+</tbody>
+</table>
+<p><strong>面试可讲的角度</strong>：这是 <em>distributed systems</em>
+的工程类比——<strong>compaction 像 log compaction、note-taking 像
+persistent storage、sub-agents 像 microservices with bounded
+context</strong>。<strong>问题域一样：单机装不下 → 拆 +
+边界</strong>。</p>
+<p><strong>工程落地</strong>： - ☐ <strong>长任务开始就
+plan</strong>——“我会用哪种策略？” 不要等到 context 满了再慌 - ☐
+<strong>Note-taking 用 structured format</strong>——JSON / Markdown
+table，<strong>别让 model 自由发挥</strong> - ☐ <strong>Sub-agent 必须
+narrow scope</strong>——给它一个明确 deliverable，不是”帮我研究 X” - ☐
+<strong>Compaction prompt 优先 recall 再
+precision</strong>——<strong>missing 关键信息比 verbose
+更糟糕</strong></p>
+<hr />
+<h2 id="hybrid-策略稳定-upfront-动态-jit">6. Hybrid 策略：稳定 upfront +
+动态 JIT</h2>
+<p><strong>Anthropic 的官方建议</strong>：<strong>不要 all-JIT 也不要
+all-upfront——按 context stability 切</strong>：</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Context 类型</th>
+<th>策略</th>
+<th>例子</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>稳定 + 全局相关</strong></td>
+<td>Upfront</td>
+<td>CLAUDE.md（团队规则）</td>
+</tr>
+<tr class="even">
+<td><strong>大但稳定</strong></td>
+<td>Upfront 部分 + 引用</td>
+<td>API schema（部分进 prompt，详细 schema 走 link）</td>
+</tr>
+<tr class="odd">
+<td><strong>动态 / 个别相关</strong></td>
+<td>JIT</td>
+<td>Database content / specific file / web page</td>
+</tr>
+<tr class="even">
+<td><strong>常变 + 时效</strong></td>
+<td>JIT</td>
+<td>Git history / 实时 API response</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Claude Code 是 hybrid 的典范</strong>： - CLAUDE.md →
+全局规则 upfront。 - Glob / Grep / Bash → filesystem JIT。 - Agent
+决定何时 load 哪个。</p>
+<p><strong>给不同领域的建议</strong>： - <strong>法律 /
+金融</strong>（低动态）——<strong>多 upfront</strong>，<strong>少
+JIT</strong>——这些领域 context 稳定。 - <strong>代码 /
+research</strong>（高动态）——<strong>多 JIT</strong>，<strong>少
+upfront</strong>——这些 context 时时变。</p>
+<p><strong>面试可讲的角度</strong>：这是 <em>caching strategy</em>
+的工程应用——<strong>stable data cache 起来，dynamic data 实时
+fetch</strong>。<strong>类比 CDN + dynamic API</strong>。</p>
+<p><strong>工程落地</strong>： - ☐ <strong>绘制 context
+分类表</strong>——stable vs dynamic、global vs per-task - ☐ <strong>稳定
++ 全局 → upfront</strong>（CLAUDE.md / system prompt） - ☐ <strong>稳定
++ 按需 → reference link / progressive disclosure</strong> - ☐
+<strong>动态 → JIT via tools</strong> - ☐ <strong>不要全
+upfront</strong>——浪费 token + stale 风险 - ☐ <strong>不要全
+JIT</strong>——agent 不知道什么时候找什么</p>
+<hr />
+<h2 id="一句话总结">一句话总结</h2>
+<p>Context Engineering 是<strong>“把 LLM
+当稀缺注意力预算来花”的整套方法论</strong>——<strong>right altitude 的
+system prompt、minimal viable tools、JIT retrieval 替代
+pre-computed、长任务三件套（compaction/note-taking/sub-agents）、hybrid
+stable/dynamic 切分</strong>。<strong>Context 是有限资源，不是 unlimited
+bag——每加一个 token 都该问”值得吗？“</strong></p>
+<h2 id="配套阅读">配套阅读</h2>
+<ul>
+<li><strong>同主题</strong>：agent-skills-progressive-disclosure — Skill
+是 context 的 progressive disclosure 实现</li>
+<li><strong>执行机制</strong>：tool-use-engineering-patterns — tool
+设计即 context 设计</li>
+<li><strong>架构视角</strong>：managed-agents-arch-patterns — Session 是
+durable context 的工程实现</li>
+</ul>
+<p>参考资料：</p>
+<ul>
+<li><a
+href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents">Effective
+context engineering for AI agents</a> — Prithvi Rajasekaran et al.,
+Anthropic</li>
+<li><a
+href="https://www.anthropic.com/engineering/building-effective-agents">Building
+effective agents</a> — Agent vs workflow 的边界</li>
+<li><a href="https://github.com/anthropics/claude-cookbooks">Memory tool
+cookbook</a> — Note-taking 的工程示例</li>
+</ul>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>

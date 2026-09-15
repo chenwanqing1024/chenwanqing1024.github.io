@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="把 Anthropic Demystifying Evals
+文章拆成 8 个可落地的工程模式：评测词汇表、三种 Grader 选择、Capability
+vs Regression 区分、4 类 Agent 的评测配方、pass@k vs pass^k、8 步
+Roadmap、Grader 反模式、Swiss Cheese 多层监控。每个模式给定位 + 代码 /
+YAML 示例 + 落地 checklist。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>AI Agent 评测实操：从 0 到 1 搭建评测体系的 8
+个工程模式 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>AI Agent 评测实操：从 0 到 1 搭建评测体系的 8
+个工程模式</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI
+工程</span> <span class="badge bg-secondary">Evals</span> <span class="badge bg-secondary">Agent</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents" target="_blank" rel="noopener">Demystifying
+evals for AI agents</a> · Mikaela Grace, Jeremy Hadfield, Rodrigo
+Olivares, Jiri De Jonghe (Anthropic)
+            </div>
+
+<h2 id="引子">引子</h2>
+<p>AI Agent 评测是 AI 工程和传统软件工程最不一样的地方。传统软件上线后看
+latency / error rate，<strong>Agent 上线后还要看模型评测分数 + token
+成本 + 工具调用成功率 + 行为漂移</strong>。Anthropic 这篇 demystifying
+evals 是目前<strong>最完整的 Agent 评测方法论</strong>——它把 vocabulary
+标准化、给 grader 选型决策树、按 Agent 类型给评测配方、给 0→1
+落地路线。</p>
+<p>下面拆成 8 个工程模式，按”<strong>词汇 → Grader → 分类 → 落地 →
+反模式</strong>”递进。</p>
+<hr />
+<h2 id="评测词汇表先统一术语再谈评测">1.
+评测词汇表：先统一术语，再谈评测</h2>
+<p><strong>一行定位</strong>：评测领域 7
+个术语必须区分清楚——<strong>task、trial、grader、transcript、outcome、harness、suite</strong>。</p>
+<p><strong>Anthropic 的定义</strong>： - <strong>task</strong>（problem
+/ test case）：单个测试，有 input 和 success criteria。 -
+<strong>trial</strong>：一次 task 尝试。<strong>Agent
+输出有随机性，必须多 trial</strong>才能稳定。 -
+<strong>grader</strong>：评分逻辑。<strong>每个 task 可有多个
+grader，每个 grader 含多个 assertion</strong>。 -
+<strong>transcript</strong>（trace / trajectory）：<strong>trial
+的完整记录</strong>——所有 tool call、reasoning、中间结果。Anthropic API
+里就是 messages 数组。 - <strong>outcome</strong>：trial
+结束时环境的<strong>最终状态</strong>。“你的航班已订”是
+transcript，<strong>reservation 真的在 DB 里是 outcome</strong>。 -
+<strong>evaluation harness</strong>：跑 eval
+的基础设施——分发指令、并发跑 task、记录步骤、评分、聚合。 -
+<strong>agent harness</strong>（scaffold）：让模型变成 agent
+的系统——处理输入、编排 tool call、返回结果。<strong>Eval “agent”
+时，测的是 harness + model 一起工作</strong>。</p>
+<p><strong>面试可讲的角度</strong>：transcript ≠ outcome
+是最常被搞混的。<strong>“Agent
+说完事”和”事真的做完”是两件事</strong>——必须分别测。</p>
+<p><strong>工程落地</strong>： - <strong>先在团队对齐术语</strong>——7
+个词定义清楚再谈评测。 - <strong>transcript 永远存</strong>——出问题时没
+transcript 等于没调试能力。 - <strong>outcome 测试独立于
+transcript</strong>——DB 状态 / 文件系统状态 / API 响应，<strong>不要靠
+Agent 自己说”我做了”</strong>。</p>
+<hr />
+<h2 id="三种-gradercode-model-human-的选型决策树">2. 三种 Grader：Code /
+Model / Human 的选型决策树</h2>
+<p><strong>一行定位</strong>：<strong>没有万能
+grader</strong>——<strong>Code fast 但 brittle，Model flexible 但
+non-deterministic，Human gold 但 expensive</strong>。选型是
+tradeoff。</p>
+<p><strong>Anthropic 的对比</strong>：</p>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>类型</th>
+<th>方法</th>
+<th>优势</th>
+<th>劣势</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Code-based</strong></td>
+<td>字符串匹配 / 单元测试 / 静态分析 / outcome 验证 / tool call 验证 /
+transcript 分析</td>
+<td>快、便宜、客观、可复现、易调试、验证特定条件</td>
+<td>对 valid variation 容易 brittle、缺 nuance、不适合主观任务</td>
+</tr>
+<tr class="even">
+<td><strong>Model-based</strong></td>
+<td>rubric 评分 / 自然语言断言 / pairwise 比较 / 参考答案评估 / 多 judge
+consensus</td>
+<td>灵活、可扩展、捕捉 nuance、处理开放式任务</td>
+<td>非确定、比 code 贵、需 human 校准</td>
+</tr>
+<tr class="odd">
+<td><strong>Human</strong></td>
+<td>SME review / 众包判断 / 抽查 / A/B 测试 / 评分一致性</td>
+<td>金标准质量、匹配专家判断、用于校准 model grader</td>
+<td>贵、慢、规模化需专家</td>
+</tr>
+</tbody>
+</table>
+<p><strong>面试可讲的角度</strong>：<strong>不存在”用 LLM judge
+替代一切”的方案</strong>——三者必须组合。LLM judge 必须定期 human
+校准，否则漂移到没意义。</p>
+<p><strong>工程落地</strong>： - <strong>能 Code 就 Code</strong>——只要
+outcome 可验证（DB state、file content、test pass），不浪费 model judge
+配额。 - <strong>LLM judge 加 “Unknown”
+选项</strong>——给模型”我不知道”的退路，<strong>比强制打分的
+hallucination 风险低一个数量级</strong>。 - <strong>每个 grader 维度独立
+judge</strong>——不要一个 LLM judge 一次评所有维度，<strong>会因 token
+长度和顺序导致 bias</strong>。 - <strong>定期 human 校准</strong>——LLM
+judge 跑 100 次，找 5-10 个 case 给 human 比对，<strong>drift
+超过阈值就重写 prompt</strong>。</p>
+<hr />
+<h2 id="capability-vs-regression两种目标不同分两套">3. Capability vs
+Regression：两种目标不同，分两套</h2>
+<p><strong>一行定位</strong>：<strong>Capability eval 是”山”，Regression
+eval 是”网”</strong>——一个爬升、一个兜底。</p>
+<p><strong>Anthropic 的区分</strong>： - <strong>Capability / quality
+eval</strong>：问”agent 能做什么？“<strong>起始 pass rate
+要低</strong>（10-30%），给团队一座山爬。 - <strong>Regression
+eval</strong>：问”agent 还能做原来能做的吗？“<strong>pass rate 接近
+100%</strong>，保护不下掉。 - <strong>生命周期</strong>：capability eval
+分数爬到 95%+ →”graduate” 成 regression suite 永久跑。</p>
+<p><strong>面试可讲的角度</strong>：这是 <em>innovation vs
+stability</em> 的工程表达。<strong>只有 innovation 没有 stability =
+上线崩；只有 stability 没有 innovation = 不进步</strong>。</p>
+<p><strong>工程落地</strong>： - <strong>两套 eval
+必须并行跑</strong>——只跑 capability 是赌”我们改的东西没碰
+regression”；只跑 regression 是没在进步。 - <strong>regression eval
+必须窄而硬</strong>——每个 case pass/fail 明确，<strong>不要把 capability
+误判为 regression</strong>。 - <strong>capability eval 定期 graduated
+审查</strong>——100% pass 的 case 移到
+regression，<strong>空出能力测空间</strong>给更难 task。</p>
+<hr />
+<h2 id="四类-agent-评测配方不同类型不同解">4. 四类 Agent
+评测配方：不同类型不同解</h2>
+<p><strong>Anthropic 按 agent 类型给的配方</strong>：</p>
+<h3 id="coding-agentcoding-评测">Coding Agent（coding 评测）</h3>
+<ul>
+<li><strong>核心方法</strong>：unit tests + integration tests。SWE-bench
+Verified / Terminal-Bench 是标杆。</li>
+<li><strong>附加</strong>：LLM rubric 评 code quality、static
+analysis（lint/type/security）、state_check（DB /
+filesystem）、tool_calls 必须出现 / 不能出现。</li>
+<li><strong>示例 YAML</strong>（节选）：</li>
+</ul>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">task</span><span class="kw">:</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">id</span><span class="kw">:</span><span class="at"> </span><span class="st">&quot;fix-auth-bypass_1&quot;</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">graders</span><span class="kw">:</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="kw">-</span><span class="at"> </span><span class="fu">type</span><span class="kw">:</span><span class="at"> deterministic_tests</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">required</span><span class="kw">:</span><span class="at"> </span><span class="kw">[</span><span class="at">test_empty_pw_rejected.py</span><span class="kw">,</span><span class="at"> test_null_pw_rejected.py</span><span class="kw">]</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="kw">-</span><span class="at"> </span><span class="fu">type</span><span class="kw">:</span><span class="at"> llm_rubric</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">rubric</span><span class="kw">:</span><span class="at"> prompts/code_quality.md</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="kw">-</span><span class="at"> </span><span class="fu">type</span><span class="kw">:</span><span class="at"> static_analysis</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">commands</span><span class="kw">:</span><span class="at"> </span><span class="kw">[</span><span class="at">ruff</span><span class="kw">,</span><span class="at"> mypy</span><span class="kw">,</span><span class="at"> bandit</span><span class="kw">]</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="kw">-</span><span class="at"> </span><span class="fu">type</span><span class="kw">:</span><span class="at"> state_check</span></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">expect</span><span class="kw">:</span></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">security_logs</span><span class="kw">:</span><span class="at"> </span><span class="kw">{</span><span class="fu">event_type</span><span class="kw">:</span><span class="at"> </span><span class="st">&quot;auth_blocked&quot;</span><span class="kw">}</span></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="kw">-</span><span class="at"> </span><span class="fu">type</span><span class="kw">:</span><span class="at"> tool_calls</span></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">required</span><span class="kw">:</span></span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="kw">-</span><span class="at"> </span><span class="kw">{</span><span class="fu">tool</span><span class="kw">:</span><span class="at"> read_file</span><span class="kw">,</span><span class="at"> </span><span class="fu">params</span><span class="kw">:</span><span class="at"> </span><span class="kw">{</span><span class="fu">path</span><span class="kw">:</span><span class="at"> </span><span class="st">&quot;src/auth/*&quot;</span><span class="kw">}}</span></span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="kw">-</span><span class="at"> </span><span class="kw">{</span><span class="fu">tool</span><span class="kw">:</span><span class="at"> edit_file</span><span class="kw">}</span></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="kw">-</span><span class="at"> </span><span class="kw">{</span><span class="fu">tool</span><span class="kw">:</span><span class="at"> run_tests</span><span class="kw">}</span></span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">tracked_metrics</span><span class="kw">:</span></span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="kw">-</span><span class="at"> </span><span class="kw">{</span><span class="fu">type</span><span class="kw">:</span><span class="at"> transcript</span><span class="kw">,</span><span class="at"> </span><span class="fu">metrics</span><span class="kw">:</span><span class="at"> </span><span class="kw">[</span><span class="at">n_turns</span><span class="kw">,</span><span class="at"> n_toolcalls</span><span class="kw">,</span><span class="at"> n_total_tokens</span><span class="kw">]}</span></span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="kw">-</span><span class="at"> </span><span class="kw">{</span><span class="fu">type</span><span class="kw">:</span><span class="at"> latency</span><span class="kw">,</span><span class="at"> </span><span class="fu">metrics</span><span class="kw">:</span><span class="at"> </span><span class="kw">[</span><span class="at">time_to_first_token</span><span class="kw">,</span><span class="at"> output_tokens_per_sec</span><span class="kw">]}</span></span></code></pre></div>
+<h3 id="conversational-agent对话评测">Conversational
+Agent（对话评测）</h3>
+<ul>
+<li><strong>核心方法</strong>：<strong>verifiable end-state + 多维度
+rubric</strong>——task 完成 + turn 数 + 语气。</li>
+<li><strong>关键</strong>：<strong>用第二个 LLM
+模拟用户</strong>（τ-Bench / τ2-Bench）。</li>
+<li><strong>多维度示例</strong>：refund 任务同时测 outcome（ticket
+resolved、refund processed）、transcript constraint（≤10 turn）、LLM
+rubric（empathy、清晰度、tool-grounded）。</li>
+</ul>
+<h3 id="research-agent研究评测">Research Agent（研究评测）</h3>
+<ul>
+<li><strong>核心方法</strong>：<strong>groundedness + coverage + source
+quality</strong>。BrowseComp 找开放网络里的”needle in haystack”。</li>
+<li><strong>特殊性</strong>：研究质量主观，<strong>ground truth
+随参考内容变</strong>。<strong>LLM rubric 必须频繁 human
+校准</strong>。</li>
+</ul>
+<h3 id="computer-use-agent电脑操作评测">Computer Use
+Agent（电脑操作评测）</h3>
+<ul>
+<li><strong>核心方法</strong>：真实 / 沙箱环境跑 + outcome
+验证。WebArena / OSWorld 是标杆。</li>
+<li><strong>特殊技巧</strong>：DOM 操作快但 token 多；screenshot
+操作慢但 token 省。<strong>按场景选（提取文本用 DOM、找视觉元素用
+screenshot）</strong>。</li>
+</ul>
+<p><strong>面试可讲的角度</strong>：评测配方不是
+universal——<strong>agent 类型决定 grader 选型</strong>。代码 agent 的
+lint grader 对话 agent 用不上，反之亦然。</p>
+<p><strong>工程落地</strong>： - <strong>别发明评测</strong>——用现有
+benchmark（SWE-bench、τ-Bench、BrowseComp、OSWorld）做起点，再扩你的
+domain 任务。 - <strong>每个 eval 加 groundedness check</strong>——研究
+agent 答错事的最常见原因是 hallucination，<strong>citation check 比答案
+check 更早发现问题</strong>。 - <strong>Computer use
+必须真环境</strong>——DOM 解析再准，也测不出”按钮点不上”的真 bug。</p>
+<hr />
+<h2 id="passk-vs-passk选哪个看你场景">5. pass@k vs
+pass^k：选哪个看你场景</h2>
+<p><strong>一行定位</strong>：<strong>pass@k = “至少 1 次成功”，pass^k =
+“次次成功”</strong>——同样的 task，<strong>k=10
+时两者讲相反故事</strong>。</p>
+<p><strong>Anthropic 的对比</strong>： - <strong>pass@1</strong>：coding
+eval 关心——找到 solution 的首次成功率。 - <strong>pass^k</strong>：客服
+agent 关心——用户每次都要可靠，不能靠”再来一次碰运气”。 - 75% per-trial
+success，3 trials：<strong>pass@3 ≈ 98%，pass^3 ≈ 42%</strong>。</p>
+<p><strong>面试可讲的角度</strong>：这是 <em>reliability vs
+exploration</em> 的 metric 表达。<strong>所有”k
+次中”指标都是赌概率</strong>——选 k=多少决定了你赌的 game。</p>
+<p><strong>工程落地</strong>： - <strong>生产 agent 用
+pass^k</strong>（k≥3，<strong>强制 multi-trial consistency</strong>）。
+- <strong>一次性 agent（research / one-shot 生成）用
+pass@k</strong>（k=1 即可）。 - <strong>报告 eval
+时同时给</strong>——只报一个会误导。</p>
+<hr />
+<h2 id="步-roadmap从-0-到-1-搭评测体系">6. 8 步 Roadmap：从 0 到 1
+搭评测体系</h2>
+<p><strong>Anthropic 的工程路线</strong>：</p>
+<h3 id="step-0-早开始">Step 0: 早开始</h3>
+<ul>
+<li><strong>20-50 个真实 task 起步够了</strong>——别等”完美 suite”。</li>
+<li>早期 change effect size 大，小样本足够。</li>
+</ul>
+<h3 id="step-1-从你已经在测的事开始">Step 1: 从你已经在测的事开始</h3>
+<ul>
+<li><strong>Bug tracker + 客服 ticket =
+评测金矿</strong>。<strong>用户报 bug → 转 eval task</strong>。</li>
+</ul>
+<h3 id="step-2-写-unambiguous-task-reference-solution">Step 2: 写
+unambiguous task + reference solution</h3>
+<ul>
+<li><strong>两个 domain expert 独立判定能拿到同结果 → 才是好
+task</strong>。</li>
+<li><strong>每个 task 必须有 reference solution</strong>——已知能 pass
+的输出，<strong>证明 task 可解 + grader 配对</strong>。</li>
+<li><strong>0% pass rate 跨多 trial 通常是 task 坏了</strong>，不是
+agent 不行。</li>
+</ul>
+<h3 id="step-3-平衡-problem-set">Step 3: 平衡 problem set</h3>
+<ul>
+<li><strong>必须测”应该做”和”不应该做”两个方向</strong>——单方向测会让
+agent 过度触发。</li>
+<li>例：测 web search
+时同时测”该搜”（天气）和”不该搜”（“苹果谁创办的”）。</li>
+</ul>
+<h3 id="step-4-稳定环境的-eval-harness">Step 4: 稳定环境的 eval
+harness</h3>
+<ul>
+<li><strong>每个 trial 从 clean environment 开始</strong>——残留文件 /
+缓存 / 资源耗尽会让 trial 不独立。</li>
+<li><strong>共享状态会膨胀分数</strong>——内部曾发现 Claude 看 git
+history 找到上 trial 的答案。</li>
+</ul>
+<h3 id="step-5-仔细设计-grader">Step 5: 仔细设计 grader</h3>
+<ul>
+<li><strong>测 outcome，不测 path</strong>——<strong>别强制 tool call
+顺序</strong>，模型会找到你没想过的 valid approach。</li>
+<li><strong>多组件任务给 partial credit</strong>——找到问题但没解决 &gt;
+啥都没做。</li>
+<li><strong>LLM judge 配 Unknown 选项</strong>。</li>
+</ul>
+<h3 id="step-6-读-transcript">Step 6: 读 transcript</h3>
+<ul>
+<li><strong>失败要看 transcript 确认”agent 真错了”而不是”grader
+误判”</strong>。</li>
+<li><strong>Anthropic 投了钱做 transcript
+viewer</strong>——这是必要工具。</li>
+</ul>
+<h3 id="step-7-监控-saturation">Step 7: 监控 saturation</h3>
+<ul>
+<li><strong>eval 100% pass = 没信号了</strong>。<strong>SWE-bench
+Verified 已饱和 ~80%</strong>。</li>
+<li><strong>饱和后继续投模型 = 进步看着小</strong>——做长任务、复杂任务的
+eval。</li>
+</ul>
+<h3 id="step-8-长期维护-open-contribution">Step 8: 长期维护 + open
+contribution</h3>
+<ul>
+<li><strong>Eval suite 是活 artifact</strong>——需要 ownership。</li>
+<li><strong>Eval-driven development</strong>：<strong>先写 eval
+定义成功标准，再实现</strong>。PM / CSM / 销售能写 eval task
+就让他们写。</li>
+</ul>
+<p><strong>面试可讲的角度</strong>：这是 <em>eval as product
+specs</em>——<strong>评测不是测试，是产品需求文档的 executable
+form</strong>。</p>
+<p><strong>工程落地 checklist</strong>： - ☐ 20-50 个真实 task 起步 - ☐
+每个 task 有 reference solution - ☐ 多 trial（k≥3） - ☐ Stable
+environment（每个 trial 干净开始） - ☐ Grader 组合（code + model + 偶尔
+human） - ☐ 测”应该做”+“不应该做”两个方向 - ☐ Transcript viewer - ☐
+Saturation 监控 - ☐ 团队 ownership（不要”AI team 写”——产品团队写）</p>
+<hr />
+<h2 id="grader-反模式这些坑都踩过">7. Grader 反模式：这些坑都踩过</h2>
+<p><strong>Anthropic 给的两个真实 case</strong>：</p>
+<h3 id="opus-4.5-在-core-bench-一开始-42">Opus 4.5 在 CORE-Bench 一开始
+42%</h3>
+<ul>
+<li><strong>bug 1</strong>：grader rigid 到
+<code>96.12 ≠ 96.124991...</code>——数字格式 vs 精度。</li>
+<li><strong>bug 2</strong>：task spec 歧义——agent 不知道该做什么。</li>
+<li><strong>bug 3</strong>：stochastic task 没法精确复现。</li>
+<li><strong>修复后</strong>：Opus 4.5 → 95%。</li>
+</ul>
+<h3 id="metr-time-horizon-benchmark-反向激励">METR time horizon
+benchmark 反向激励</h3>
+<ul>
+<li><strong>task 要求 agent 优化到 stated threshold</strong>，但
+<strong>grader 要求 exceed threshold</strong>。</li>
+<li><strong>遵守指令的 Claude 反而被罚分</strong>，忽略 stated goal
+的模型拿高分。</li>
+</ul>
+<p><strong>面试可讲的角度</strong>：<strong>Eval 错不是 fail，是 silent
+reward hacking</strong>——agent 不是按”你想要什么”优化，是按”grader
+测什么”优化。</p>
+<p><strong>工程落地 checklist</strong>： - ☐ <strong>每个 eval task 跑 3
+个不同 model</strong>——看是否有 model 表现”反常”（高分但产物不像好的）。
+- ☐ <strong>数字格式宽容</strong>——regex 配 fuzzy match，不是
+<code>==</code>。 - ☐ <strong>grader 不应假设 instruction
+的某一具体解读</strong>——两个独立 expert 都觉得 pass 才行。 - ☐
+<strong>让 agent 难以 hack</strong>——task + grader
+必须设计成”真解决问题才能 pass”。</p>
+<hr />
+<h2 id="swiss-cheese-model评测-监控-ab-反馈">8. Swiss Cheese Model：评测
++ 监控 + A/B + 反馈</h2>
+<p><strong>Anthropic 的多层监控</strong>（安全工程的 Swiss
+Cheese）：</p>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>方法</th>
+<th>用法</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Automated evals</strong></td>
+<td>pre-launch / CI / CD / 模型升级 first line</td>
+</tr>
+<tr class="even">
+<td><strong>Production monitoring</strong></td>
+<td>post-launch，detection of distribution drift</td>
+</tr>
+<tr class="odd">
+<td><strong>A/B testing</strong></td>
+<td>有 traffic 后验证 significant change</td>
+</tr>
+<tr class="even">
+<td><strong>User feedback</strong></td>
+<td>持续 triage + sample transcript 每周 review</td>
+</tr>
+<tr class="odd">
+<td><strong>Manual transcript review</strong></td>
+<td>校准 LLM judge，建”好”的直觉</td>
+</tr>
+<tr class="even">
+<td><strong>Systematic human studies</strong></td>
+<td>校准主观输出（legal / medical / finance）</td>
+</tr>
+</tbody>
+</table>
+<p><strong>核心论点</strong>：<strong>任何一层都会漏，</strong>多层叠加才能补上。<strong>自动化
+eval 是快速迭代 + 模型升级的 first line；生产监控是 ground truth；human
+review 是 calibration</strong>。</p>
+<p><strong>工程落地</strong>： -
+<strong>每层必须有</strong>，不能省——尤其 production monitoring 是兜底。
+- <strong>每周抽 5-10 个 transcript 看</strong>——不做这个，LLM judge
+drift 到你都没发现。 - <strong>Systematic human study
+别省</strong>——subjective 任务的金标准就是 human consensus。</p>
+<hr />
+<h2 id="一句话总结">一句话总结</h2>
+<p>Agent 评测不是”写几个 test case”——<strong>它是产品需求的 executable
+form</strong>。<strong>早开始、组合 grader、测 outcome 不测 path、定期读
+transcript、监控 saturation、多层监控叠加</strong>——做好这 6 件事，Agent
+团队就能从”flying blind”变成”test-driven”。</p>
+<h2 id="配套阅读">配套阅读</h2>
+<ul>
+<li><strong>同主题</strong>：ai-resistant-eval-design — AI
+变强后怎么保持面试题的信号</li>
+<li><strong>评测视角</strong>：eval-and-observability-patterns —
+observability + eval 的全栈监控</li>
+<li><strong>执行机制</strong>：claude-agent-sdk-engineering — eval
+harness 怎么落地</li>
+</ul>
+<p>参考资料：</p>
+<ul>
+<li><a
+href="https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents">Demystifying
+evals for AI agents</a> — Mikaela Grace et al., Anthropic</li>
+<li><a
+href="https://www.anthropic.com/engineering/building-effective-agents">Building
+effective agents</a> — agent 架构 vs eval 设计的耦合</li>
+<li><a href="https://github.com/laude-institute/harbor">Harbor</a> —
+容器化 eval 框架，Terminal-Bench 2.0 跑在上面</li>
+</ul>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>

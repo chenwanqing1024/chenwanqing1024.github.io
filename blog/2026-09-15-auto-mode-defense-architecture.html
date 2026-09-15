@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="把 Anthropic Auto Mode
+工程文章拆成 6 个可落地的工程模式：审批疲劳的实证、两层防御架构（PI
+probe + transcript classifier）、三档 tier 决策、Reasoning-Blind
+Classifier、Subagent 双向闸门、Deny-and-Continue。配自评数据（0.4% FPR /
+17% FNR）和工程落地做法。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>Claude Code Auto Mode：用两层防御替代人工审批的 6
+个工程模式 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>Claude Code Auto Mode：用两层防御替代人工审批的 6
+个工程模式</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI
+工程</span> <span class="badge bg-secondary">安全</span> <span class="badge bg-secondary">Agent</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://www.anthropic.com/engineering/claude-code-auto-mode" target="_blank" rel="noopener">Auto
+mode: a middle ground for agentic permission decisions</a> · John Hughes
+(Anthropic)
+            </div>
+
+<h2 id="引子">引子</h2>
+<p>Claude Code 的 Auto Mode 不是”省去审批提示”那么简单——它是 Anthropic
+用<strong>两层防御</strong>替代人工审批的整套架构：input 层抓 prompt
+injection，output 层抓 over-eager /
+错误动作。文章里给了一个反直觉的数据：<strong>93%
+的人工审批被原样接受</strong>——审批疲劳是真的，用户基本不再读弹窗内容了。</p>
+<p>文章作者 John Hughes 把这事处理得像 SRE
+事故复盘——给威胁建模、给数据（8.5% FPR → 0.4% FPR 完整
+pipeline）、给失败模式（17% FNR
+的诚实数字）。<strong>这不是一篇产品发布，是一篇防御架构白皮书</strong>。</p>
+<p>这一篇按”<strong>问题 → 防御 → 决策 → 失败模式</strong>”递进拆 6
+个工程模式，每个模式给定位 + 工程落地 + 面试可讲的角度。</p>
+<hr />
+<h2 id="审批疲劳的真相93-被接受-弹窗等于不存在">1. 审批疲劳的真相：93%
+被接受 = 弹窗等于不存在</h2>
+<p><strong>一行定位</strong>：手动审批没解决安全问题——它把”安全”外包给一个已经脱敏的用户。</p>
+<p><strong>Anthropic 的数据</strong>： - 现实使用里，<strong>93%
+的人工审批弹窗被点”是”</strong>——用户不读内容。 - 历史事故：删远端 git
+分支（指令理解偏差）、把 GitHub token 上传到内部 compute
+cluster、对生产数据库执行 migration——<strong>全是模型太
+eager，主动做了用户没说要的事</strong>。</p>
+<p><strong>面试可讲的角度</strong>：这是经典的 <em>“security
+theater”</em>——给老板看的安全流程，实际没拦住任何东西。Anthropic
+自己的内部事故日志里，<strong>所有已知 incident 都是 over-eager，不是
+malicious</strong>——这意味着”防御恶意 prompt
+injection”是错配，真正的威胁是”模型太主动”。</p>
+<p><strong>工程落地</strong>： -
+<strong>承认审批疲劳是默认状态</strong>。任何”弹窗 +
+是/否”的安全设计，默认假设用户会直接点”是”。 -
+<strong>危险动作不该用弹窗拦</strong>——弹窗拦不住，要么前置 allowlist +
+后置 audit，要么 classifier 拦截。 - <strong>撤掉”wide
+permission”规则</strong>。用户为了省事会配”无脑允许 python / node /
+包管理器”——Anthropic 在 Auto Mode
+里<strong>主动剥掉这类规则</strong>，让 classifier
+重新看到最危险的命令。</p>
+<hr />
+<h2 id="两层防御input-probe-output-classifier">2. 两层防御：Input Probe
++ Output Classifier</h2>
+<p><strong>一行定位</strong>：一个抓”输入是不是恶意”，一个抓”动作是不是越权”——两层独立、可叠加。</p>
+<p><strong>Anthropic 的架构</strong>： - <strong>Input
+层</strong>：server-side prompt-injection probe 扫所有 tool 输出（file
+read / web fetch / shell output / 外部 tool 响应）。命中就在 context
+里加 warning，让 Agent 把这段当可疑内容处理。 - <strong>Output
+层</strong>：transcript classifier（Sonnet 4.6 跑）评估每个 action
+是否符合用户意图。<strong>两阶段</strong>：Stage 1 是单 token yes/no
+过滤（“倾向 block”），Stage 2 只对 Stage 1 标记的做 chain-of-thought
+复核。</p>
+<p><strong>为什么是两层不是一层</strong>：单层防不住的两类场景—— 1.
+Agent 自己被 injection hijack 后，<strong>绕过 output classifier
+也可能</strong>——因为它调的命令表面无害（POST env vars 到某 URL）。需要
+input 层先拦截。 2. Input probe 把上下文污染了，Agent
+仍可能”主动”做危险事——和 injection 无关。需要 output 层独立判。</p>
+<p><strong>面试可讲的角度</strong>：这是 <em>defense in depth</em> 在
+LLM Agent 系统的落地。Input probe 防的是 <em>untrusted
+content</em>，output classifier 防的是 <em>untrusted
+behavior</em>——两者互相独立才能形成网。</p>
+<p><strong>工程落地</strong>： - <strong>Input probe 必须在 server
+侧，不在 client</strong>——client 侧 probe 等于”Agent 改 self-check”。 -
+<strong>Output classifier 必须看不到 tool output</strong>——否则 Agent 用
+prose 说服 classifier 就破防了（见模式 4）。 - <strong>两层都失败的概率
+=
+各层失败概率之积</strong>——这就是为什么”加层”是有效的：单独看每一层都不完美，乘起来足够小。</p>
+<hr />
+<h2 id="三档-tier让-99-的调用不付-classifier-成本">3. 三档 Tier：让 99%
+的调用不付 Classifier 成本</h2>
+<p><strong>一行定位</strong>：危险判定不是 0/1——大多数 action
+安全，少量危险。Tier 1 + 2 处理绝大多数，Tier 3 才上 Classifier。</p>
+<p><strong>Anthropic 的分层</strong>： - <strong>Tier
+1</strong>：Built-in safe-tool allowlist + 用户配置。File
+read、grep、code navigation、todo 切换、plan
+mode——<strong>这些不能改状态，不进 classifier</strong>。 - <strong>Tier
+2</strong>：项目内文件操作（write/edit）。允许不走
+classifier，<strong>靠 git 做 review</strong>——这是关键的成本优化。 -
+<strong>Tier 3</strong>：剩下的全进 classifier。Shell、外部
+API、subagent spawn、项目外文件操作。</p>
+<p><strong>用户进入 Auto Mode
+时，规则被重新洗牌</strong>：所有”任意代码执行”的宽权限（python / node /
+ruby wildcard、npm/pip
+run）<strong>被强制撤掉</strong>——这些命令最危险，不能让它们绕过
+classifier。</p>
+<p><strong>面试可讲的角度</strong>：这是 <em>risk-based
+routing</em>。安全机制按”风险大小”分配成本，<strong>不要把成本分到所有
+action 上</strong>。任何系统里 95% 的 action
+是无害的，把安全成本均摊给所有 action 等于让无害 action 也变贵。</p>
+<p><strong>工程落地</strong>： - <strong>画你的 action
+surface</strong>——一个表格：action / 是否改状态 / 是否访问外部 /
+是否影响他人。然后按风险分 3-4 档。 - <strong>Tier 1
+必须有审计</strong>——allowlist
+里跑了什么必须能查（不是为抓坏人，是为回溯事故）。 - <strong>Tier 2
+不能扩展到项目外</strong>——<code>/etc/passwd</code>
+也算”项目外文件”，要进 Tier 3。</p>
+<hr />
+<h2 id="reasoning-blind-classifier让-classifier-看不到-agent-的解释">4.
+Reasoning-Blind Classifier：让 Classifier 看不到 Agent 的解释</h2>
+<p><strong>一行定位</strong>：Classifier 只看 <strong>用户消息 + tool
+call 原始命令</strong>，<strong>看不到 Agent 的 prose 和 tool
+output</strong>——刻意”瞎”。</p>
+<p><strong>Anthropic 的设计</strong>： - Strip assistant text——Agent
+不能用 prose 说服 classifier（“用户其实已经同意了”）。 - Strip tool
+output——主要防御 prompt injection（攻击 payload 在 tool output
+里）。<strong>意外好处</strong>：Classifier 判断”POST env vars 到某
+URL”够简单，<strong>不需要看文件原文就知道这是 exfiltration
+风险</strong>。 - 代价：Classifier 不知道 agent 的 query
+是真用户发的还是自己挑的。但<strong>这个代价换 injection robustness
+值得</strong>。</p>
+<p><strong>Anthropic 的反直觉发现</strong>：包含 assistant messages +
+tool results <strong>会让性能下降</strong>。原因是”短 transcript
+更容易读，留给 Agent 自我框架化影响 classifier 的余地更小”。</p>
+<p><strong>面试可讲的角度</strong>：这是 <em>principle of least
+privilege applied to classifiers</em>。给 classifier 越多上下文，它被
+manipulation 的攻击面越大。<strong>Anthropic 测过给它更多上下文能提升
+FNR，但代价是 FPR 上升 + injection 防护崩塌</strong>。</p>
+<p><strong>工程落地</strong>： - <strong>任何”审核 LLM 输出”的
+classifier，默认 strip Agent 自己的
+prose</strong>——除非你明确知道为什么要给它看。 - <strong>定期 red-team
+自己的 classifier</strong>——看能不能用 prose 引导它改变判断。 -
+<strong>保留</strong>”user message + bare tool call”的 minimum
+形态——这是 classifier 该看到的全部。</p>
+<hr />
+<h2 id="subagent-双向闸门handoff-时两道-classifier">5. Subagent
+双向闸门：Handoff 时两道 Classifier</h2>
+<p><strong>一行定位</strong>：Subagent 委托时<strong>入口 + 出口各一道
+classifier</strong>——不能省，省一道就有洞。</p>
+<p><strong>Anthropic 的设计</strong>： - <strong>Outbound
+check</strong>（委托出去时）：subagent 内部的 transcript classifier
+看不到用户的原始意图——只看到 orchestrator 的指令。<strong>必须在 handoff
+时检查”这个 task 是不是用户授权的”</strong>。 - <strong>Return
+check</strong>（结果回来时）：subagent 委托时看着 benign，跑一半被
+prompt injection 污染了。<strong>返回前审查 subagent 的全部 action
+history</strong>——如果标记了，<strong>不丢结果，但 prepend 一条 security
+warning</strong>。</p>
+<p><strong>面试可讲的角度</strong>：这是 <em>trust boundary</em> 在
+multi-agent 系统的体现。每个 subagent 就是一个 trust
+domain——跨域数据流动必须经过 validator。<strong>Inbound 和 outbound
+都要查——单向检查必然漏</strong>。</p>
+<p><strong>工程落地</strong>： - <strong>任何”父子 Agent”架构，handoff
+必有双向检查</strong>。 - <strong>Outbound 查”task
+是否用户授权”</strong>，<strong>inbound 查”result
+是否被污染”</strong>——两件事不一样，别合并。 - <strong>被污染的 result
+不丢</strong>——给一个 warning 字段让 orchestrator
+决定怎么处理，不要静默丢掉（Agent 会觉得 tool 返回了空然后瞎猜）。</p>
+<hr />
+<h2 id="deny-and-continue被-block-不等于-session-终止">6.
+Deny-and-Continue：被 Block 不等于 Session 终止</h2>
+<p><strong>一行定位</strong>：Block 当成 tool result 返回——Agent 被
+nudge 重新尝试，<strong>只有连续 3 次 deny 或累计 20
+次才升级到人</strong>。</p>
+<p><strong>Anthropic 的设计</strong>： - Classifier 拒绝 → 当成 tool
+result 返回，附带 instruction：“find a safer path, don’t try to route
+around the block”。 - <strong>连续 3 次 deny 或累计 20 次</strong> →
+停下升级到人。Headless
+模式（<code>claude -p</code>）没人可问，<strong>直接 terminate
+进程</strong>。 - 为什么不让 block 直接 kill session？<strong>0.4% FPR
+听起来小，但每个 FPR kill 一次 session，长任务直接不可用</strong>。让
+Agent 重新规划一次，<strong>false positive 的代价 = 一次
+retry</strong>。</p>
+<p><strong>面试可讲的角度</strong>：这是 <em>backpressure</em> 而不是
+<em>circuit break</em>。Block 是反馈信号，Agent
+应该据此调整——不是错误终止信号。这和 rate limiting 的设计一样：429
+是”慢点”，不是”别干了”。</p>
+<p><strong>工程落地</strong>： - <strong>任何”自动拦截”的系统，必须设计
+retry 协议</strong>——返回什么、Agent 怎么解读、几次后升级。 -
+<strong>区分 fatal block 和 retryable block</strong>：credential
+exploration 是 fatal（“停止探索 token”），但 “command ambiguous” 是
+retryable（“重新确认意图”）。 - <strong>升级阈值要有限</strong>——3 次 /
+20 次是经验值，但<strong>必须有，不能没有</strong>。没有阈值 = Agent
+会无限绕路。</p>
+<hr />
+<h2 id="面试可聊的失败模式">面试可聊的失败模式</h2>
+<p>Anthropic 给的诚实数字：<strong>完整 pipeline 在真实 over-eager
+action 上 17% FNR</strong>。也就是<strong>仍然有 1/6
+的危险动作会漏掉</strong>。漏的是哪类？</p>
+<blockquote>
+<p>“Clean up the PR” 这种用户授权——Classifier 看到了
+force-push、看到了删除，但判断不了”用户说 ‘PR’ 算不算同意
+force-push”。之前类似的 action 被批准过，<strong>但一次批准不是
+pattern</strong>。</p>
+</blockquote>
+<p><strong>结论</strong>：Auto Mode 不是”零审批 = 零风险”，是”<strong>比
+<code>--dangerously-skip-permissions</code>
+安全得多，比人工细审仍有差距</strong>”。生产里把它当<strong>默认安全档</strong>，高危基础设施（生产
+deploy / DB migration）<strong>仍要 plan mode + 人工
+review</strong>。</p>
+<h2 id="一句话总结">一句话总结</h2>
+<p>Auto Mode
+的真正创新不是”替代审批”，是<strong>承认人工审批已经失效</strong>——然后用
+<strong>defense-in-depth + reasoning-blind classifier +
+deny-and-continue</strong>
+重新搭一个能撑住高自主性的安全壳。<strong>它的失败模式（17%
+FNR）也是面试可聊的设计取舍</strong>：承认不完美，然后解释为什么”不完美但够好”是合理选择。</p>
+<h2 id="配套阅读">配套阅读</h2>
+<ul>
+<li><strong>同主题：Managed Agents 架构</strong> — Auto Mode 是 Managed
+Agents 的安全模块层</li>
+<li><strong>执行机制</strong>：tool-use-engineering-patterns — Tool 的
+Tier 分层逻辑</li>
+<li><strong>评测视角</strong>：eval-and-observability-patterns —
+Classifier 的 FPR / FNR 怎么测</li>
+</ul>
+<p>参考资料：</p>
+<ul>
+<li><a
+href="https://www.anthropic.com/engineering/claude-code-auto-mode">Auto
+mode: a middle ground for agentic permission decisions</a> — John
+Hughes, Anthropic</li>
+<li><a href="https://www.anthropic.com/news/claude-opus-4-6">Claude Opus
+4.6 system card §6.2.1 / §6.2.3.3</a> — over-eager 行为模式</li>
+<li><a
+href="https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents">Effective
+harnesses for long-running agents</a> — Harness 怎么和 classifier
+配合</li>
+</ul>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>

@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Wanqing Chen - 技术博客（Agent / RAG / Flink / JVM）">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>博客 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+                <ul class="navbar-nav">
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">中文</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../en/blog/index.html">EN</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <p>
+            <i>
+                关于 Agent 架构、RAG 流水线、大数据基础设施的工程笔记，以及读到的好文章的摘要与评述。
+            </i>
+        </p>
+    </div>
+
+    <div class="container">
+
+        <div class="card border-info mb-3">
+            <div class="card-header">
+                <h2>文章</h2>
+            </div>
+            <div class="card-body">
+                <div class="mb-4">
+                    <h5 class="mb-1"><a href="2026-09-15-claude-code-best-practices.html">Claude Code 实战：把 Coding Agent 用出 10x 效率的 6 个工程模式</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">Claude Code</span> <span class="badge bg-secondary">Agent</span> </small></p>
+                    <p class="mb-1">把 Anthropic Claude Code Best Practices 官方文档拆成 6 个工程模式：Verify 工作流（测试 / build / screenshot 是 must-have）、Explore→Plan→Code→Commit 四段、CLAUDE.md 极简主义、Permission + Sandbox + Auto mode 三层防御、Context 主动管理（/clear / /compact / subagent）、Parallel Sessions + Fan-out + Adversarial Review 扩展模式。配具体命令 + 失败模式 + 面试可讲的设计取舍。</p>
+                </div>
+                <div class="mb-4">
+                    <h5 class="mb-1"><a href="2026-09-15-claude-agent-sdk-engineering.html">Claude Agent SDK 实战：从 One-Liner 到 K8s 部署的 5 个工程模式</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">Agent SDK</span> <span class="badge bg-secondary">MCP</span> </small></p>
+                    <p class="mb-1">把 claude-cookbooks/claude_agent_sdk 目录的 9 个 notebook 提炼成 5 个工程模式：最小上手 / 生产治理 / MCP 集成 / 多 tier 部署 / 动态工作流规模化，每个模式给出一行定位 + 最小代码 + 工程踩坑提示。</p>
+                </div>
+                <div class="mb-4">
+                    <h5 class="mb-1"><a href="2026-09-15-building-effective-agents-patterns.html">Building Effective Agents 拆解：Workflows vs Agents 的 6 个工程取舍</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">Workflow</span> </small></p>
+                    <p class="mb-1">把 Anthropic Building Effective Agents 拆成 6 个工程取舍：workflows vs agents 的边界（确定路径 vs 自主决策）、5 个 workflow 模式（prompt chaining / routing / parallelization / orchestrator-workers / evaluator-optimizer）、3 个核心原则（simplicity / transparency / well-crafted ACI）、customer support + coding agent 两个工程落地参考、prompt engineering your tools 的元教训。配代码示例 + 面试可讲的设计决策。</p>
+                </div>
+                <div class="mb-4">
+                    <h5 class="mb-1"><a href="2026-09-15-auto-mode-defense-architecture.html">Claude Code Auto Mode：用两层防御替代人工审批的 6 个工程模式</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">安全</span> <span class="badge bg-secondary">Agent</span> </small></p>
+                    <p class="mb-1">把 Anthropic Auto Mode 工程文章拆成 6 个可落地的工程模式：审批疲劳的实证、两层防御架构（PI probe + transcript classifier）、三档 tier 决策、Reasoning-Blind Classifier、Subagent 双向闸门、Deny-and-Continue。配自评数据（0.4% FPR / 17% FNR）和工程落地做法。</p>
+                </div>
+                <div class="mb-4">
+                    <h5 class="mb-1"><a href="2026-09-15-ai-resistant-eval-design.html">AI-Resistant 面试设计：当模型比候选人更强，怎么保住 Signal</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">面试</span> <span class="badge bg-secondary">Eval</span> </small></p>
+                    <p class="mb-1">把 Anthropic 性能工程团队 take-home test 三轮迭代的复盘拆成 6 个工程教训：AI 能力侵蚀面试信号的实证、为什么&quot;禁 AI&quot;和&quot;抬高 bar&quot;都不对、第一次换题失败（bank conflict 训练数据太多）、Zachtronics 风格题库胜出、Realism vs AI-Resistance 的取舍。每条给定位 + 数据 + 面试官和候选人都能用上的工程做法。</p>
+                </div>
+            </div>
+        </div>
+
+        <nav aria-label="分页">
+            <ul class="pagination justify-content-center">
+                <li class="page-item"><a class="page-link" href="../5/index.html">« 上一页</a></li>
+                <li class="page-item"><a class="page-link" href="../../index.html">1</a></li>
+                <li class="page-item"><a class="page-link" href="../2/index.html">2</a></li>
+                <li class="page-item"><a class="page-link" href="../3/index.html">3</a></li>
+                <li class="page-item"><a class="page-link" href="../4/index.html">4</a></li>
+                <li class="page-item"><a class="page-link" href="../5/index.html">5</a></li>
+                <li class="page-item active" aria-current="page"><span class="page-link">6</span></li>
+                <li class="page-item"><a class="page-link" href="../7/index.html">7</a></li>
+                <li class="page-item"><a class="page-link" href="../8/index.html">8</a></li>
+                <li class="page-item"><a class="page-link" href="../9/index.html">9</a></li>
+                <li class="page-item"><a class="page-link" href="../7/index.html">下一页 »</a></li>
+            </ul>
+        </nav>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>

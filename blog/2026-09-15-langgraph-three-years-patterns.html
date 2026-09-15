@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="LangGraph 3
+年的核心经验：什么时候把 Agent 表达为
+graph（结构已知、路径确定）、什么时候用 agent
+harness（结构未知、靠模型推理）、什么时候用 loop（最简版本）。3 个关键
+lesson：agent graph 通常不是 DAG、loop 就是简单 graph、动态 transition
+重要。附决策框架 + 简历项目骨架。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>LangGraph 3 年：什么时候用 graph / 什么时候用 harness /
+什么时候用 loop——决策框架 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>LangGraph 3 年：什么时候用 graph / 什么时候用 harness /
+什么时候用 loop——决策框架</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">LangGraph</span> <span class="badge bg-secondary">工程哲学</span> <span class="badge bg-secondary">决策框架</span> <span class="badge bg-secondary">工程实践</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://www.langchain.com/blog/3-years-of-graph-engineering-with-langgraph" target="_blank" rel="noopener">3
+Years of Graph Engineering with LangGraph</a> · Sydney Runkle / Harrison
+Chase (LangChain)
+            </div>
+
+<h2 id="引子">引子</h2>
+<p>LangGraph 现在每月 <strong>65M+ 下载</strong>。LangChain 团队 3 年
+build 出的核心 wisdom：<strong>什么时候用 graph / 什么时候用 harness /
+什么时候用
+loop</strong>——三者不是替代关系，是<strong>同一个思想在不同抽象层级的表达</strong>。</p>
+<p>这篇文章不是讲 LangGraph 怎么用，是讲<strong>“图作为 Agent
+抽象”的工程判断标准</strong>。面试讲 Agent 架构选型，这 3 个 lesson +
+决策框架直接搬。</p>
+<hr />
+<h2
+id="核心思想把你对系统的先验编码进图">核心思想：把”你对系统的先验”编码进图</h2>
+<blockquote>
+<p>“<strong>Representing agentic systems as graphs lets you impose your
+preconceptions of how the system should work into more constrained
+paths, not relying solely on the judgement of the LLM.</strong>”</p>
+</blockquote>
+<p><strong>Graph
+的本质</strong>：<strong>把你对”系统应该怎么工作”的领域知识</strong>编码进<strong>节点（做什么）+
+边（什么时候走）+ state（流动什么）</strong>。</p>
+<p><strong>3 种 primitive 的本质</strong>：</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Primitive</th>
+<th>本质</th>
+<th>你对系统的先验</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Loop</strong></td>
+<td>Agent 跑一个循环调 LLM → tool → …</td>
+<td>不知道具体路径，靠模型推理</td>
+</tr>
+<tr class="even">
+<td><strong>Graph</strong></td>
+<td>你知道大致路径，让模型在某几步选择</td>
+<td><strong>部分先验</strong>：固定框架 + 局部决策</td>
+</tr>
+<tr class="odd">
+<td><strong>Harness</strong></td>
+<td>提供 plan / delegate / context management 等基础设施</td>
+<td><strong>少量先验</strong>：模型自己决定大部分</td>
+</tr>
+</tbody>
+</table>
+<p><strong>3 个抽象不是替代，是同一思想的层级</strong>：</p>
+<blockquote>
+<p>“Graph engineering isn’t a new idea. It’s the latest name for a well
+established approach to building reliable agents. <strong>It’s the same
+idea behind loop engineering and harness engineering: building putting
+model reasoning in the right places, with the right context, at each
+step.</strong>”</p>
+</blockquote>
+<p><strong>面试可讲角度</strong>：这是 <em>abstraction levels for agent
+control</em> 的工程化。<strong>Loop / Graph / Harness
+是同一个思想在不同抽象层级的实现</strong>——<strong>你的先验越多用
+graph，你的先验越少用
+harness</strong>。<strong>没有”哪个最好”，只有”哪个对你这个任务最合适”</strong>。</p>
+<hr />
+<h2 id="lesson-1agent-graph-通常不是-dag">Lesson 1：Agent graph 通常不是
+DAG</h2>
+<blockquote>
+<p>“Production agents need cycles: <strong>retrying failed tool calls,
+asking users for missing information, revising answers after validation,
+calling tools repeatedly until they have enough context, and pausing for
+human input before resuming.</strong> Looping is a core part of agentic
+systems, so they are likely not DAGs.”</p>
+</blockquote>
+<p><strong>5 个生产 Agent 必须能 cycle 的场景</strong>：</p>
+<ol type="1">
+<li><strong>重试失败 tool call</strong>（timeout / 5xx / rate
+limit）</li>
+<li><strong>问用户补缺失信息</strong>（“你的订单号？”）</li>
+<li><strong>验证后修正答案</strong>（retrieval 后 self-check
+不一致就重做）</li>
+<li><strong>重复调 tool 直到 context 够</strong>（deep research
+跑到满足为止）</li>
+<li><strong>暂停等人工输入再恢复</strong>（human-in-the-loop
+checkpoint）</li>
+</ol>
+<p><strong>工程含义</strong>：用 LangGraph 时<strong>不要害怕
+cycle</strong>——cycle 是 Agent 的基本能力。</p>
+<p><strong>面试可讲角度</strong>：<strong>传统 workflow / ETL 工具假设
+DAG</strong>（Airflow / Prefect / Temporal DAG 模式）——Agent 不是
+DAG。<strong>Agent 框架必须原生支持 cycle + checkpoint +
+resume</strong>。<strong>这是 LangGraph vs 传统 workflow
+的根本区别</strong>。</p>
+<hr />
+<h2 id="lesson-2loop-就是简单-graph">Lesson 2：Loop 就是简单 graph</h2>
+<blockquote>
+<p>“<strong>Loop engineering isn’t an alternative to graphs, so much as
+a simple version of them.</strong> A loop is just a directed, cyclic
+graph.”</p>
+</blockquote>
+<p><strong>关键含义</strong>：</p>
+<ul>
+<li>LangChain framework 本身就是 LangGraph
+之上的一层——<code>AgentExecutor</code> 就是循环</li>
+<li>Loop 适用于”你对系统先验很少”的场景</li>
+<li>Loop 比 graph 简单，但灵活度低（容易”乱跑”）</li>
+</ul>
+<p><strong>面试可讲角度</strong>：这是 <em>abstraction levels</em>
+的工程化体现。<strong>Loop 是 graph 的特例（“只有一个节点 +
+跳回自己的边”）</strong>。<strong>不要把”用 loop 还是用
+graph”当成对立选择——它们是同一抽象的不同参数化</strong>。</p>
+<hr />
+<h2 id="lesson-3动态-transitionsend-api很重要">Lesson 3：动态
+transition（Send API）很重要</h2>
+<blockquote>
+<p>“You do not always want to define every edge up front. Sometimes a
+node decides at runtime how much work to create. <strong>Map-reduce is
+the classic case</strong>: split an input into pieces, send each to a
+worker, then combine the results. The number of workers depends on the
+input, and you do not know that number in advance.”</p>
+</blockquote>
+<p><strong>LangGraph 的 Send API</strong>：</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 静态边：明确定义 N 个 worker</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>graph.add_edge(<span class="st">&quot;split&quot;</span>, <span class="st">&quot;worker_1&quot;</span>)</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>graph.add_edge(<span class="st">&quot;split&quot;</span>, <span class="st">&quot;worker_2&quot;</span>)</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="co"># 动态边：runtime 决定 N 个 worker（map-reduce）</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>graph.add_conditional_edges(</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;split&quot;</span>,</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>    <span class="kw">lambda</span> state: [Send(<span class="st">&quot;worker&quot;</span>, item) <span class="cf">for</span> item <span class="kw">in</span> state[<span class="st">&quot;items&quot;</span>]]</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div>
+<p><strong>关键工程含义</strong>：</p>
+<blockquote>
+<p>“Useful agent systems mix known structure with runtime variability.
+<strong>You might know research should fan out and then synthesize, but
+not how many sources there will be.</strong> You might know a supervisor
+should delegate to workers, but not know which specific workers to use
+until the task starts.”</p>
+</blockquote>
+<p><strong>关键判断</strong>：<strong>Graph
+不是”完全静态”——它是”框架静态 + 局部动态”</strong>。<strong>Send API
+让你定义结构 + 留出运行时灵活性</strong>。</p>
+<p><strong>面试可讲角度</strong>：这是 <em>static structure + dynamic
+routing</em> 的工程取舍。<strong>Airflow / Prefect 这类纯静态 workflow
+做不到——Agent 图必须支持 runtime-decided fan-out</strong>。</p>
+<hr />
+<h2 id="决策框架什么时候用哪个">决策框架：什么时候用哪个</h2>
+<pre><code>                 你对系统结构的先验有多少？
+                          │
+       ┌──────────────────┼──────────────────┐
+       │                  │                  │
+    几乎为零            部分已知            完全已知
+       │                  │                  │
+       ↓                  ↓                  ↓
+   [Agent Loop]      [LangGraph]         [Static Workflow]
+   (ReAct / DeepAgents) (graph + LLM 节点)  (Airflow / DAG)</code></pre>
+<p><strong>3 个具体例子</strong>：</p>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>任务</th>
+<th>先验</th>
+<th>选哪个</th>
+<th>为什么</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Deep research</strong></td>
+<td>很少——查询路径不可预测</td>
+<td><strong>Deep Agents / Loop</strong></td>
+<td>需要 plan / delegate / context management，路径动态</td>
+</tr>
+<tr class="even">
+<td><strong>Support Agent</strong></td>
+<td>部分——分类 → 搜索 → 答复</td>
+<td><strong>LangGraph</strong></td>
+<td>3 个固定阶段，每阶段内模型决定</td>
+</tr>
+<tr class="odd">
+<td><strong>ETL pipeline</strong></td>
+<td>全部——步骤固定</td>
+<td><strong>Airflow / Prefect</strong></td>
+<td>不需要 LLM 决策，纯确定性 workflow</td>
+</tr>
+</tbody>
+</table>
+<p><strong>LangChain 自家演进</strong>：早期 deep research 用 LangGraph
+写死 workflow → 后来改用 Deep Agents
+harness，因为<strong>结构动态性太大，graph 写不出来</strong>。GPT
+Researcher 走过同样的路——从 graph-shaped multi-agent 改成 Deep
+Agents。</p>
+<p><strong>关键判断</strong>：</p>
+<blockquote>
+<p>“<strong>Graphs let you encode that structure directly: the valid
+paths, where the model gets to choose, and where the system should
+enforce deterministic behavior instead of hoping the model makes the
+right call every time.</strong>”</p>
+</blockquote>
+<p><strong>不要试图让模型推理决定”路径”——把路径画出来</strong>。<strong>让模型推理决定”在某一步做什么”</strong>。<strong>这是
+graph vs loop 的核心分界</strong>。</p>
+<hr />
+<h2 id="whats-actually-new节点可以是完整-agent">What’s actually
+new：节点可以是”完整 Agent”</h2>
+<p><strong>3 年前 LangGraph 节点</strong>：deterministic code 或 single
+LLM call。</p>
+<p><strong>现在的节点</strong>：<strong>可以是完整 Agent
+run</strong>——你在 orchestrating agents，不只是 LLM calls。</p>
+<p><strong>例子：Docs Agent</strong></p>
+<pre><code>[Slack request] → [Slack API node: 固定代码]
+                       ↓
+              [Classifier node: LLM 单次调用，无 tools]
+                       ↓
+            ┌──────────┴──────────┐
+            ↓                     ↓
+[Reference Docs Agent]    [Conceptual Docs Agent]
+(完整 agent run + tools)   (完整 agent run + tools)
+            ↓                     ↓
+            └──────────┬──────────┘
+                       ↓
+            [Synthesize node: LLM 单次调用]
+                       ↓
+            [Linear API node: 固定代码]
+                       ↓
+            [PR ready for review]</code></pre>
+<p><strong>3 个类型的节点</strong>：</p>
+<ol type="1">
+<li><strong>Fixed steps</strong>（Slack / Linear API）—— 纯代码，无
+LLM</li>
+<li><strong>Model steps</strong>（Classifier / Synthesize）—— 单次 LLM
+调用，无 tools</li>
+<li><strong>Agent steps</strong>（Reference Docs / Conceptual Docs）——
+完整 agent run</li>
+</ol>
+<p><strong>确定性 vs agentic 的混合</strong>就是这种架构能”可预测 + 强大
++ 高效”的原因。</p>
+<p><strong>面试可讲角度</strong>：这是 <em>nested agent composition</em>
+的工程化。<strong>Agent 可以嵌套在 Agent 里——外层 graph 管”结构”，内层
+agent 管”复杂任务”</strong>。<strong>这是 single-agent loop
+做不到的扩展性</strong>。</p>
+<hr />
+<h2
+id="简历可直接借用的项目骨架agent-架构选型-框架设计类">简历可直接借用的项目骨架（Agent
+架构选型 / 框架设计类）</h2>
+<pre><code>项目名：[业务名] 多 Agent 平台 / Agent 编排框架
+
+角色：核心工程师 / Agent 架构师
+
+核心架构决策：
+1. 何时用 Loop / Graph / Harness：
+   - Loop = 几乎无先验
+   - Graph = 部分先验 + 局部模型决策
+   - Harness = 大量先验 + 复杂任务
+2. 节点可以是 LLM call / 工具调用 / 完整 Agent run
+3. 支持动态 transition（map-reduce / supervisor-worker）
+
+3 个关键 engineering lesson：
+1. Agent graph 不是 DAG——必须支持 cycle + checkpoint + resume
+2. Loop 就是简单 graph——同一思想的不同参数化
+3. 动态 transition 重要——Send API 让 graph 既结构化又灵活
+
+工具栈：[LangGraph / Deep Agents / Claude Agent SDK]
+
+成果（量化）：
+- Agent graph 节点数：[N] 个
+- Sub-agent 嵌套深度：[M] 层
+- Cycle 支持：[X] 类（retry / ask-user / self-validate / human-in-the-loop）
+- 动态 fan-out：[Y] 类场景（map-reduce / supervisor dispatch）
+- 决策框架覆盖率：[Z]% 任务用合适抽象</code></pre>
+<p><strong>面试常被问到的延伸问题</strong>： - “为什么用 graph 而不是
+loop？” → <strong>我的任务有可编码的结构</strong>——分类 → 搜索 →
+答复这种框架可以画出来 - “Graph 和 DAG 有什么区别？” → <strong>Agent
+graph 必须支持 cycle</strong>——retry / ask-user / self-validate 都是
+cycle，传统 DAG workflow 框架做不到 - “节点可以是 Agent 吗？” →
+<strong>可以</strong>——外层 graph 管结构，内层 agent 管复杂任务 -
+“什么时候用静态图什么时候用动态图？” → <strong>静态图 =
+路径固定</strong>，<strong>动态图 = 节点 runtime 决定派多少
+worker</strong>（map-reduce / supervisor-worker） - “Loop / Graph /
+Harness 怎么选？” →
+<strong>你对系统结构的先验有多少</strong>——几乎为零用 loop，部分已知用
+graph，几乎完全已知用静态 workflow</p>
+<hr />
+<h2 id="配套阅读">配套阅读</h2>
+<ul>
+<li><strong>同框架多业务</strong>：<a
+href="blog/posts/2026-09-15-agent-paid-media-workspace-five-lessons.md">Paid
+Media Agent</a> — Deep Agents 用法案例</li>
+<li><strong>架构演进</strong>：<a
+href="blog/posts/2026-09-15-agent-sidekick-bounded-responsibilities.md">Sidekick</a>
+— 单 Agent → 多层架构</li>
+<li><strong>底层 SDK</strong>：<a
+href="blog/posts/2026-09-15-claude-agent-sdk-engineering.md">Claude
+Agent SDK</a> — SDK 层的实现细节</li>
+</ul>
+<p>参考资料：</p>
+<ul>
+<li><a
+href="https://www.langchain.com/blog/3-years-of-graph-engineering-with-langgraph">3
+Years of Graph Engineering with LangGraph</a> — Sydney Runkle, Harrison
+Chase</li>
+<li><a
+href="https://docs.langchain.com/oss/python/langgraph/overview">LangGraph</a></li>
+<li><a
+href="https://docs.langchain.com/oss/python/deepagents/overview">Deep
+Agents</a></li>
+<li><a
+href="https://www.langchain.com/blog/what-is-a-cognitive-architecture">Cognitive
+Architectures</a></li>
+</ul>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>

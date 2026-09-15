@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="把 Anthropic Effective Harnesses
+for Long-Running Agents 文章拆成 5 个工程实践：长时 Agent
+的两大失败模式（one-shotting / premature victory）、Initializer + Coding
+双角色分工、JSON Feature List 防过度触发、Clean State 协议（git +
+progress + init.sh）、Puppeteer MCP 闭环自测。配 YAML 示例 + 5 步启动
+checklist + 面试可讲的设计取舍。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>长时 Agent Harness：Initializer + Coding Agent 双角色模式的 5
+个工程实践 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>长时 Agent Harness：Initializer + Coding Agent
+双角色模式的 5 个工程实践</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI
+工程</span> <span class="badge bg-secondary">Harness</span> <span class="badge bg-secondary">长任务</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents" target="_blank" rel="noopener">Effective
+harnesses for long-running agents</a> · Justin Young (Anthropic)
+            </div>
+
+<h2 id="引子">引子</h2>
+<p>Claude Agent SDK 是通用 agent harness，理论上 compaction 能让 agent
+跑任意久。<strong>实测不行</strong>——给一个”build a clone of
+claude.ai”的 prompt，Opus 4.5 也会卡在两种 failure mode 上。这篇讲的是
+Anthropic 怎么用 <strong>Initializer Agent + Coding Agent</strong>
+双角色模式 +
+三个文件（<code>init.sh</code>、<code>feature_list.json</code>、<code>claude-progress.txt</code>）让
+agent 跨多个 context window 持续推进。</p>
+<p>下面拆 5 个工程实践，按”<strong>问题 → 分工 → 状态管理 → 启动协议 →
+自测闭环</strong>”递进。每个模式给定位 + 落地代码 / 命令 +
+面试可讲的角度。</p>
+<hr />
+<h2 id="长时-agent-的两大失败模式one-shotting-和-premature-victory">1.
+长时 Agent 的两大失败模式：One-shotting 和 Premature Victory</h2>
+<p><strong>一行定位</strong>：长时 Agent
+必栽在两个根上——<strong>贪多嚼不烂</strong>和<strong>看着像完成就交付</strong>。</p>
+<p><strong>Anthropic 的观察</strong>： -
+<strong>One-shotting</strong>：agent 想一锤子搞定整个 app → context
+在中间耗尽 → 下个 session 接手时<strong>功能半完成 + 无文档</strong> →
+猜上下文、debug 老问题，<strong>大量 token 浪费</strong>。 -
+<strong>Premature victory</strong>：后期 agent 看 git log 有 progress →
+“看起来做完了” → 实际核心 feature 没测就 declare done。</p>
+<p><strong>即使 compaction 也救不了</strong>——compaction
+不总能传清晰指令给下个 session。<strong>新的 session
+永远从”零上下文”开始</strong>——想象一个三班倒的工程团队，每班新工程师上班没记忆。</p>
+<p><strong>面试可讲的角度</strong>：这是 <em>cold-start
+problem</em>——分布式系统每个新 worker 都要重新建立
+worldview。<strong>长时 agent 是 N 个 cold-start
+串起来</strong>，每个都是新 worker。</p>
+<p><strong>工程落地</strong>： - <strong>承认 compaction
+不足以独立支持长任务</strong>——必须有 handoff artifact。 -
+<strong>One-shotting 的根治</strong>：任务分解到 feature
+粒度，<strong>强制一次一个</strong>。 - <strong>Premature victory
+的根治</strong>：<strong>outcome 测试</strong>（不是声明
+pass，是真的测）。</p>
+<hr />
+<h2 id="双角色分工initializer-与-coding-agent">2.
+双角色分工：Initializer 与 Coding Agent</h2>
+<p><strong>一行定位</strong>：<strong>第一次跑的 agent
+负责”搭台”</strong>（建 git repo / 写 init.sh / 列 feature
+list），<strong>后续 agent 负责”唱戏”</strong>（一次一个 feature）。</p>
+<p><strong>Anthropic 的设计</strong>：</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Agent</th>
+<th>时机</th>
+<th>任务</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Initializer Agent</strong></td>
+<td>第一次 session</td>
+<td>写
+<code>init.sh</code>（起开发环境脚本）、<code>claude-progress.txt</code>（工作日志）、<code>feature_list.json</code>（feature
+清单，所有 <code>passes: false</code>）、第一个 git commit</td>
+</tr>
+<tr class="even">
+<td><strong>Coding Agent</strong></td>
+<td>之后每个 session</td>
+<td>读 progress + features → 挑一个 feature → 写代码 → 测 → commit → 写
+progress 更新</td>
+</tr>
+</tbody>
+</table>
+<p><strong>关键限制</strong>：<strong>Coding Agent 只能改 feature 的
+<code>passes</code> 字段</strong>——不能增删 feature。prompt
+写得<strong>很强硬</strong>：“It is unacceptable to remove or edit
+tests”。</p>
+<p><strong>面试可讲的角度</strong>：这是 <em>separation of
+concerns</em>——<strong>Initializer 是架构师（搭骨架），Coding Agent
+是工人（一次填一块砖）</strong>。<strong>工人不能动架构</strong>——这是制度设计，不是
+prompt 设计。</p>
+<p><strong>工程落地</strong>： - <strong>两个 agent 用同一个
+harness</strong>（SDK + system prompt），只是 user prompt
+不同。<strong>不要让架构分叉</strong>。 - <strong>Coding Agent 的 prompt
+里 hardcode</strong>：“<strong>You can only change <code>passes</code>
+field</strong>”——其他写法都会被模型找到擦边球路径。 -
+<strong>Initializer 输出的三个文件</strong>就是后续 agent
+的”项目记忆”——<strong>没有这三个文件，harness 等于裸跑</strong>。</p>
+<hr />
+<h2 id="json-feature-list结构化-feature-强制-incremental">3. JSON
+Feature List：结构化 feature 强制 incremental</h2>
+<p><strong>一行定位</strong>：<strong>JSON 比 Markdown
+不容易被模型偷改</strong>——<code>passes: false</code> 强制 incremental
+推进。</p>
+<p><strong>Anthropic 的设计</strong>： - 200+ feature 的 JSON
+清单，每个含 <code>category / description / steps / passes</code>。 -
+<strong>全部初始化为 <code>passes: false</code></strong>。 - Coding
+Agent <strong>只能改 <code>passes</code> 字段</strong>——不能改
+<code>description</code>、不能删 feature、不能增 feature。 -
+实测：Markdown
+版本容易被模型”优化”措辞、合并条目、删除”看起来重复”的——JSON
+结构锁死了编辑动作。</p>
+<p><strong>Feature 示例</strong>（节选）：</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;category&quot;</span><span class="fu">:</span> <span class="st">&quot;functional&quot;</span><span class="fu">,</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;description&quot;</span><span class="fu">:</span> <span class="st">&quot;New chat button creates a fresh conversation&quot;</span><span class="fu">,</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;steps&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;Navigate to main interface&quot;</span><span class="ot">,</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;Click the &#39;New Chat&#39; button&quot;</span><span class="ot">,</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;Verify a new conversation is created&quot;</span><span class="ot">,</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;Check that chat area shows welcome state&quot;</span><span class="ot">,</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;Verify conversation appears in sidebar&quot;</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;passes&quot;</span><span class="fu">:</span> <span class="kw">false</span></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><strong>面试可讲的角度</strong>：这是 <em>data integrity through
+schema</em>——<strong>给数据严格
+schema，模型就只能做允许的事</strong>。比 prompt 限制靠谱，因为 prompt
+是自然语言，模型会灵活解读。</p>
+<p><strong>工程落地</strong>： - <strong>用 JSON / YAML 而非
+Markdown</strong>——schema 限制改写空间。 - <strong>Feature list
+必须穷举</strong>——200+ 不是过度，是必要<strong>。</strong>模型判断”哪些
+feature 重要”会偏向 AI cliche 集<strong>——强行列全才是 ground truth。 -
+</strong>每个 feature 都有 steps 数组**——steps 是后续 testing agent /
+自己的 checklist。</p>
+<hr />
+<h2 id="clean-state-协议git-commit-progress-init.sh">4. Clean State
+协议：git commit + progress + init.sh</h2>
+<p><strong>一行定位</strong>：<strong>每个 session 结束必须留可继续的
+codebase</strong>——<code>git commit</code> + <code>progress notes</code>
++ <code>init.sh</code>，三件套缺一不可。</p>
+<p><strong>Anthropic 的”clean state”定义</strong>： - 代码 <strong>能
+merge 到 main 分支</strong>——没重大 bug、整洁、有文档。 -
+下一个开发者（人或 agent）能直接开始新
+feature，<strong>不需要先清理无关混乱</strong>。</p>
+<p><strong>三个 artifact 的角色</strong>： -
+<strong><code>init.sh</code></strong>：一键重启开发服务器——Coding Agent
+上手就能跑。 -
+<strong><code>claude-progress.txt</code></strong>：人类可读的工作日志——上一个
+session 做了什么、为什么、下一个该做什么。 - <strong>git
+commits</strong>：原子、可 revert——<strong>git
+是真回回退工具</strong>，prompt 是”我说要回退”。</p>
+<p><strong>Coding Agent 行为闭环</strong>： 1. 读
+<code>claude-progress.txt</code> + <code>git log</code> → 理解上一
+session 2. 跑 <code>init.sh</code> + 基础 e2e 测试 → <strong>确认没遗留
+bug</strong> 3. 挑一个 feature → 写代码 → 测 → commit 4. 更新
+<code>claude-progress.txt</code></p>
+<p><strong>面试可讲的角度</strong>：这是 <em>state
+externalization</em>——<strong>所有状态在 session
+外</strong>（git、文件、init 脚本）。<strong>Agent 内部 context
+是不可靠存储</strong>（compaction 会丢），外部 artifact 是可信存储。</p>
+<p><strong>工程落地</strong>： - <strong><code>init.sh</code> 必须
+idempotent</strong>——能跑多次。Agent 会反复调用。 -
+<strong><code>progress.txt</code> 写”为什么”</strong>——“为什么放弃 X
+方案”、“为什么用 Y 库”——这些是下一个 session 最缺的 context。 -
+<strong>commit message 写 task
+编号</strong>——<code>#42 fix chat scroll bug</code>——让 git log 和
+feature list 能 cross-ref。</p>
+<hr />
+<h2 id="puppeteer-mcp让-agent-真正看到功能-work">5. Puppeteer MCP：让
+Agent 真正”看到”功能 work</h2>
+<p><strong>一行定位</strong>：<strong>Unit test + curl
+不够</strong>——Agent 必须用 browser automation 像人一样测试。</p>
+<p><strong>Anthropic 的发现</strong>： - 默认 Claude 改了代码 → 跑 unit
+test → <code>curl</code> 一下 dev server →
+<strong>自我满意</strong>，但<strong>实际 browser 里坏掉</strong>（modal
+不显示、button 不响应、CSS 错位）。 - <strong>显式提示 + Puppeteer
+工具</strong>后，Claude 能 screenshot → 看到 modal 没弹出 →
+<strong>找到真 bug</strong>。 - <strong>但仍有局限</strong>：Claude
+视觉能力 + 浏览器自动化工具<strong>看不到 browser-native alert
+modal</strong>——依赖 modal 的功能 bug 率更高。</p>
+<p><strong>改进效果</strong>：<strong>提供了 browser automation
+工具后，end-to-end pass rate 显著提升</strong>——能发现单看代码看不出的
+bug。</p>
+<p><strong>面试可讲的角度</strong>：这是 <em>grounding through
+environment</em>——<strong>模型对”功能
+work”的定义是文本层面的</strong>，<strong>人类对”功能
+work”的定义是体验层面的</strong>。<strong>只有让 Agent
+进入体验环境，才能测体验</strong>。</p>
+<p><strong>工程落地</strong>： - <strong>Coding Agent 必须有
+Playwright/Puppeteer 工具</strong>——CLI curl 不够。 - <strong>每个
+feature 完成 = screenshot + 自动化点击验证</strong>——不只是 unit test
+pass。 - <strong>承认 browser automation 有盲点</strong>——modal、native
+dialog、键盘 shortcut 都难测。<strong>这些地方要额外的
+workaround</strong>（例如在 prompt 里明确”用 screenshot 验证 modal
+出现”）。</p>
+<hr />
+<h2 id="coding-agent-启动-5-步-checklist">Coding Agent 启动 5 步
+checklist</h2>
+<p>每次新 session 开始时，Coding Agent 按顺序：</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. 看我在哪</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="bu">pwd</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. 读工作日志</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> claude-progress.txt</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. 读 feature list</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> feature_list.json <span class="kw">|</span> <span class="ex">jq</span> <span class="st">&#39;.features[] | select(.passes == false) | .description&#39;</span> <span class="kw">|</span> <span class="fu">head</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 4. 看最近 commit</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> log <span class="at">--oneline</span> <span class="at">-20</span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a><span class="co"># 5. 起服务 + 跑基础 e2e（确认没遗留 bug）</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> init.sh</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a><span class="co"># 用 Puppeteer 测：新 chat → 输消息 → 收到响应</span></span></code></pre></div>
+<p><strong>为什么这 5 步是 critical</strong>： - pwd → 路径错误 = 整个
+session 走错方向。 - progress →
+知道<strong>为什么</strong>上次这么做（不是只看 commit diff）。 -
+feature list → 不会”已经做完了”假象。 - git log → 知道已经做了什么。 -
+e2e test → <strong>早发现遗留 bug，避免在新功能上叠加 bug</strong>。</p>
+<p><strong>面试可讲的角度</strong>：这是 <em>defensive coding
+ritual</em>——<strong>每次新 worker
+上岗必须先验证环境干净</strong>，不是开始干活。</p>
+<h2 id="一句话总结">一句话总结</h2>
+<p>长时 Agent harness 的本质是 <strong>“双角色 + 三文件 +
+五步启动协议”</strong>——<strong>Initializer 搭骨架、Coding Agent
+填砖、git/progress/init.sh 是骨架、5 步启动是
+ritual</strong>。<strong>这整套是把人类软件工程的最佳实践（commit
+message、progress notes、clean state、end-to-end testing）映射到 agent
+session 边界</strong>。</p>
+<h2 id="配套阅读">配套阅读</h2>
+<ul>
+<li><strong>同主题</strong>：harness-design-gan-evaluator — 多 Agent +
+Generator-Evaluator 模式</li>
+<li><strong>执行机制</strong>：claude-agent-sdk-engineering — Harness
+抽象的 SDK 落地</li>
+<li><strong>评测视角</strong>：demystifying-ai-agent-evals — 这种
+harness 的 eval 怎么设计</li>
+</ul>
+<p>参考资料：</p>
+<ul>
+<li><a
+href="https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents">Effective
+harnesses for long-running agents</a> — Justin Young, Anthropic</li>
+<li><a
+href="https://github.com/anthropics/claude-agent-sdk-python">Claude
+Agent SDK quickstart</a> — 代码示例</li>
+<li><a
+href="https://docs.claude.com/en/docs/build-with-claude/prompt-engineering">Claude
+4 prompting guide</a> — 多 context window workflow</li>
+</ul>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>

@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Stripe Knowledge AI
+Platform（Kai）从 296 用户涨到 5000+（4 周），83% 员工每周用，1 个工程师
+1 周做出 MVP。3 个关键决策：把 Deep Agents 当 OS 而非工具、S3
+虚拟文件系统 + sync in/out、agent skills 按 user profile
+动态加载。附完整简历项目骨架。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>Stripe Kai：1 个工程师 + 1 周，用 Deep Agents 搭全公司
+Agent——3 个工程决策 + 简历级骨架 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>Stripe Kai：1 个工程师 + 1 周，用 Deep Agents 搭全公司
+Agent——3 个工程决策 + 简历级骨架</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">Deep
+Agents</span> <span class="badge bg-secondary">Stripe</span> <span class="badge bg-secondary">内部平台</span> <span class="badge bg-secondary">工程实践</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://www.langchain.com/blog/how-stripe-built-their-knowledge-ai-platform-on-deep-agents" target="_blank" rel="noopener">How
+Stripe Built Kai, its Company-Wide AI Agent, on Deep Agents</a> · Sofia
+Sulikowski (LangChain)
+            </div>
+
+<h2 id="引子">引子</h2>
+<p>Stripe 全公司 Agent “Kai”——一个工程师（Anupam）一周搭出 MVP，preview
+一周打到季度目标，4 周从 296 用户涨到 5000+，现在 83%
+员工每周用。<strong>不是堆人，是靠 3 个正确的工程决策</strong>。</p>
+<p>这篇文章不是讲 Stripe 多牛，是讲<strong>为什么 Deep Agents
+让一个工程师能一周做出一个全公司 Agent 平台</strong>——以及你自己做内部
+Agent 项目时哪些决策可以照搬。</p>
+<hr />
+<h2 id="决策-1把-agent-harness-当-os而不是工具集">决策 1：把 Agent
+Harness 当 OS，而不是工具集</h2>
+<p>Stripe 早期发现：每个团队都在自己 Ruby / Java 栈上搭 Agent
+orchestration layer。<strong>连通性简单，可靠性难</strong>。Claude Code
+2024 年底发布后，每个员工都想搭 Agent，但 terminal + 数据访问 +
+安全是巨大 barrier。</p>
+<p>Stripe AI Platform
+团队的判断：<strong>反过来走</strong>——不把非技术员工推向 developer
+tooling，而是给一个”always-on, production-ready assistant”。这就是
+Kai。</p>
+<p><strong>架构 4 层（从上到下）</strong>：</p>
+<pre><code>[Kai UI]                 ← 员工看到的 chat 界面
+[Configuration layer]    ← 各团队配置专用 Kai 实例（不同 skill / 行为）
+[Stripe-specific harness] ← Stripe 安全 / infra / 内部服务集成
+[Deep Agents]            ← LangChain 开源 agent harness（处理 LLM 通信原语）</code></pre>
+<p><strong>关键判断</strong>：Deep Agents 解决所有 <strong>non-Stripey
+问题</strong>（tool-calling loop、middleware
+composition、streaming、state management），Stripe 团队<strong>只解决
+Stripey 问题</strong>（security、infra、内部数据）。</p>
+<p><strong>面试可讲角度</strong>：这是 <em>platform vs product</em>
+的工程取舍。<strong>不要重新发明 agent 框架——选一个 harness
+在上面建</strong>。<strong>底层 OS
+你不需要懂，也不需要自己写</strong>。Stripe 十几年的 Ruby/Java 基建在
+Python-native Agent 上重新搭了一遍，但回报是 1 周 MVP。</p>
+<p><strong>工程落地 checklist</strong>： - ☐ <strong>不要从零搭 agent
+harness</strong>——用现成的（Deep Agents / LangGraph / Claude Agent
+SDK），省几个月工程 - ☐ 把”业务特定逻辑”和”agent
+通用机制”分层——前者快速迭代，后者稳定不变 - ☐
+配置层和数据层分离，让业务团队<strong>自助配置 Agent
+实例</strong>而不用碰底层代码</p>
+<hr />
+<h2 id="决策-2s3-虚拟文件系统-sync-inout-解决持久化-sandbox">决策 2：S3
+虚拟文件系统 + sync in/out 解决”持久化 sandbox”</h2>
+<p>Kai 不是 local process——是 cloud production service。<strong>Anupam
+解决的核心难题：怎么让 Agent 看到一个 persistent file
+environment</strong>。</p>
+<p><strong>答案</strong>：自己实现一个 S3-backed virtual
+filesystem，Deep Agents 的 filesystem middleware 包它。</p>
+<p><strong>Sync in/out 模式</strong>：</p>
+<pre><code>[Agent 在 sandbox 外跑 LLM loop]
+        ↓ 调用 sandbox.execute(...)
+[sandbox 内 microVM]
+  1. sync-in：把当前 session 相关的文件从 S3 拉到 microVM
+  2. 执行 agent 写的 Python
+  3. sync-out：把修改 / 新增的文件写回 S3
+        ↓ return result
+[Agent 继续 LLM loop]</code></pre>
+<p><strong>关键设计</strong>： - <strong>Sandbox 是 Agent 的 tool，不是
+Agent 的 execution environment</strong>——Agent 本身在 sandbox 外，调用
+sandbox 跑 Python - <strong>避免 lethal trifecta</strong>（LLM-generated
+code + sensitive data access + external communication
+三个同时具备）——执行边界清晰 - <strong>Summarization middleware</strong>
+管多 turn 长 session——threshold / summarizer model / output size 几个
+knob 调清楚，<strong>避免 cache miss 烧钱</strong></p>
+<p><strong>面试可讲角度</strong>：这是 <em>separation of concerns</em>
+在 Agent 时代的版本。<strong>LLM 是控制平面，sandbox
+是数据平面，两者通过 tool call 解耦</strong>。<strong>Agent 不能”在
+sandbox 里”——必须”调用 sandbox”</strong>——这是安全边界。</p>
+<p><strong>工程落地 checklist</strong>： - ☐ Sandbox 实现为 Agent 的
+tool，不让 Agent 直接在 sandbox 里执行（保持 Lethal Trifecta 边界） - ☐
+持久化用 cloud storage（S3 / GCS）+ sync in/out
+模式，<strong>不要</strong>让 sandbox local FS 当持久层 - ☐ 多 turn
+session 必备 summarization middleware（threshold + summarizer model +
+output size 三参数调清楚）</p>
+<hr />
+<h2 id="决策-3skills-联邦制-动态加载-500-内部-mcp-工具">决策 3：Skills
+联邦制 + 动态加载 500+ 内部 MCP 工具</h2>
+<p>Stripe 内部有 <strong>500+ MCP 工具</strong> + <strong>1000+
+skills</strong>。Agent 不可能加载所有。</p>
+<p><strong>Skills 是 Deep Agents 的结构化模块</strong>——每个 skill
+定义”怎么完成一类任务 + 用什么工具 + 怎么思考”。Stripe 的设计：</p>
+<ul>
+<li><strong>联邦制</strong>：每个 team 自己维护自己的 skills</li>
+<li><strong>基础 Kai</strong> 装一组导航类 skills（cross-Stripe
+通用）</li>
+<li><strong>按 user profile 加载 tiered skills</strong>（sales-ops 和
+finance 拿不同 skill set）</li>
+<li><strong>个人级 profile</strong> 还可加额外 skill</li>
+</ul>
+<p><strong>500+ MCP 工具的动态加载</strong>：</p>
+<pre><code>[Agent]
+  ↓ 需要新能力
+[Skill 选择]（AgentSkills allowedTools）
+  ↓ 根据 skill 描述选
+[加载对应 MCP 工具定义]
+  ↓ (而不是全量加载 500+ 工具)
+[Tool execution]</code></pre>
+<p><strong>关键经验</strong>：模型在 150 skills + system prompt
+之上会质量下降（1024 字符 frontmatter 限制）。Stripe
+现在的方案是<strong>纯 LLM 选择（小规模更好）</strong> + 未来 RAG /
+classifier 预过滤（大规模必需）。</p>
+<p><strong>面试可讲角度</strong>：这是 <em>just-in-time loading</em>
+应用到 Agent context。<strong>不要把所有工具 / skills 塞
+context——按需发现、按需加载</strong>。和 Claude Agent SDK 里的
+<code>defer_loading</code>、Anthropic Advanced Tool Use 里的 Tool Search
+Tool 是同一个思想。</p>
+<p><strong>工程落地 checklist</strong>： - ☐ Skills 用渐进披露（skill
+description 先全量，完整指令按需加载） - ☐ 工具按 skill
+选择<strong>反向加载</strong>（不是正向定义”每个 skill 用哪些 tool”） -
+☐ <strong>Pin 关键
+skills</strong>——不能被模型动态卸载（policy、合规、上下文必备） - ☐
+Profile-based skill set——不同角色拿不同默认 skill - ☐ 监测”skill
+选择准确率”——如果 &lt; 90%，加 RAG / classifier 预过滤层</p>
+<hr />
+<h2 id="个业务决策不是工程决策">3 个业务决策（不是工程决策）</h2>
+<h3 id="不强推-ai-给所有人而是-meet-them-where-they-are">1. 不强推 AI
+给所有人，而是 meet them where they are</h3>
+<blockquote>
+<p>“We had a lot of people who said, ‘I found the previous thing
+unapproachable. I had to tune a bunch of knobs. But I was being asked to
+use AI, and I really tried.’ And then: ‘this is great, I don’t have to
+do any of that stuff.’”</p>
+</blockquote>
+<p>Kai 不是”自助 AI 工具”，是<strong>生产级 always-on
+assistant</strong>。用户<strong>不需要调任何
+knob</strong>——这是产品决策，但工程上意味着配置层必须能扛住所有”用户差异”。</p>
+<h3 id="把内部知识变成平台资产">2. 把内部知识变成平台资产</h3>
+<blockquote>
+<p>“1000+ skills from 100+ teams”</p>
+</blockquote>
+<p>Stripe 让每个团队把自己的 domain knowledge 贡献成
+skill——<strong>这不是 engineering
+团队的工作，是业务团队的工作</strong>。<strong>平台的价值 = 联邦 skill
+的数量</strong>。</p>
+<h3 id="adoption-是产品-工程的双胜利">3. Adoption 是产品 /
+工程的双胜利</h3>
+<p>Kai 4 周涨 16 倍，季度目标一周达成。<strong>关键是 GTM / Marketing
+95% 用、Engineering 反而用得更多</strong>——这是产品/工程的胜利，不是 GTM
+团队的胜利。</p>
+<hr />
+<h2
+id="简历可直接借用的项目骨架内部-ai-平台-知识-agent-类">简历可直接借用的项目骨架（内部
+AI 平台 / 知识 Agent 类）</h2>
+<pre><code>项目名：[公司名] Knowledge AI / 内部 Agent 平台
+
+角色：核心工程师 / Tech Lead
+
+核心架构（4 层）：
+- UI 层：chat 界面 + 持久化 session
+- 配置层：不同部门 / 角色配置不同 Agent 实例
+- 业务 harness：[合规 / 安全 / 内部服务集成]
+- Agent harness：[Deep Agents / LangGraph / Claude Agent SDK]
+
+3 个关键工程决策：
+1. 底层 agent harness 选现成的（不重新发明），业务层只解决领域问题
+2. Sandbox = tool（不是 execution env），通过 cloud storage + sync in/out 实现持久化
+3. Skills 联邦制 + 按 profile 动态加载；tools 按 skill 选择反向加载
+
+3 个业务决策：
+1. 用户零配置——产品体验做到&quot;不需要调 knob&quot;
+2. 内部知识联邦化——每个团队贡献 skill，平台聚合
+3. Adoption 指标驱动（DAU / WAU / session 数）
+
+成果（量化）：
+- 上线时间：[N] 周（突出 1 周 MVP 的速度）
+- 用户增长：[A] 用户 → [B] 用户（[X] 周内）
+- 周活率：[Y]% 员工每周使用
+- 业务覆盖：营销 [M]% / GTM [K]% / 工程 [P]%
+- 维护成本：[Q] 个工程师维护</code></pre>
+<p><strong>面试常被问到的延伸问题</strong>： - “为什么不用现有 chatbot
+框架？” → <strong>chatbot 不是 Agent</strong>——chatbot 是
+question-answering，Agent 是 task-completing；前者给答案，后者给
+artifact（报表 / chart / 分析） - “Sandbox 怎么解决 lethal trifecta？” →
+<strong>Sandbox 是 tool，不是 execution env</strong>——Agent 不在 sandbox
+里跑，调用 sandbox 跑 Python - “1000+ skills 怎么 scale？” →
+<strong>Profile-based tiered loading</strong> + skill selection gating
+tool context + 未来 RAG/classifier 预过滤 - “非工程师怎么贡献 skill？” →
+<strong>Skill 是结构化模块</strong>——每个 team 写自己领域的 skill
+进版本管理，CI/CD 自动 review + 部署 - “Python 重写的 ROI 怎么算？” →
+<strong>1 周 MVP 击中季度目标</strong>——这是 Python-native agent harness
+投入的 payback</p>
+<hr />
+<h2 id="配套阅读">配套阅读</h2>
+<ul>
+<li><strong>同 harness 不同业务</strong>：<a
+href="blog/posts/2026-09-15-madrigal-pharma-multi-agent-platform.md">Madrigal
+Pharma Agent</a> — 同一 Deep Agents 用法在医药领域的另一案例</li>
+<li><strong>底层 SDK</strong>：<a
+href="blog/posts/2026-09-15-claude-agent-sdk-engineering.md">Claude
+Agent SDK</a> — sandbox + hook + subagent 的 SDK 实现</li>
+<li><strong>架构演进</strong>：<a
+href="blog/posts/2026-09-15-agent-paid-media-workspace-five-lessons.md">Paid
+Media Agent</a> — LangChain 自家 GTM Agent 用同一思路搭的</li>
+</ul>
+<p>参考资料：</p>
+<ul>
+<li><a
+href="https://www.langchain.com/blog/how-stripe-built-their-knowledge-ai-platform-on-deep-agents">How
+Stripe Built Kai</a> — Sofia Sulikowski, LangChain</li>
+<li><a
+href="https://docs.langchain.com/oss/python/deepagents/overview">Deep
+Agents</a></li>
+<li><a href="http://agentskills.io">Agent Skills 规范</a></li>
+</ul>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>

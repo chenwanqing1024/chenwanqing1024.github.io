@@ -64,29 +64,29 @@
             </div>
             <div class="card-body">
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="2026-09-15-extended-thinking-engineering.html">Extended Thinking 实战：把 Sonnet/Opus 的深度推理变成工程能力</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
-                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">Reasoning</span> </small></p>
-                    <p class="mb-1">把 claude-cookbooks/extended_thinking 的 2 个 notebook 拆成 3 个工程模式：基础启用与 budget 调参 / thinking 与 tool_use 交错 / signature 续接与 streaming。每条给最小代码 + 工程踩坑提示，对齐 anthropic-sdk-python 当前接口。</p>
+                    <h5 class="mb-1"><a href="2026-09-15-rag-engineering-patterns.html">RAG 实战：从 Naive 到 Modular 的 5 个工程模式</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">RAG</span> <span class="badge bg-secondary">Agent</span> </small></p>
+                    <p class="mb-1">把 claude-cookbooks/capabilities/retrieval_augmented_generation 的 663KB 主教程 + Promptfoo 评测套件拆成 5 个工程模式：文档分块 / 检索选型 / 上下文注入与引用 / Promptfoo 评测闭环 / 架构演进路径。每个模式给出一行定位 + 最小代码 + 踩坑提示。</p>
                 </div>
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="2026-09-15-eval-and-observability-patterns.html">评测与可观测：从 Usage 监控到 Agent 基准复现的 6 个工程模式</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
-                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">Evals</span> <span class="badge bg-secondary">Observability</span> </small></p>
-                    <p class="mb-1">把 claude-cookbooks 里 observability / tool_evaluation / evals / third_party 4 个目录合并成 6 个工程模式：Usage &amp; Cost Admin API 监控 / Tool Evaluation XML 框架 / Agentic Search harness / Programmatic Tool Calling 杠杆 / Model-as-Judge F1 评分 / 第三方生态地图。每个模式一行定位 + 最小代码 + 2-3 条工程踩坑提示。</p>
+                    <h5 class="mb-1"><a href="2026-09-15-patterns-agents-engineering.html">Agent 模式工程化：从 Prompt Chaining 到 Async Subagent 的 6 个实战模式</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">Patterns</span> </small></p>
+                    <p class="mb-1">把 Anthropic &quot;Building Effective Agents&quot; 论文对应的 patterns/agents 4 个 notebook 拆成 6 个工程模式：prompt chaining / parallelization / routing / orchestrator-workers / evaluator-optimizer / async multi-agent。每个模式一行定位 + 最小代码 + 2-3 条工程踩坑提示。</p>
                 </div>
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="2026-09-15-cost-optimization-engineering.html">Claude API 成本优化：从 prompt caching 到 model ladder 的 7 个 Pareto 工程模式</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
-                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">成本优化</span> <span class="badge bg-secondary">Pareto</span> </small></p>
-                    <p class="mb-1">把 claude-cookbooks/cost_optimization 的 1.2MB 主教程拆成 7 个工程模式：评测基线 / prompt caching / 输入 token 管理 / agent-loop 效率 / 输出 token 管理 / Batch API / model×effort ladder。每个模式给出一行定位 + 最小代码 + 工程踩坑提示，附 Pareto 选型表与&quot;哪类任务该用哪类杠杆&quot;对照。</p>
+                    <h5 class="mb-1"><a href="2026-09-15-multi-agent-research-patterns.html">Multi-Agent Research System 实操：Lead + Subagent 架构的 5 个工程教训</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">Multi-Agent</span> </small></p>
+                    <p class="mb-1">把 Anthropic 多 Agent Research 系统工程文章拆成 5 个工程教训：多 agent 适用边界（research 强、coding 弱）、LeadResearcher + Subagent + CitationAgent 三段架构、Orchestrator delegation 7 条 prompt 原则、Eval 三件套（小样本 + LLM-as-judge + 人类）、Production 三大工程挑战（stateful / debug / 同步 vs 异步）。配具体数据（90.2% / 15x token / 90% time / 40%）+ 落地边界。</p>
                 </div>
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="2026-09-15-claude-skills-engineering.html">Claude Skills 实战：让 Claude 生成 Excel / PPT / PDF 的 6 个工程模式</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
-                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">Skills</span> <span class="badge bg-secondary">Agent</span> </small></p>
-                    <p class="mb-1">把 claude-cookbooks/skills 的 3 个 notebook + 3 个 custom skill 提炼成 6 个工程模式：内置 Skill 调用 / Container+Code Execution / Files API 下载 / Custom Skill 编写 / 渐进式加载 / 多 Skill 组合。每个模式一行定位 + 最小代码 + 工程踩坑提示。</p>
+                    <h5 class="mb-1"><a href="2026-09-15-managed-agents-arch-patterns.html">Managed Agents 架构：把&quot;大脑&quot;和&quot;双手&quot;解耦的 5 个工程模式</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">Agent 架构</span> <span class="badge bg-secondary">Harness</span> </small></p>
+                    <p class="mb-1">把 Anthropic Managed Agents 工程文章拆成 5 个架构级模式：Pet vs Cattle 的容器陷阱、脑-手解耦、Sandbox 安全边界、Session ≠ Context Window、Many Brains Many Hands。每个模式给定位 + 推论 + 工程落地的具体做法，可以直接拿去面试讲 Agent 架构。</p>
                 </div>
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="2026-09-15-claude-cookbook-misc-engineering.html">Claude API 工程实战：从 claude-cookbooks/misc 提炼的 14 个最小可用模式</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
-                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">LLM</span> </small></p>
-                    <p class="mb-1">把 anthropics/claude-cookbooks 的 misc 目录拆成 14 个独立模式，按「成本/输出可控/质量保障/长上下文/工作流增强」五个主题分组，每条给出一行定位 + 最小代码 + 工程踩坑提示。所有代码对齐 anthropic-sdk-python ≥ 0.40 的当前接口。</p>
+                    <h5 class="mb-1"><a href="2026-09-15-madrigal-pharma-multi-agent-platform.html">Madrigal Pharma 多 Agent 平台：医药数据的&quot;看不见的归一化&quot;+ Skills 联邦制 + Trace 反哺 Eval</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">多 Agent</span> <span class="badge bg-secondary">医药 RAG</span> <span class="badge bg-secondary">Deep Agents</span> <span class="badge bg-secondary">工程实践</span> </small></p>
+                    <p class="mb-1">制药公司 Madrigal 用 LangChain / Deep Agents 搭多 Agent 平台，关键思想：把所有数据源归一化成一致的 tool interface（Agent 不关心数据从哪来）；modular skill 把单一用例变成平台；trace → eval dataset 是生产反馈的闭环。新用例从&quot;几周&quot;降到&quot;几小时&quot;。</p>
                 </div>
             </div>
         </div>
@@ -98,6 +98,11 @@
                 <li class="page-item active" aria-current="page"><span class="page-link">2</span></li>
                 <li class="page-item"><a class="page-link" href="../3/index.html">3</a></li>
                 <li class="page-item"><a class="page-link" href="../4/index.html">4</a></li>
+                <li class="page-item"><a class="page-link" href="../5/index.html">5</a></li>
+                <li class="page-item"><a class="page-link" href="../6/index.html">6</a></li>
+                <li class="page-item"><a class="page-link" href="../7/index.html">7</a></li>
+                <li class="page-item"><a class="page-link" href="../8/index.html">8</a></li>
+                <li class="page-item"><a class="page-link" href="../9/index.html">9</a></li>
                 <li class="page-item"><a class="page-link" href="../3/index.html">下一页 »</a></li>
             </ul>
         </nav>

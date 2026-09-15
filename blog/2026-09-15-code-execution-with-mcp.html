@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="把 Anthropic Code Execution with
+MCP 工程文章拆成 5 个工程模式：MCP 当代码 API 而非工具调用（节省 98.7%
+token）、文件系统渐进披露、代码里 filter 替代 context
+污染、Privacy-Preserving PII Tokenization、State 持久化与 Skills
+复用。每个模式给定位 + 代码 + 落地边界。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>Code Execution with MCP：把 MCP 当代码 API 而不是工具调用的 5
+个工程模式 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>Code Execution with MCP：把 MCP 当代码 API
+而不是工具调用的 5 个工程模式</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI
+工程</span> <span class="badge bg-secondary">MCP</span> <span class="badge bg-secondary">Code
+Execution</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://www.anthropic.com/engineering/code-execution-with-mcp" target="_blank" rel="noopener">Code
+execution with MCP</a> · Adam Jones, Conor Kelly (Anthropic)
+            </div>
+
+<h2 id="引子">引子</h2>
+<p>MCP（Model Context Protocol）已经是 Agent 接外部系统的 de-facto
+标准，但<strong>接多了就崩</strong>——一个 5 server 的 setup 就能吞 150K
+token context。Anthropic 这篇解法是<strong>把 MCP server
+表达成文件系统里的代码</strong>——每个工具一个 <code>.ts</code>
+文件，Claude 写 Python/TS 调工具，<strong>只有 stdout 进
+context</strong>。<strong>token 节省 98.7%（150K → 2K）</strong>。</p>
+<p>这个想法是软件工程的经典招式：<strong>LLM
+擅长写代码，让它用熟悉的工程抽象和工具交互</strong>——别逼它用自然语言
+tool call 写循环。下面拆 5 个工程模式。</p>
+<hr />
+<h2 id="把-mcp-表达成文件树code-api-替代-tool-call">1. 把 MCP
+表达成文件树：Code API 替代 Tool Call</h2>
+<p><strong>一行定位</strong>：<strong>不要
+<code>TOOL CALL: gdrive.getDocument(...)</code></strong>——<strong><code>import * as gdrive from './servers/google-drive'</code></strong>，<strong>让
+Claude 写代码调 MCP</strong>。</p>
+<p><strong>传统方式的痛点</strong>： - Tool def 全 upfront 进
+context（150K token）。 - 中间结果每次回 context（2 小时会议 transcript
+50K token 走两遍）。</p>
+<p><strong>Code execution 方式</strong>： - 每个 MCP server
+一个目录，每个 tool 一个 <code>.ts</code> 文件：</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode typescript"><code class="sourceCode typescript"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co">// ./servers/google-drive/getDocument.ts</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> { callMCPTool } <span class="im">from</span> <span class="st">&quot;../../../client.js&quot;</span><span class="op">;</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="kw">interface</span> GetDocumentInput { documentId<span class="op">:</span> <span class="dt">string</span><span class="op">;</span> }</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="kw">interface</span> GetDocumentResponse { content<span class="op">:</span> <span class="dt">string</span><span class="op">;</span> }</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="im">export</span> <span class="kw">async</span> <span class="kw">function</span> <span class="fu">getDocument</span>(input<span class="op">:</span> GetDocumentInput)<span class="op">:</span> <span class="bu">Promise</span><span class="op">&lt;</span>GetDocumentResponse<span class="op">&gt;</span> {</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> <span class="fu">callMCPTool</span><span class="op">&lt;</span>GetDocumentResponse<span class="op">&gt;</span>(<span class="st">&#39;google_drive__get_document&#39;</span><span class="op">,</span> input)<span class="op">;</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<ul>
+<li>Claude 写代码：</li>
+</ul>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode typescript"><code class="sourceCode typescript"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> <span class="op">*</span> <span class="im">as</span> gdrive <span class="im">from</span> <span class="st">&#39;./servers/google-drive&#39;</span><span class="op">;</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> <span class="op">*</span> <span class="im">as</span> salesforce <span class="im">from</span> <span class="st">&#39;./servers/salesforce&#39;</span><span class="op">;</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> transcript <span class="op">=</span> (<span class="cf">await</span> gdrive<span class="op">.</span><span class="fu">getDocument</span>({ documentId<span class="op">:</span> <span class="st">&#39;abc123&#39;</span> }))<span class="op">.</span><span class="at">content</span><span class="op">;</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="cf">await</span> salesforce<span class="op">.</span><span class="fu">updateRecord</span>({</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>  objectType<span class="op">:</span> <span class="st">&#39;SalesMeeting&#39;</span><span class="op">,</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>  recordId<span class="op">:</span> <span class="st">&#39;00Q5f000001abcXYZ&#39;</span><span class="op">,</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>  data<span class="op">:</span> { Notes<span class="op">:</span> transcript }</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>})<span class="op">;</span></span></code></pre></div>
+<ul>
+<li><strong>Token 节省 98.7%</strong>（150K → 2K）。</li>
+</ul>
+<p><strong>面试可讲的角度</strong>：这是 <em>filesystem as
+API</em>——<strong>Linux 把所有 IO 抽象成文件，MCP 也把 tool
+抽象成文件</strong>。同样思想：让 Claude 用熟悉的编程模型（import /
+await）操作，而不是新的 protocol。</p>
+<p><strong>工程落地</strong>： - ☐ MCP server &gt; 10 个工具 → 必上 code
+execution - ☐ 工具调用之间需要数据传递 → 必上 code execution - ☐
+工具会返回大 payload → 必上 code execution - ☐ 简单的单工具调用 → 直接
+tool call，<strong>不要硬上 code execution</strong></p>
+<hr />
+<h2 id="渐进披露让-claude-走文件系统找工具">2. 渐进披露：让 Claude
+走文件系统找工具</h2>
+<p><strong>一行定位</strong>：<strong>不要把工具定义全塞
+context</strong>——让 Claude <strong>用 <code>ls ./servers/</code>
+自己找</strong>。</p>
+<p><strong>两种 progress disclosure 模式</strong>：</p>
+<h3 id="模式-a文件系统-navigation">模式 A：文件系统 navigation</h3>
+<pre><code>servers/
+├── google-drive/
+│   ├── getDocument.ts
+│   ├── listFiles.ts
+│   └── index.ts
+├── salesforce/
+│   ├── updateRecord.ts
+│   └── index.ts
+└── ...</code></pre>
+<p>Claude 探索：<code>ls ./servers/</code> → 发现 server → 读
+<code>index.ts</code> 看 server 概要 → 读具体 <code>.ts</code> 文件看
+tool interface。<strong>只读它需要的</strong>。</p>
+<h3 id="模式-bsearch_tools-工具">模式 B：search_tools 工具</h3>
+<p>在 server 上加一个 <code>search_tools(name, detail_level)</code>： -
+<code>detail_level="name"</code>：只返回 tool 名。 -
+<code>detail_level="name+description"</code>：加描述。 -
+<code>detail_level="full"</code>：完整 schema。</p>
+<p>Claude 搜 <code>"salesforce"</code> → 只加载相关
+tool。<strong>节省更细粒度</strong>。</p>
+<p><strong>面试可讲的角度</strong>：这是 <em>progressive disclosure</em>
+在 API 设计的应用——<strong>类比 REST API 的
+HATEOAS</strong>：客户端按需发现能力，而不是 upfront 装所有。<strong>LLM
+的 context 是昂贵资源，必须 lazy load</strong>。</p>
+<p><strong>工程落地</strong>： - ☐ 给每个 server 一个
+<code>index.ts</code> ——<strong>有 README 性质的总览</strong>，Claude
+先读 index 决定要不要深挖 - ☐ <code>search_tools</code> 加
+<code>detail_level</code> 参数——<strong>name-only 默认进 context，full
+definition 按需取</strong> - ☐ Server 目录用 kebab-case
+命名（<code>google-drive</code>），tool 文件用
+camelCase（<code>getDocument.ts</code>）——方便 grep</p>
+<hr />
+<h2 id="context-efficient-结果代码里-filter-替代-context-污染">3.
+Context-Efficient 结果：代码里 filter 替代 context 污染</h2>
+<p><strong>一行定位</strong>：<strong>不要让 10000 行 spreadsheet 进
+context</strong>——<strong>让 Claude 在代码里 filter，log 只前 5
+行</strong>。</p>
+<p><strong>Anthropic 的示例</strong>：</p>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode typescript"><code class="sourceCode typescript"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co">// ❌ Without code execution - all rows flow through context</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>TOOL CALL<span class="op">:</span> gdrive<span class="op">.</span><span class="fu">getSheet</span>(sheetId<span class="op">:</span> <span class="st">&#39;abc123&#39;</span>)</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  → returns <span class="dv">10</span><span class="op">,</span><span class="dv">000</span> rows <span class="kw">in</span> context to filter manually</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="co">// ✅ With code execution - filter in execution environment</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> allRows <span class="op">=</span> <span class="cf">await</span> gdrive<span class="op">.</span><span class="fu">getSheet</span>({ sheetId<span class="op">:</span> <span class="st">&#39;abc123&#39;</span> })<span class="op">;</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> pendingOrders <span class="op">=</span> allRows<span class="op">.</span><span class="fu">filter</span>(row <span class="kw">=&gt;</span> row[<span class="st">&quot;Status&quot;</span>] <span class="op">===</span> <span class="st">&#39;pending&#39;</span>)<span class="op">;</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a><span class="bu">console</span><span class="op">.</span><span class="fu">log</span>(<span class="vs">`Found </span><span class="sc">${</span>pendingOrders<span class="op">.</span><span class="at">length</span><span class="sc">}</span><span class="vs"> pending orders`</span>)<span class="op">;</span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a><span class="bu">console</span><span class="op">.</span><span class="fu">log</span>(pendingOrders<span class="op">.</span><span class="fu">slice</span>(<span class="dv">0</span><span class="op">,</span> <span class="dv">5</span>))<span class="op">;</span> <span class="co">// Only log first 5 for review</span></span></code></pre></div>
+<p><strong>Context 收益</strong>：10,000 rows → 5 rows + summary。</p>
+<p><strong>更复杂的场景</strong>： - <strong>多源
+join</strong>：在代码里 join SQL + Sheets + CRM 数据，<strong>只 log
+聚合结果</strong>。 - <strong>聚合计算</strong>：sum、avg、group by ——
+一次性脚本解决。 - <strong>extract specific fields</strong>：从大 JSON
+抽出 5 个字段。</p>
+<p><strong>面试可讲的角度</strong>：这是 <em>ETL &gt; interactive
+query</em>——<strong>大数据先在执行层做 transformation，再把结果喂给
+model</strong>。<strong>和传统数据分析的”先 SQL
+聚合再展示”是同个思想</strong>。</p>
+<p><strong>工程落地 checklist</strong>： - ☐ Tool 返回 &gt; 100 行 → 在
+code 里 filter，<strong>只 print 你真正需要看的</strong> - ☐ Tool 返回
+nested JSON → <strong>extract 1-2 个 field 进 context</strong>
+而不是整个对象 - ☐ 多 tool 调用需要 join → <strong>代码层
+join</strong>，不要 model 层 - ☐ 不要 <code>console.log()</code>
+大对象——<strong>会偷偷塞回 context</strong></p>
+<hr />
+<h2 id="privacy-preserving-操作pii-tokenization-自动屏蔽">4.
+Privacy-Preserving 操作：PII Tokenization 自动屏蔽</h2>
+<p><strong>一行定位</strong>：<strong>MCP client 拦截 PII 数据
+tokenize，real data 永远不进 model context</strong>。</p>
+<p><strong>Anthropic 的示例</strong>（敏感数据从 Sheets 流向
+Salesforce）：</p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode typescript"><code class="sourceCode typescript"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> sheet <span class="op">=</span> <span class="cf">await</span> gdrive<span class="op">.</span><span class="fu">getSheet</span>({ sheetId<span class="op">:</span> <span class="st">&#39;abc123&#39;</span> })<span class="op">;</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (<span class="kw">const</span> row <span class="kw">of</span> sheet<span class="op">.</span><span class="at">rows</span>) {</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>  <span class="cf">await</span> salesforce<span class="op">.</span><span class="fu">updateRecord</span>({</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    objectType<span class="op">:</span> <span class="st">&#39;Lead&#39;</span><span class="op">,</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    recordId<span class="op">:</span> row<span class="op">.</span><span class="at">salesforceId</span><span class="op">,</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    data<span class="op">:</span> { Email<span class="op">:</span> row<span class="op">.</span><span class="at">email</span><span class="op">,</span> Phone<span class="op">:</span> row<span class="op">.</span><span class="at">phone</span><span class="op">,</span> Name<span class="op">:</span> row<span class="op">.</span><span class="at">name</span> }</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>  })<span class="op">;</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a><span class="bu">console</span><span class="op">.</span><span class="fu">log</span>(<span class="vs">`Updated </span><span class="sc">${</span>sheet<span class="op">.</span><span class="at">rows</span><span class="op">.</span><span class="at">length</span><span class="sc">}</span><span class="vs"> leads`</span>)<span class="op">;</span></span></code></pre></div>
+<p><strong>MCP client 拦截数据 → tokenize</strong>：</p>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode typescript"><code class="sourceCode typescript"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co">// What the agent would see (if it logged sheet.rows):</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>[</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  { salesforceId<span class="op">:</span> <span class="st">&#39;00Q...&#39;</span><span class="op">,</span> email<span class="op">:</span> <span class="st">&#39;[EMAIL_1]&#39;</span><span class="op">,</span> phone<span class="op">:</span> <span class="st">&#39;[PHONE_1]&#39;</span><span class="op">,</span> name<span class="op">:</span> <span class="st">&#39;[NAME_1]&#39;</span> }<span class="op">,</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>  { salesforceId<span class="op">:</span> <span class="st">&#39;00Q...&#39;</span><span class="op">,</span> email<span class="op">:</span> <span class="st">&#39;[EMAIL_2]&#39;</span><span class="op">,</span> phone<span class="op">:</span> <span class="st">&#39;[PHONE_2]&#39;</span><span class="op">,</span> name<span class="op">:</span> <span class="st">&#39;[NAME_2]&#39;</span> }<span class="op">,</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>  <span class="op">...</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>]</span></code></pre></div>
+<p><strong>关键</strong>：<strong>real email / phone / name 从 Sheets
+直接流到 Salesforce，</strong>never through the model<strong>。Model
+只看到 token <code>[EMAIL_1]</code>。</strong>数据传递时 untokenize via
+lookup**。</p>
+<p><strong>面试可讲的角度</strong>：这是 <em>data masking in
+ETL</em>——传统 ETL pipeline 在传输敏感字段时 tokenize，PII 不进 log /
+不进 cache。<strong>MCP client 做的就是这件事</strong>。</p>
+<p><strong>工程落地</strong>： - ☐ <strong>定义 PII detection
+rules</strong>——哪些字段是 PII（email / phone / SSN / name）→ tokenize -
+☐ <strong>Tokenization 在 MCP client 层</strong>——application 层不要碰
+raw data - ☐ <strong>Untokenize 只在 tool call
+boundary</strong>——数据写到 sink 时还原，<strong>不写 model
+context</strong> - ☐ <strong>可以加 deterministic security
+rules</strong>——<code>Lead.Email</code> 只能写到
+<code>Salesforce.Lead</code>，不能写到 <code>Slack.message</code></p>
+<hr />
+<h2 id="state-持久化-skills-复用agent-自己-build-toolbox">5. State
+持久化 + Skills 复用：Agent 自己 build toolbox</h2>
+<p><strong>一行定位</strong>：<strong>Agent 写的代码可以持久化成
+reusable skills</strong>——<strong>用 SKILL.md
+包装成结构化工具</strong>。</p>
+<p><strong>两层持久化</strong>：</p>
+<h3 id="层-a执行间持久化短时">层 A：执行间持久化（短时）</h3>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode typescript"><code class="sourceCode typescript"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> leads <span class="op">=</span> <span class="cf">await</span> salesforce<span class="op">.</span><span class="fu">query</span>({ query<span class="op">:</span> <span class="st">&#39;SELECT Id, Email FROM Lead LIMIT 1000&#39;</span> })<span class="op">;</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> csvData <span class="op">=</span> leads<span class="op">.</span><span class="fu">map</span>(l <span class="kw">=&gt;</span> <span class="vs">`</span><span class="sc">${</span>l<span class="op">.</span><span class="at">Id</span><span class="sc">}</span><span class="vs">,</span><span class="sc">${</span>l<span class="op">.</span><span class="at">Email</span><span class="sc">}</span><span class="vs">`</span>)<span class="op">.</span><span class="fu">join</span>(<span class="st">&#39;</span><span class="sc">\n</span><span class="st">&#39;</span>)<span class="op">;</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="cf">await</span> fs<span class="op">.</span><span class="fu">writeFile</span>(<span class="st">&#39;./workspace/leads.csv&#39;</span><span class="op">,</span> csvData)<span class="op">;</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="co">// Later execution picks up where it left off</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> saved <span class="op">=</span> <span class="cf">await</span> fs<span class="op">.</span><span class="fu">readFile</span>(<span class="st">&#39;./workspace/leads.csv&#39;</span><span class="op">,</span> <span class="st">&#39;utf-8&#39;</span>)<span class="op">;</span></span></code></pre></div>
+<p>Agent 把中间结果写文件，<strong>长 workflow 可断点续传</strong>。</p>
+<h3 id="层-b跨任务复用长时">层 B：跨任务复用（长时）</h3>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode typescript"><code class="sourceCode typescript"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co">// In ./skills/save-sheet-as-csv.ts</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> <span class="op">*</span> <span class="im">as</span> gdrive <span class="im">from</span> <span class="st">&#39;./servers/google-drive&#39;</span><span class="op">;</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="im">export</span> <span class="kw">async</span> <span class="kw">function</span> <span class="fu">saveSheetAsCsv</span>(sheetId<span class="op">:</span> <span class="dt">string</span>) {</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>  <span class="kw">const</span> data <span class="op">=</span> <span class="cf">await</span> gdrive<span class="op">.</span><span class="fu">getSheet</span>({ sheetId })<span class="op">;</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>  <span class="kw">const</span> csv <span class="op">=</span> data<span class="op">.</span><span class="fu">map</span>(row <span class="kw">=&gt;</span> row<span class="op">.</span><span class="fu">join</span>(<span class="st">&#39;,&#39;</span>))<span class="op">.</span><span class="fu">join</span>(<span class="st">&#39;</span><span class="sc">\n</span><span class="st">&#39;</span>)<span class="op">;</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>  <span class="cf">await</span> fs<span class="op">.</span><span class="fu">writeFile</span>(<span class="vs">`./workspace/sheet-</span><span class="sc">${</span>sheetId<span class="sc">}</span><span class="vs">.csv`</span><span class="op">,</span> csv)<span class="op">;</span></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> <span class="vs">`./workspace/sheet-</span><span class="sc">${</span>sheetId<span class="sc">}</span><span class="vs">.csv`</span><span class="op">;</span></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a><span class="co">// Later, in any agent execution:</span></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> { saveSheetAsCsv } <span class="im">from</span> <span class="st">&#39;./skills/save-sheet-as-csv&#39;</span><span class="op">;</span></span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> csvPath <span class="op">=</span> <span class="cf">await</span> <span class="fu">saveSheetAsCsv</span>(<span class="st">&#39;abc123&#39;</span>)<span class="op">;</span></span></code></pre></div>
+<p><strong>加 SKILL.md 就是结构化 skill</strong>——和 Anthropic 的 Agent
+Skills 是同一概念（见
+equipping-agents-for-the-real-world-with-agent-skills）。</p>
+<p><strong>面试可讲的角度</strong>：这是 <em>organic codebase
+growth</em>——<strong>Agent 写一个 helper，下次直接
+import</strong>。<strong>Agent 的”经验”沉淀成 codebase</strong>，不是
+prompt。这是 <em>self-improving agent</em> 的最朴素实现。</p>
+<p><strong>工程落地</strong>： - ☐ <strong>每次跑完检查
+<code>./skills/</code></strong>——提炼出 reusable 的函数，包装 SKILL.md -
+☐ <strong>Workspace 用 <code>./workspace/</code></strong>——和
+<code>./servers/</code> <code>./skills/</code> 分开 - ☐ <strong>Skill
+必须幂等</strong>——同一输入同一输出，否则断点续传会乱 - ☐
+<strong>定期清理</strong>——<code>./workspace/</code>
+是临时态，<strong>别当数据库用</strong></p>
+<hr />
+<h2 id="落地的工程边界">落地的工程边界</h2>
+<p><strong>Anthropic 自己说</strong>：code execution <strong>有
+infrastructure
+cost</strong>——沙箱、资源限制、监控、安全。<strong>不是免费午餐</strong>。</p>
+<p><strong>Trade-off 评估</strong>： | 维度 | Direct Tool Call | Code
+Execution + MCP | |—|—|—| | Token 成本 | 高（每 result 进 context） |
+低（filter in code） | | 延迟 | 中（model inference per call） |
+低（一次推理 + 多次 code） | | 实现复杂度 | 低 | 高（沙箱 + 文件系统） |
+| 安全风险 | 中（tool 边界清晰） | 中高（执行任意代码） | | Debug 难度 |
+低（call/response 直接看） | 中（要 trace code execution） | | 适用规模
+| &lt; 10 tools | 10+ tools / 多 MCP server |</p>
+<p><strong>面试可讲的角度</strong>：这是 <em>build vs
+buy</em>——<strong>scale 小的时候 direct call 简单可控，scale 大的时候
+code execution 收益明显</strong>。<strong>不要过早优化</strong>——50 个
+tools 之前 direct call 完全够用。</p>
+<hr />
+<h2 id="一句话总结">一句话总结</h2>
+<p>Code Execution with MCP 的核心思想是<strong>让 Claude
+用熟悉的代码抽象操作 MCP</strong>，而不是逼它用 tool call
+协议——<strong>节省 98.7% context、用文件系统做 progressive
+disclosure、用代码 filter 替代 context 污染、用 client 层 tokenize 保护
+PII、用持久化的 skills 让 Agent 自己积累
+toolbox</strong>。<strong>这套是软件工程经典招式（filesystem
+API、ETL、PII masking、code reuse）在 LLM 时代的自然延续</strong>。</p>
+<h2 id="配套阅读">配套阅读</h2>
+<ul>
+<li><strong>同主题</strong>：advanced-tool-use-three-features — Tool
+Search Tool + PTC 的更高层抽象</li>
+<li><strong>执行机制</strong>：tool-use-engineering-patterns — 工具选择
+/ 并行调用</li>
+<li><strong>架构视角</strong>：claude-code-sandboxing — code execution
+的沙箱设计</li>
+</ul>
+<p>参考资料：</p>
+<ul>
+<li><a
+href="https://www.anthropic.com/engineering/code-execution-with-mcp">Code
+execution with MCP</a> — Adam Jones, Conor Kelly, Anthropic</li>
+<li><a href="https://blog.cloudflare.com/code-mode/">Cloudflare Code
+Mode</a> — 同思想的另一实现</li>
+<li><a
+href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents">Effective
+context engineering for AI agents</a> — 上下文压缩</li>
+</ul>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>

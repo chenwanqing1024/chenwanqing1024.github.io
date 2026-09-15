@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="把 Anthropic Advanced Tool Use
+工程文章拆成 5 个工程模式：Tool Search Tool 让 Claude 按需加载（节省 85%
+token，accuracy 从 49% → 74%）、Programmatic Tool Calling
+让代码代替推理做编排（token 降 37%、accuracy 提升 5 个百分点）、Tool Use
+Examples 替代 schema 模糊（accuracy 从 72% → 90%）。每个模式给定位 +
+代码 + 落地边界。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>高级 Tool Use 三大特性：Tool Search、Programmatic
+Calling、Tool Examples 的 5 个工程模式 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>高级 Tool Use 三大特性：Tool Search、Programmatic
+Calling、Tool Examples 的 5 个工程模式</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI
+工程</span> <span class="badge bg-secondary">Tool
+Use</span> <span class="badge bg-secondary">MCP</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://www.anthropic.com/engineering/advanced-tool-use" target="_blank" rel="noopener">Advanced
+tool use</a> · Bin Wu (Anthropic Claude Developer Platform)
+            </div>
+
+<h2 id="引子">引子</h2>
+<p>当 Agent 接 100+ 工具（GitHub / Slack / Sentry / Grafana / Jira
+…），<strong>工具定义就能吞掉 100K+
+token</strong>——剩下给真正工作的空间是零。这篇 Anthropic 的 advanced
+tool use 解决<strong>三个工程难题</strong>：(1) 工具太多 context
+装不下；(2) 中间结果太多 context 装不下；(3) JSON schema
+表达不出”这个参数通常怎么填”。<strong>三个特性都是直接量化收益的</strong>——85%
+token 节省、accuracy 49→74%、accuracy 72→90%。</p>
+<p>下面拆 5 个工程模式，按”<strong>问题 → 解法 → 量化收益 →
+落地边界</strong>”递进。</p>
+<hr />
+<h2 id="tool-search-tool让-claude-按需加载工具定义">1. Tool Search
+Tool：让 Claude 按需加载工具定义</h2>
+<p><strong>一行定位</strong>：<strong>不要一次塞所有工具定义进
+context</strong>——给 Claude 一个 search
+tool，让它<strong>自己找</strong>它需要的工具。</p>
+<p><strong>Anthropic 的量化收益</strong>： - 50+ MCP 工具的传统加载 =
+~72K token → Tool Search Tool 后 = ~8.7K token（<strong>85%
+节省</strong>）。 - 内部 eval：Opus 4 从 49% → 74%，Opus 4.5 从 79.5% →
+88.1%。 - <strong>Prompt caching 不破</strong>——deferred 工具不进
+initial prompt，<strong>system prompt 和 core 工具保持
+cacheable</strong>。</p>
+<p><strong>实现机制</strong>： - 所有工具在 API 注册，但
+<code>defer_loading: true</code> 标记成”按需发现”。 - Claude
+一开始只看到 Tool Search Tool 本身 + 没 deferred 的 critical 工具。 -
+Claude 要 GitHub 时搜 “github” → 只
+<code>github.createPullRequest</code> 等被加载。</p>
+<p><strong>最小用法</strong>：</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;tools&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span><span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;tool_search_tool_regex_20251119&quot;</span><span class="fu">,</span> <span class="dt">&quot;name&quot;</span><span class="fu">:</span> <span class="st">&quot;tool_search_tool_regex&quot;</span><span class="fu">}</span><span class="ot">,</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;name&quot;</span><span class="fu">:</span> <span class="st">&quot;github.createPullRequest&quot;</span><span class="fu">,</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;description&quot;</span><span class="fu">:</span> <span class="st">&quot;Create a pull request&quot;</span><span class="fu">,</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;input_schema&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="er">...</span><span class="fu">},</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;defer_loading&quot;</span><span class="fu">:</span> <span class="kw">true</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><strong>MCP 整 server defer</strong>：</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;mcp_toolset&quot;</span><span class="fu">,</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;mcp_server_name&quot;</span><span class="fu">:</span> <span class="st">&quot;google-drive&quot;</span><span class="fu">,</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;default_config&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="dt">&quot;defer_loading&quot;</span><span class="fu">:</span> <span class="kw">true</span><span class="fu">},</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;configs&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;search_files&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="dt">&quot;defer_loading&quot;</span><span class="fu">:</span> <span class="kw">false</span><span class="fu">}</span>   <span class="er">//</span> <span class="er">高频工具保留即时加载</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><strong>面试可讲的角度</strong>：这是 <em>lazy loading</em> 应用到
+context 管理。<strong>传统做法把所有 jar 放进 classpath，lazy loading
+只在调用时加载</strong>——同样的工程原理。</p>
+<p><strong>工程落地</strong>： - ☐ Tool 定义 &gt; 10K token → 必上 Tool
+Search - ☐ MCP 多 server → 整 server defer，高频工具单独 pinned - ☐ Tool
+description 必须<strong>清楚且具体</strong>（“Search for customer orders
+by date range, status, or total amount” 而不是 “Execute order
+query”）——search 靠 name + description 匹配 - ☐ 3-5 个最常用工具保持
+always loaded（避免每次都要 search）</p>
+<hr />
+<h2 id="programmatic-tool-calling让代码代替推理做编排">2. Programmatic
+Tool Calling：让代码代替推理做编排</h2>
+<p><strong>一行定位</strong>：<strong>别让 Claude
+用自然语言做循环</strong>——让它<strong>写 Python
+脚本调工具</strong>，<strong>只有最终结果进 context</strong>。</p>
+<p><strong>Anthropic 的量化收益</strong>： - Token：从 43,588 降到
+27,297（<strong>37% 节省</strong>）。 - Latency：20+ tool calls
+一次代码块 = <strong>消除 19+ 推理 round-trip</strong>。 -
+Accuracy：knowledge retrieval 25.6% → 28.5%；GIA benchmark 46.5% →
+51.2%。</p>
+<p><strong>机制</strong>： - Claude 写 Python 在 Code Execution
+沙箱里跑。 - 脚本调用工具时<strong>暂停</strong>，API
+返回工具结果给<strong>脚本</strong>而不是 Claude。 -
+脚本继续跑，<strong>只有 <code>print()</code> 的 stdout 进 Claude
+context</strong>。</p>
+<p><strong>Budget compliance 示例</strong>（Claude 写的代码）：</p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>team <span class="op">=</span> <span class="cf">await</span> get_team_members(<span class="st">&quot;engineering&quot;</span>)</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>levels <span class="op">=</span> <span class="bu">list</span>(<span class="bu">set</span>(m[<span class="st">&quot;level&quot;</span>] <span class="cf">for</span> m <span class="kw">in</span> team))</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>budget_results <span class="op">=</span> <span class="cf">await</span> asyncio.gather(<span class="op">*</span>[</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    get_budget_by_level(level) <span class="cf">for</span> level <span class="kw">in</span> levels</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>])</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>budgets <span class="op">=</span> {level: budget <span class="cf">for</span> level, budget <span class="kw">in</span> <span class="bu">zip</span>(levels, budget_results)}</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>expenses <span class="op">=</span> <span class="cf">await</span> asyncio.gather(<span class="op">*</span>[</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>    get_expenses(m[<span class="st">&quot;id&quot;</span>], <span class="st">&quot;Q3&quot;</span>) <span class="cf">for</span> m <span class="kw">in</span> team</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>])</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>exceeded <span class="op">=</span> []</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> member, exp <span class="kw">in</span> <span class="bu">zip</span>(team, expenses):</span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>    budget <span class="op">=</span> budgets[member[<span class="st">&quot;level&quot;</span>]]</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>    total <span class="op">=</span> <span class="bu">sum</span>(e[<span class="st">&quot;amount&quot;</span>] <span class="cf">for</span> e <span class="kw">in</span> exp)</span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> total <span class="op">&gt;</span> budget[<span class="st">&quot;travel_limit&quot;</span>]:</span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>        exceeded.append({<span class="st">&quot;name&quot;</span>: member[<span class="st">&quot;name&quot;</span>], <span class="st">&quot;spent&quot;</span>: total, <span class="st">&quot;limit&quot;</span>: budget[<span class="st">&quot;travel_limit&quot;</span>]})</span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(json.dumps(exceeded))</span></code></pre></div>
+<p><strong>Context 收益</strong>：2,000+ expense line items（~200KB raw
+data）→ 只剩 <code>print</code> 出来的 2-3
+个超支人（<strong>1KB</strong>）。</p>
+<p><strong>面试可讲的角度</strong>：这是 <em>ETL vs Interactive
+query</em> 的工程类比。<strong>传统 tool call = 交互式查询（每条 SQL 回
+model 一次），PTC = ETL 脚本（一次拉数据、清洗、汇总、最后才
+report）</strong>。</p>
+<p><strong>工程落地</strong>： - ☐ <strong>多步骤 + 3+ dependent tool
+call</strong> → 必上 PTC - ☐ <strong>并行独立操作</strong>（如查 50 个
+endpoint）→ PTC + <code>asyncio.gather</code> - ☐ <strong>filter / sort
+/ aggregate</strong> 中间结果 → PTC（避免污染 context） - ☐ <strong>大
+dataset 只需 aggregate / summary</strong> → PTC - ☐ <strong>工具
+description 必须</strong>清晰写明 return format——Claude 写 parsing
+代码要看 schema</p>
+<p><strong>Tool opt-in</strong>：</p>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;tools&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span><span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;code_execution_20250825&quot;</span><span class="fu">,</span> <span class="dt">&quot;name&quot;</span><span class="fu">:</span> <span class="st">&quot;code_execution&quot;</span><span class="fu">}</span><span class="ot">,</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;name&quot;</span><span class="fu">:</span> <span class="st">&quot;get_team_members&quot;</span><span class="fu">,</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;description&quot;</span><span class="fu">:</span> <span class="st">&quot;Get all members of a department...&quot;</span><span class="fu">,</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;input_schema&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="er">...</span><span class="fu">},</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;allowed_callers&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;code_execution_20250825&quot;</span><span class="ot">]</span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<hr />
+<h2 id="tool-use-examples用-examples-替代-schema-模糊">3. Tool Use
+Examples：用 examples 替代 schema 模糊</h2>
+<p><strong>一行定位</strong>：<strong>JSON Schema
+定义的是”语法”，Examples 定义的是”惯用法”</strong>——后者才是真
+signal。</p>
+<p><strong>Anthropic 的量化收益</strong>：复杂参数处理 accuracy 从
+<strong>72% → 90%</strong>。</p>
+<p><strong>问题</strong>：Schema 能说”title 是 string”，但不能说： -
+<code>due_date</code> 用
+<code>"2024-11-06"</code>、<code>"Nov 6, 2024"</code> 还是 ISO 8601？ -
+<code>reporter.id</code> 是 UUID、<code>"USR-12345"</code> 还是
+<code>"12345"</code>？ - 何时填 <code>reporter.contact</code>？ -
+<code>escalation.level</code> 和 <code>escalation.sla_hours</code> 与
+priority 怎么对应？</p>
+<p><strong>解法</strong>：</p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;name&quot;</span><span class="fu">:</span> <span class="st">&quot;create_ticket&quot;</span><span class="fu">,</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;input_schema&quot;</span><span class="fu">:</span> <span class="fu">{</span> <span class="er">/*</span> <span class="er">schema</span> <span class="er">不变</span> <span class="er">*/</span> <span class="fu">},</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;input_examples&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;title&quot;</span><span class="fu">:</span> <span class="st">&quot;Login page returns 500 error&quot;</span><span class="fu">,</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;priority&quot;</span><span class="fu">:</span> <span class="st">&quot;critical&quot;</span><span class="fu">,</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;labels&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;bug&quot;</span><span class="ot">,</span> <span class="st">&quot;authentication&quot;</span><span class="ot">,</span> <span class="st">&quot;production&quot;</span><span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;reporter&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;USR-12345&quot;</span><span class="fu">,</span></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;name&quot;</span><span class="fu">:</span> <span class="st">&quot;Jane Smith&quot;</span><span class="fu">,</span></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;contact&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="dt">&quot;email&quot;</span><span class="fu">:</span> <span class="st">&quot;jane@acme.com&quot;</span><span class="fu">,</span> <span class="dt">&quot;phone&quot;</span><span class="fu">:</span> <span class="st">&quot;+1-555-0123&quot;</span><span class="fu">}</span></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>      <span class="fu">},</span></span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;due_date&quot;</span><span class="fu">:</span> <span class="st">&quot;2024-11-06&quot;</span><span class="fu">,</span></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;escalation&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="dt">&quot;level&quot;</span><span class="fu">:</span> <span class="dv">2</span><span class="fu">,</span> <span class="dt">&quot;notify_manager&quot;</span><span class="fu">:</span> <span class="kw">true</span><span class="fu">,</span> <span class="dt">&quot;sla_hours&quot;</span><span class="fu">:</span> <span class="dv">4</span><span class="fu">}</span></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span><span class="ot">,</span></span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;title&quot;</span><span class="fu">:</span> <span class="st">&quot;Add dark mode support&quot;</span><span class="fu">,</span></span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;labels&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;feature-request&quot;</span><span class="ot">,</span> <span class="st">&quot;ui&quot;</span><span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;reporter&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;USR-67890&quot;</span><span class="fu">,</span> <span class="dt">&quot;name&quot;</span><span class="fu">:</span> <span class="st">&quot;Alex Chen&quot;</span><span class="fu">}</span></span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span><span class="ot">,</span></span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;title&quot;</span><span class="fu">:</span> <span class="st">&quot;Update API documentation&quot;</span></span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span></span>
+<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><strong>Claude 从三个 example 推断</strong>： - 日期用
+<code>YYYY-MM-DD</code>，user ID 走 <code>USR-XXXXX</code>，labels 走
+kebab-case。 - <code>reporter</code> 嵌套 <code>contact</code>
+怎么构造。 - Critical bug = 完整 contact + escalation + SLA；feature
+request = reporter 不带 contact；internal task 只 title。</p>
+<p><strong>面试可讲的角度</strong>：这是 <em>few-shot &gt;
+zero-shot</em> 的 schema 版本。<strong>Examples 比 description
+更能让模型学到”约定”</strong>——约定是 schema 写不出的。</p>
+<p><strong>工程落地 checklist</strong>： - ☐
+用<strong>真实数据</strong>（real city name、plausible price），不要
+<code>"string"</code> / <code>"value"</code> - ☐ 覆盖
+variety：<strong>最小 / 部分 / 完整</strong> specification - ☐
+<strong>1-5 个 examples per tool</strong>——多了烧 token，少了学不到 - ☐
+只在<strong>schema 表达不出</strong>的地方加 example——别为 obvious
+parameter 加</p>
+<hr />
+<h2 id="三大特性的组合策略">4. 三大特性的组合策略</h2>
+<p><strong>Anthropic
+的官方建议</strong>：<strong>不要一次全开</strong>——按 bottleneck
+选。</p>
+<table>
+<thead>
+<tr class="header">
+<th>Bottleneck</th>
+<th>解法</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>工具定义吞 context</td>
+<td>Tool Search Tool</td>
+</tr>
+<tr class="even">
+<td>中间结果污染 context</td>
+<td>Programmatic Tool Calling</td>
+</tr>
+<tr class="odd">
+<td>参数错误 / malformed call</td>
+<td>Tool Use Examples</td>
+</tr>
+</tbody>
+</table>
+<p><strong>三个特性互补不冲突</strong>： - Tool Search Tool
+解决”找对工具”。 - Programmatic Tool Calling 解决”高效用工具”。 - Tool
+Use Examples 解决”用对工具”。</p>
+<p><strong>面试可讲的角度</strong>：这是 <em>build vs buy</em>
+的工程决策——<strong>三个特性像优化栈的不同层级</strong>（cache
+层、执行层、契约层）。<strong>先找最痛的一层解决，不要全栈优化</strong>。</p>
+<p><strong>工程落地</strong>： - <strong>Profile 你的
+Agent</strong>——token 用在哪？tool selection error rate 多高？parameter
+error 多高？ -
+<strong>找最大瓶颈先解</strong>——别三个一起上，分不清效果。 -
+<strong>测完一个再加下一个</strong>——A/B
+对比，确认量化收益符合官方数据。</p>
+<hr />
+<h2 id="落地决策树用还是不用">5. 落地决策树：用还是不用</h2>
+<p><strong>Anthropic 给的边界条件</strong>：</p>
+<h3 id="tool-search-tool-用-vs-不用">Tool Search Tool 用 vs 不用</h3>
+<ul>
+<li>✅ <strong>用</strong>：tool def &gt; 10K token、tool selection
+accuracy 低、多 MCP server、10+ tools</li>
+<li>❌ <strong>不用</strong>：&lt; 10 tools、所有 tools 每 session
+都用、tool def 紧凑</li>
+</ul>
+<h3 id="programmatic-tool-calling-用-vs-不用">Programmatic Tool Calling
+用 vs 不用</h3>
+<ul>
+<li>✅ <strong>用</strong>：处理大 dataset 只需 aggregate、多步骤 3+
+dependent call、filter/sort/transform tool 结果、并行操作（50 个
+endpoint）</li>
+<li>❌ <strong>不用</strong>：单 tool invocation、Claude
+必须看所有中间结果、快速小响应 lookup</li>
+</ul>
+<h3 id="tool-use-examples-用-vs-不用">Tool Use Examples 用 vs 不用</h3>
+<ul>
+<li>✅ <strong>用</strong>：复杂嵌套结构、optional 参数很多、有
+domain-specific convention、相似的工具（如 <code>create_ticket</code> vs
+<code>create_incident</code>）</li>
+<li>❌ <strong>不用</strong>：单参数 obvious、URL / email
+标准格式、validation 由 JSON Schema 处理更合适</li>
+</ul>
+<p><strong>面试可讲的角度</strong>：这是 <em>build-vs-buy</em>
+的判断标准——<strong>任何优化都有 setup cost 和 runtime
+cost</strong>，只有 ROI &gt; 1 才值得。</p>
+<p><strong>工程落地 checklist</strong>： - ☐ 测 baseline（不开特性的
+token + accuracy） - ☐ 单开一个特性，跑同一 workload - ☐ 验证 ROI &gt;
+1.5x 再继续（特性有 prompt caching 影响） - ☐ <strong>Prompt caching
+影响</strong>：Tool Search Tool 不破 cache，PTC 加
+<code>code_execution</code> 进 tools 可能破 cache（取决于怎么写）</p>
+<hr />
+<h2 id="一句话总结">一句话总结</h2>
+<p>Tool use 的三个高级特性<strong>解决三个独立
+bottleneck</strong>：<strong>Tool Search 解决”找对工具”（节省 85%
+token）、PTC 解决”高效用工具”（节省 37% token + 消除推理
+round-trip）、Examples 解决”用对工具”（accuracy +18
+个百分点）</strong>。<strong>先 profile、再选特性、ROI &gt; 1.5x
+才上</strong>——这是任何 AI 优化的通用工程法则。</p>
+<h2 id="配套阅读">配套阅读</h2>
+<ul>
+<li><strong>同主题</strong>：code-execution-with-mcp — PTC 的底层（Code
+Execution + MCP）</li>
+<li><strong>执行机制</strong>：tool-use-engineering-patterns — Tool
+choice / structured output / parallel</li>
+<li><strong>评测视角</strong>：demystifying-ai-agent-evals — token /
+accuracy 怎么量化</li>
+</ul>
+<p>参考资料：</p>
+<ul>
+<li><a
+href="https://www.anthropic.com/engineering/advanced-tool-use">Advanced
+tool use</a> — Bin Wu, Anthropic</li>
+<li><a
+href="https://www.anthropic.com/engineering/code-execution-with-mcp">Code
+execution with MCP</a> — PTC 的 predecessor</li>
+<li><a
+href="https://github.com/anthropics/claude-agent-sdk-python">Claude
+Agent SDK</a> — 完整示例</li>
+</ul>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>

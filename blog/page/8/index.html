@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Wanqing Chen - 技术博客（Agent / RAG / Flink / JVM）">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>博客 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+                <ul class="navbar-nav">
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">中文</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../en/blog/index.html">EN</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <p>
+            <i>
+                关于 Agent 架构、RAG 流水线、大数据基础设施的工程笔记，以及读到的好文章的摘要与评述。
+            </i>
+        </p>
+    </div>
+
+    <div class="container">
+
+        <div class="card border-info mb-3">
+            <div class="card-header">
+                <h2>文章</h2>
+            </div>
+            <div class="card-body">
+                <div class="mb-4">
+                    <h5 class="mb-1"><a href="2026-09-14-token-not-real-bottleneck.html">Token 不是真瓶颈，深度工程才是窗口</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-14 <span class="badge bg-secondary">AI 教育</span> <span class="badge bg-secondary">读文笔记</span> <span class="badge bg-secondary">工程成长</span> </small></p>
+                    <p class="mb-1">冯若航把蒋炎岩&quot;没 Token 就退学&quot;的截图升格成&quot;Token 是新实验耗材、ladder 被 AI 整把抽掉&quot;的时代判断。认同 ladder 变形与作品集趋势，但 push back 三处：真稀缺的不是 Token 钱，是带场景的训练；ladder 没消失，是变形了；给 average 的人留的窗口在 AI 啃不动的深度工程，不在&quot;开十个订阅&quot;。</p>
+                </div>
+                <div class="mb-4">
+                    <h5 class="mb-1"><a href="2026-09-14-ten-years-after-ai.html">十年之后</a></h5>
+                    <p class="text-muted mb-1"><small>2026-09-14 <span class="badge bg-secondary">AI</span> <span class="badge bg-secondary">未来</span> <span class="badge bg-secondary">随笔</span> </small></p>
+                    <p class="mb-1">从 2036 年往回看——AI 时代的真正变化不在能力跃迁，而在社会吸收的速度。我们 2026 年关于 Agent、白领失业、AGI 的预测，几乎全错了。错的部分比对的部分更值得讲。</p>
+                </div>
+                <div class="mb-4">
+                    <h5 class="mb-1"><a href="2026-09-14-scale-yourself-not-subscription.html">蹬掉 10 个订阅不难，难的是把自己 scale 起来</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-14 <span class="badge bg-secondary">AI</span> <span class="badge bg-secondary">Codex</span> <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">自动化</span> <span class="badge bg-secondary">复利</span> <span class="badge bg-secondary">读文笔记</span> </small></p>
+                    <p class="mb-1">冯若航把&quot;如何凑齐 10 个 200 美元 Codex 订阅&quot;拆成两层：买得到是技术活，蹬得完是体系活。订阅费从来不是瓶颈，能持续堆出可被 AI 自动化的手工活、搭出能自己运转的复利体系、把验收范式从细节转向宏观——这才是真正的稀缺资源。</p>
+                </div>
+                <div class="mb-4">
+                    <h5 class="mb-1"><a href="2026-09-14-docs-over-code-ai-engineering.html">文档驱动：AI 工程的护城河不在代码，在文档</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-14 <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">文档驱动</span> </small></p>
+                    <p class="mb-1">冯若航把 AI 软件工程的四条核心做法中的第一条——文档驱动——从&quot;代码的补充&quot;重定位为&quot;代码的输入、工作记忆与验收凭据&quot;。认同文档前置的方向，但 push back 两条：70-80% Token 用于 QC 的比例被简化、&quot;每个 Issue 一份设计文档&quot;的边界没说清；并扩展到 MCP/schema/ADR 这条隐线。</p>
+                </div>
+                <div class="mb-4">
+                    <h5 class="mb-1"><a href="2026-09-14-agi-machinegun-acceptance-scarce.html">AGI 机关枪发下来了，可谁来验收</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-14 <span class="badge bg-secondary">AI</span> <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">读文笔记</span> <span class="badge bg-secondary">工程判断</span> </small></p>
+                    <p class="mb-1">老冯把&quot;AGI 机关枪&quot;叙事推到极致，但最锋利的不是&quot;门外汉也能烧&quot;，而是&quot;代码无限、信任不无限&quot;和 80/20 法则——稀缺的是 selection（知道什么值得做）和 acceptance（知道哪里可能有问题），不是 execution；蒋老板的&quot;门外汉&quot;其实是&quot;有品味的门外汉&quot;，这条叙事张力文章没解开。</p>
+                </div>
+            </div>
+        </div>
+
+        <nav aria-label="分页">
+            <ul class="pagination justify-content-center">
+                <li class="page-item"><a class="page-link" href="../7/index.html">« 上一页</a></li>
+                <li class="page-item"><a class="page-link" href="../../index.html">1</a></li>
+                <li class="page-item"><a class="page-link" href="../2/index.html">2</a></li>
+                <li class="page-item"><a class="page-link" href="../3/index.html">3</a></li>
+                <li class="page-item"><a class="page-link" href="../4/index.html">4</a></li>
+                <li class="page-item"><a class="page-link" href="../5/index.html">5</a></li>
+                <li class="page-item"><a class="page-link" href="../6/index.html">6</a></li>
+                <li class="page-item"><a class="page-link" href="../7/index.html">7</a></li>
+                <li class="page-item active" aria-current="page"><span class="page-link">8</span></li>
+                <li class="page-item"><a class="page-link" href="../9/index.html">9</a></li>
+                <li class="page-item"><a class="page-link" href="../9/index.html">下一页 »</a></li>
+            </ul>
+        </nav>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>
