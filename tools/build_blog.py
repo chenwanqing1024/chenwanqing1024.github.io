@@ -172,7 +172,7 @@ def main():
     for page_num in range(1, total_pages + 1):
         start = (page_num - 1) * PER_PAGE
         end = start + PER_PAGE
-        page_depth = page_num
+        page_depth = 0 if page_num == 1 else 2
         page_entries = [render(m, slug, page_depth) for m, slug in metas[start:end]]
         pagination = render_pagination(page_num, total_pages)
         if page_num == 1:
