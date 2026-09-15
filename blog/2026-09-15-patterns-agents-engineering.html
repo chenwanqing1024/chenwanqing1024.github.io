@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="把 Anthropic “Building Effective
+Agents” 论文对应的 patterns/agents 4 个 notebook 拆成 6
+个工程模式：prompt chaining / parallelization / routing /
+orchestrator-workers / evaluator-optimizer / async
+multi-agent。每个模式一行定位 + 最小代码 + 2-3 条工程踩坑提示。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>Agent 模式工程化：从 Prompt Chaining 到 Async Subagent 的 6
+个实战模式 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>Agent 模式工程化：从 Prompt Chaining 到 Async Subagent
+的 6 个实战模式</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI
+工程</span> <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">Patterns</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://github.com/anthropics/claude-cookbooks/tree/main/patterns/agents" target="_blank" rel="noopener">claude-cookbooks
+/ patterns/agents</a> · Anthropic (Erik Schluntz &amp; Barry Zhang)
+            </div>
+
+<h2 id="引子">引子</h2>
+<p><code>patterns/agents/</code> 对应的是 Anthropic 那篇经典论文
+<em>Building Effective Agents</em>——4 个 notebook 覆盖 6 个 agent
+模式：基础 3 件套（chaining / parallelization / routing）+ 高级 3
+件套（orchestrator-workers / evaluator-optimizer / async
+multi-agent）。它的核心论点是：<strong>绝大多数”AI
+Agent”需求用基础模式就够了，能用确定性 workflow 解决的不要上 LLM
+Agent</strong>。</p>
+<p>这篇文章按”<strong>基础 → 高级 → 异步</strong>”的阶梯拆 6
+个工程模式。每个模式配一行定位 + 最小代码 + 工程踩坑提示。</p>
+<hr />
+<h2 id="第一档基础-workflow">第一档：基础 workflow</h2>
+<h3 id="prompt-chaining拆任务-串行">1. Prompt Chaining：拆任务 +
+串行</h3>
+<p><strong>一行定位</strong>：把任务拆成 N
+个<strong>有依赖</strong>的子步骤，前一步输出喂下一步——本质是”LLM 版的
+Unix pipeline”。</p>
+<p><strong>最小代码</strong>：</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> chain(<span class="bu">input</span>: <span class="bu">str</span>, prompts: <span class="bu">list</span>[<span class="bu">str</span>]) <span class="op">-&gt;</span> <span class="bu">str</span>:</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">&quot;&quot;&quot;每个 prompt 处理上一步的结果，串行执行&quot;&quot;&quot;</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    result <span class="op">=</span> <span class="bu">input</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i, prompt <span class="kw">in</span> <span class="bu">enumerate</span>(prompts, <span class="dv">1</span>):</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>        result <span class="op">=</span> llm_call(<span class="ss">f&quot;</span><span class="sc">{</span>prompt<span class="sc">}</span><span class="ch">\n</span><span class="ss">Input: </span><span class="sc">{</span>result<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> result</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="co"># 用例：把绩效报告 → 提取数字 → 转百分比 → 排序 → 渲染 markdown 表格</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>data_processing_steps <span class="op">=</span> [</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;&quot;&quot;提取文本中的所有数值和对应指标，每行 &#39;value: metric&#39;&quot;&quot;&quot;</span>,</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;&quot;&quot;把所有数值统一转为百分比格式&quot;&quot;&quot;</span>,</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;&quot;&quot;按数值大小降序排序&quot;&quot;&quot;</span>,</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;&quot;&quot;渲染成 markdown 表格，列：Metric | Value&quot;&quot;&quot;</span>,</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>chain(report, data_processing_steps)</span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li><strong>每步输出要做 schema 校验</strong>。串行链路里第 3
+步崩了，90% 是第 2 步输出格式漂移——加个 pydantic 校验比加 try/except
+更早发现问题。</li>
+<li><strong>每步温度要分桶</strong>。提取（temperature=0）→ 排序（0）→
+渲染（0.3）。<strong>创造性任务放在最后一步</strong>，前面全部确定性。</li>
+<li>Chaining 是<strong>确定性高 / 灵活度低</strong>的模式：每步是写死的
+prompt，组合方式是写死的顺序。<strong>好处是可调试、可评测</strong>——这是它优于
+Agent 的地方。</li>
+</ul>
+<hr />
+<h3 id="parallelization多输入并行">2. Parallelization：多输入并行</h3>
+<p><strong>一行定位</strong>：同一个 prompt 应用到 N
+个<strong>互相独立</strong>的输入上，并发跑——本质是”LLM 版的
+<code>multiprocessing.map</code>“。</p>
+<p><strong>最小代码</strong>：</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> concurrent.futures <span class="im">import</span> ThreadPoolExecutor</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> parallel(prompt: <span class="bu">str</span>, inputs: <span class="bu">list</span>[<span class="bu">str</span>], n_workers: <span class="bu">int</span> <span class="op">=</span> <span class="dv">3</span>) <span class="op">-&gt;</span> <span class="bu">list</span>[<span class="bu">str</span>]:</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">with</span> ThreadPoolExecutor(max_workers<span class="op">=</span>n_workers) <span class="im">as</span> executor:</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>        futures <span class="op">=</span> [executor.submit(llm_call, <span class="ss">f&quot;</span><span class="sc">{</span>prompt<span class="sc">}</span><span class="ch">\n</span><span class="ss">Input: </span><span class="sc">{</span>x<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>                   <span class="cf">for</span> x <span class="kw">in</span> inputs]</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> [f.result() <span class="cf">for</span> f <span class="kw">in</span> futures]</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="co"># 用例：同一份市场变化 → 分别分析对客户 / 员工 / 投资者 / 供应商 的影响</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>stakeholders <span class="op">=</span> [<span class="st">&quot;Customers: ...&quot;</span>, <span class="st">&quot;Employees: ...&quot;</span>, <span class="st">&quot;Investors: ...&quot;</span>, <span class="st">&quot;Suppliers: ...&quot;</span>]</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>results <span class="op">=</span> parallel(</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;分析这个市场变化对 stakeholder group 的具体影响 + 建议行动&quot;</span>,</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>    stakeholders, n_workers<span class="op">=</span><span class="dv">4</span>,</span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li><strong>只用于独立输入</strong>。A 的输出是 B 的输入 → 不要并行（用
+chaining）。并行要求输入之间<strong>没有信息依赖</strong>。</li>
+<li><strong>并发上限 = 服务端 rate
+limit</strong>。不是越大越好——Anthropic API 有 tier-based RPS，盲目开 50
+worker 直接 429。<strong>先看 tier、再调并发</strong>。</li>
+<li><strong>加 timeout + fallback</strong>。单个 worker
+卡死不能让整批卡死——<code>f.result(timeout=30)</code> +
+失败重试或降级到”未知”。</li>
+</ul>
+<hr />
+<h3 id="routing动态分发">3. Routing：动态分发</h3>
+<p><strong>一行定位</strong>：用一个 LLM 做”路由器”，根据输入特征选不同
+prompt 路径——本质是”LLM 版的策略模式”。</p>
+<p><strong>最小代码</strong>：</p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> route(<span class="bu">input</span>: <span class="bu">str</span>, routes: <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">str</span>]) <span class="op">-&gt;</span> <span class="bu">str</span>:</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 第一步：让 LLM 选路径（XML 输出便于解析）</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    selector_prompt <span class="op">=</span> <span class="ss">f&quot;&quot;&quot;</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="ss">    分析输入，从这些选项里选最合适的：</span><span class="sc">{</span><span class="bu">list</span>(routes.keys())<span class="sc">}</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="ss">    &lt;reasoning&gt;为什么选这个&lt;/reasoning&gt;</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="ss">    &lt;selection&gt;选中的 team name&lt;/selection&gt;</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="ss">    Input: </span><span class="sc">{</span><span class="bu">input</span><span class="sc">}</span><span class="ss">&quot;&quot;&quot;</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>    route_response <span class="op">=</span> llm_call(selector_prompt)</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>    route_key <span class="op">=</span> extract_xml(route_response, <span class="st">&quot;selection&quot;</span>).strip().lower()</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 第二步：用对应 specialist prompt 处理</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>    selected_prompt <span class="op">=</span> routes[route_key]</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> llm_call(<span class="ss">f&quot;</span><span class="sc">{</span>selected_prompt<span class="sc">}</span><span class="ch">\n</span><span class="ss">Input: </span><span class="sc">{</span><span class="bu">input</span><span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a><span class="co"># 用例：客服工单按内容路由到 billing/technical/account/product</span></span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>support_routes <span class="op">=</span> {</span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;billing&quot;</span>:   <span class="st">&quot;你是账单专家...&quot;</span>,</span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;technical&quot;</span>: <span class="st">&quot;你是技术支持工程师...&quot;</span>,</span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;account&quot;</span>:   <span class="st">&quot;你是账号安全专家...&quot;</span>,</span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;product&quot;</span>:   <span class="st">&quot;你是产品专家...&quot;</span>,</span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>response <span class="op">=</span> route(ticket, support_routes)</span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li><strong>路由 prompt 是单一失败点</strong>。如果 router
+选错路径，后面 specialist 再好也没用。<strong>路由 prompt 要给”边界
+case”的兜底</strong>——“如果都不确定，选 billing”。</li>
+<li><strong>路径数 ≤ 7</strong>。超出 7 个准确率掉得厉害（与
+classification 同样的限制）。多路径场景用
+<strong>两级路由</strong>：大类 → 小类。</li>
+<li><strong>路由结果要可审计</strong>。把 router
+选了什么、为什么，<strong>写日志</strong>——生产环境路由错误是排查最难的事。</li>
+</ul>
+<hr />
+<h2 id="第二档高级-workflow">第二档：高级 workflow</h2>
+<h3 id="orchestrator-workers动态分解-派发">4.
+Orchestrator-Workers：动态分解 + 派发</h3>
+<p><strong>一行定位</strong>：一个 LLM 当 orchestrator 现场拆任务，N 个
+worker
+并行执行——<strong>适合”无法预先知道怎么拆”的复杂任务</strong>。</p>
+<p><strong>最小代码</strong>：</p>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> FlexibleOrchestrator:</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, orchestrator_prompt, worker_prompt, model<span class="op">=</span><span class="st">&quot;claude-sonnet-4-6&quot;</span>):</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.orchestrator_prompt <span class="op">=</span> orchestrator_prompt</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.worker_prompt <span class="op">=</span> worker_prompt</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> process(<span class="va">self</span>, task: <span class="bu">str</span>, context: <span class="bu">dict</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>):</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 阶段 1：orchestrator 现场决定拆成几个子任务</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>        orch_response <span class="op">=</span> llm_call(<span class="va">self</span>.orchestrator_prompt.<span class="bu">format</span>(task<span class="op">=</span>task, <span class="op">**</span>context <span class="kw">or</span> {}))</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>        tasks <span class="op">=</span> parse_xml_tasks(orch_response)   <span class="co"># 解析 &lt;tasks&gt;&lt;task&gt;...&lt;/task&gt;&lt;/tasks&gt;</span></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 阶段 2：每个 worker 拿 (原始任务 + 自己的子任务) 并行执行</span></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>        results <span class="op">=</span> []</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> t <span class="kw">in</span> tasks:</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>            worker_resp <span class="op">=</span> llm_call(<span class="va">self</span>.worker_prompt.<span class="bu">format</span>(</span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>                original_task<span class="op">=</span>task, task_type<span class="op">=</span>t[<span class="st">&quot;type&quot;</span>],</span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>                task_description<span class="op">=</span>t[<span class="st">&quot;description&quot;</span>], <span class="op">**</span>context <span class="kw">or</span> {}))</span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>            results.append({<span class="st">&quot;type&quot;</span>: t[<span class="st">&quot;type&quot;</span>], <span class="st">&quot;result&quot;</span>: extract_xml(worker_resp, <span class="st">&quot;response&quot;</span>)})</span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> {<span class="st">&quot;analysis&quot;</span>: extract_xml(orch_response, <span class="st">&quot;analysis&quot;</span>), <span class="st">&quot;worker_results&quot;</span>: results}</span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a><span class="co"># 用例：产品营销文案 → orchestrator 现场决定要 2-3 种风格 → 派发给 worker</span></span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>orchestrator <span class="op">=</span> FlexibleOrchestrator(ORCHESTRATOR_PROMPT, WORKER_PROMPT)</span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>results <span class="op">=</span> orchestrator.process(</span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a>    task<span class="op">=</span><span class="st">&quot;为这款环保水瓶写产品文案&quot;</span>,</span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a>    context<span class="op">=</span>{<span class="st">&quot;target_audience&quot;</span>: <span class="st">&quot;环保消费者&quot;</span>, <span class="st">&quot;key_features&quot;</span>: [<span class="st">&quot;无塑&quot;</span>, <span class="st">&quot;保温&quot;</span>, <span class="st">&quot;终身保修&quot;</span>]})</span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li><strong>N+1 次 LLM 调用</strong>（1 orchestrator + N
+workers），<strong>N 不能太大</strong>。Cookbook 推荐 2-3 个
+worker——超过 5 个编排质量反而下降。</li>
+<li><strong>模型分工</strong>：orchestrator 用
+Sonnet（决策质量），worker 用 Haiku（执行成本）。<strong>省钱 10×
+而质量不掉</strong>。</li>
+<li><strong>失败兜底要明确</strong>。worker 返回空内容时，cookbook 用
+<code>[Error: Worker X failed]</code> 占位——<strong>比让 pipeline
+崩掉更稳</strong>。生产里换成降级到”已知答案”。</li>
+</ul>
+<hr />
+<h3 id="evaluator-optimizer生成-评估循环">5.
+Evaluator-Optimizer：生成-评估循环</h3>
+<p><strong>一行定位</strong>：一个 LLM 生成、一个 LLM
+评估打分，未达标则把 feedback
+喂回生成端再试——<strong>适合”有明确评判标准 + LLM
+反馈能改进”的场景</strong>。</p>
+<p><strong>最小代码</strong>：</p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> loop(task, evaluator_prompt, generator_prompt, max_iter<span class="op">=</span><span class="dv">5</span>):</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    memory <span class="op">=</span> []    <span class="co"># 记录所有尝试，喂给下一次生成</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    thoughts, result <span class="op">=</span> generate(generator_prompt, task)</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(max_iter):</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>        evaluation, feedback <span class="op">=</span> evaluate(evaluator_prompt, result, task)</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> evaluation <span class="op">==</span> <span class="st">&quot;PASS&quot;</span>:</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> result</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 把&quot;上次结果 + 反馈&quot;塞给 generator，让它改进</span></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>        context <span class="op">=</span> <span class="st">&quot;Previous attempts:</span><span class="ch">\n</span><span class="st">&quot;</span> <span class="op">+</span> <span class="st">&quot;</span><span class="ch">\n</span><span class="st">&quot;</span>.join(<span class="ss">f&quot;- </span><span class="sc">{</span>m<span class="sc">}</span><span class="ss">&quot;</span> <span class="cf">for</span> m <span class="kw">in</span> memory)</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>        context <span class="op">+=</span> <span class="ss">f&quot;</span><span class="ch">\n</span><span class="ss">Feedback: </span><span class="sc">{</span>feedback<span class="sc">}</span><span class="ss">&quot;</span></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>        thoughts, result <span class="op">=</span> generate(generator_prompt, task, context)</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>        memory.append(result)</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> result</span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a><span class="co"># 用例：实现一个 O(1) 的 MinStack → 生成 → 评估（正确性 / 时间复杂度 / 风格）</span></span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a><span class="co">#  → NEEDS_IMPROVEMENT → 反馈（异常处理、type hints、docstring）→ 改进 → PASS</span></span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>loop(task, evaluator_prompt, generator_prompt)</span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li><strong>两个先决条件</strong>（论文强调）：① 有清晰可评估的标准；②
+LLM
+自己能给出有意义的反馈。<strong>没有这两点的任务不要用</strong>——只会浪费
+token。</li>
+<li><strong>Evaluator 和 Generator 可以不同模型</strong>。Eval 用
+Opus（评判要狠），Gen 用 Sonnet（执行要快）——<strong>质量 +
+成本的最优配比</strong>。</li>
+<li><strong><code>max_iter</code> 是救命参数</strong>。生成器在某些
+prompt 下永远不达标（feedback 不收敛），<strong>3-5
+次硬停</strong>。否则一个请求烧 $5+。</li>
+<li><strong>memory 要有”压缩”机制</strong>。超过 3 次尝试时只留 feedback
+不留 result（避免 context 撑爆）。</li>
+</ul>
+<hr />
+<h2 id="第三档异步编排">第三档：异步编排</h2>
+<h3 id="async-multi-agenthub-subagent-生命周期">6. Async
+Multi-Agent：Hub + Subagent 生命周期</h3>
+<p><strong>一行定位</strong>：所有 agent 共享一个 in-memory
+hub（消息总线），lead agent 动态 spawn / status / kill
+subagent——<strong>适合”多 context 并行长任务”的规模化场景</strong>。</p>
+<p><strong>最小代码</strong>（Hub + 异步 run_agent）：</p>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> anthropic, asyncio</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> collections <span class="im">import</span> defaultdict</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>client <span class="op">=</span> anthropic.AsyncAnthropic()</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>MODEL <span class="op">=</span> <span class="st">&quot;claude-opus-4-8&quot;</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Hub:</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>    <span class="co">&quot;&quot;&quot;消息总线：每个 agent 一个 inbox + 一个 Event&quot;&quot;&quot;</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>):</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.inbox <span class="op">=</span> defaultdict(<span class="bu">list</span>)</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.event <span class="op">=</span> defaultdict(asyncio.Event)</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> post(<span class="va">self</span>, sender, recipients, content):</span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> rid <span class="kw">in</span> recipients:</span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.inbox[rid].append({<span class="st">&quot;from&quot;</span>: sender, <span class="st">&quot;content&quot;</span>: content})</span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.event[rid].<span class="bu">set</span>()   <span class="co"># 唤醒等待方</span></span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> drain(<span class="va">self</span>, name):</span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>        msgs, <span class="va">self</span>.inbox[name] <span class="op">=</span> <span class="va">self</span>.inbox[name], []</span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.event[name] <span class="op">=</span> asyncio.Event()</span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> msgs</span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a>SEND_MESSAGE <span class="op">=</span> {<span class="st">&quot;name&quot;</span>: <span class="st">&quot;send_message&quot;</span>, <span class="st">&quot;input_schema&quot;</span>: {</span>
+<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;properties&quot;</span>: {<span class="st">&quot;recipient_ids&quot;</span>: {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;array&quot;</span>},</span>
+<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a>                   <span class="st">&quot;content&quot;</span>: {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;string&quot;</span>}}, <span class="st">&quot;required&quot;</span>: [<span class="st">&quot;recipient_ids&quot;</span>, <span class="st">&quot;content&quot;</span>]}}</span>
+<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a>WAIT_FOR_MESSAGE <span class="op">=</span> {<span class="st">&quot;name&quot;</span>: <span class="st">&quot;wait_for_message&quot;</span>, <span class="st">&quot;input_schema&quot;</span>: {<span class="st">&quot;properties&quot;</span>: {}}}</span>
+<span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-28"><a href="#cb6-28" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> run_agent(hub, name, system, first_user_turn, tools, max_turns<span class="op">=</span><span class="dv">20</span>):</span>
+<span id="cb6-29"><a href="#cb6-29" aria-hidden="true" tabindex="-1"></a>    messages <span class="op">=</span> [{<span class="st">&quot;role&quot;</span>: <span class="st">&quot;user&quot;</span>, <span class="st">&quot;content&quot;</span>: first_user_turn}]</span>
+<span id="cb6-30"><a href="#cb6-30" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(max_turns):</span>
+<span id="cb6-31"><a href="#cb6-31" aria-hidden="true" tabindex="-1"></a>        resp <span class="op">=</span> <span class="cf">await</span> client.messages.create(</span>
+<span id="cb6-32"><a href="#cb6-32" aria-hidden="true" tabindex="-1"></a>            model<span class="op">=</span>MODEL, max_tokens<span class="op">=</span><span class="dv">2048</span>, system<span class="op">=</span>system,</span>
+<span id="cb6-33"><a href="#cb6-33" aria-hidden="true" tabindex="-1"></a>            tools<span class="op">=</span>tools, messages<span class="op">=</span>messages)</span>
+<span id="cb6-34"><a href="#cb6-34" aria-hidden="true" tabindex="-1"></a>        messages.append({<span class="st">&quot;role&quot;</span>: <span class="st">&quot;assistant&quot;</span>, <span class="st">&quot;content&quot;</span>: resp.content})</span>
+<span id="cb6-35"><a href="#cb6-35" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> resp.stop_reason <span class="op">==</span> <span class="st">&quot;end_turn&quot;</span>:</span>
+<span id="cb6-36"><a href="#cb6-36" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> <span class="st">&quot;&quot;</span>.join(<span class="bu">getattr</span>(b, <span class="st">&quot;text&quot;</span>, <span class="st">&quot;&quot;</span>) <span class="cf">for</span> b <span class="kw">in</span> resp.content)</span>
+<span id="cb6-37"><a href="#cb6-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-38"><a href="#cb6-38" aria-hidden="true" tabindex="-1"></a>        results <span class="op">=</span> []</span>
+<span id="cb6-39"><a href="#cb6-39" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> block <span class="kw">in</span> resp.content:</span>
+<span id="cb6-40"><a href="#cb6-40" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> block.<span class="bu">type</span> <span class="op">!=</span> <span class="st">&quot;tool_use&quot;</span>: <span class="cf">continue</span></span>
+<span id="cb6-41"><a href="#cb6-41" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> block.name <span class="op">==</span> <span class="st">&quot;send_message&quot;</span>:</span>
+<span id="cb6-42"><a href="#cb6-42" aria-hidden="true" tabindex="-1"></a>                hub.post(name, block.<span class="bu">input</span>[<span class="st">&quot;recipient_ids&quot;</span>], block.<span class="bu">input</span>[<span class="st">&quot;content&quot;</span>])</span>
+<span id="cb6-43"><a href="#cb6-43" aria-hidden="true" tabindex="-1"></a>                out <span class="op">=</span> <span class="st">&quot;delivered&quot;</span></span>
+<span id="cb6-44"><a href="#cb6-44" aria-hidden="true" tabindex="-1"></a>            <span class="cf">elif</span> block.name <span class="op">==</span> <span class="st">&quot;wait_for_message&quot;</span>:</span>
+<span id="cb6-45"><a href="#cb6-45" aria-hidden="true" tabindex="-1"></a>                <span class="cf">await</span> asyncio.wait_for(hub.event[name].wait(), timeout<span class="op">=</span><span class="dv">60</span>)</span>
+<span id="cb6-46"><a href="#cb6-46" aria-hidden="true" tabindex="-1"></a>                out <span class="op">=</span> <span class="st">&quot;woke&quot;</span></span>
+<span id="cb6-47"><a href="#cb6-47" aria-hidden="true" tabindex="-1"></a>            <span class="cf">else</span>:</span>
+<span id="cb6-48"><a href="#cb6-48" aria-hidden="true" tabindex="-1"></a>                out <span class="op">=</span> <span class="cf">await</span> extra_dispatch[block.name](block)</span>
+<span id="cb6-49"><a href="#cb6-49" aria-hidden="true" tabindex="-1"></a>            results.append({<span class="st">&quot;type&quot;</span>: <span class="st">&quot;tool_result&quot;</span>, <span class="st">&quot;tool_use_id&quot;</span>: block.<span class="bu">id</span>, <span class="st">&quot;content&quot;</span>: out})</span>
+<span id="cb6-50"><a href="#cb6-50" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-51"><a href="#cb6-51" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 关键：把 drain 出来的 inbox 附加到最后一个 tool result</span></span>
+<span id="cb6-52"><a href="#cb6-52" aria-hidden="true" tabindex="-1"></a>        <span class="co"># → 下次 LLM 调用时自动收到消息，无需主动 poll</span></span>
+<span id="cb6-53"><a href="#cb6-53" aria-hidden="true" tabindex="-1"></a>        inbox <span class="op">=</span> hub.drain(name)</span>
+<span id="cb6-54"><a href="#cb6-54" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> results <span class="kw">and</span> inbox:</span>
+<span id="cb6-55"><a href="#cb6-55" aria-hidden="true" tabindex="-1"></a>            results[<span class="op">-</span><span class="dv">1</span>][<span class="st">&quot;content&quot;</span>] <span class="op">+=</span> Hub.render(inbox)</span>
+<span id="cb6-56"><a href="#cb6-56" aria-hidden="true" tabindex="-1"></a>        messages.append({<span class="st">&quot;role&quot;</span>: <span class="st">&quot;user&quot;</span>, <span class="st">&quot;content&quot;</span>: results})</span></code></pre></div>
+<p><strong>完整 lead（spawn → status → wait → kill）</strong>：</p>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> run_spawn_lead():</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    hub, helpers <span class="op">=</span> Hub(), {}</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> create_subagents(block):</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>        names <span class="op">=</span> []</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> instr <span class="kw">in</span> block.<span class="bu">input</span>.get(<span class="st">&quot;per_subagent_instructions&quot;</span>) <span class="kw">or</span> [<span class="st">&quot;&quot;</span>]:</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>            h <span class="op">=</span> <span class="ss">f&quot;helper</span><span class="sc">{</span><span class="bu">len</span>(helpers)<span class="op">+</span><span class="dv">1</span><span class="sc">}</span><span class="ss">&quot;</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>            helpers[h] <span class="op">=</span> asyncio.create_task(run_agent(</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>                hub, h, system<span class="op">=</span><span class="ss">f&quot;You are </span><span class="sc">{</span>h<span class="sc">}</span><span class="ss">.&quot;</span>, first_user_turn<span class="op">=</span>instr,</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>                tools<span class="op">=</span>[SEND_MESSAGE, WAIT_FOR_MESSAGE]))</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>            names.append(h)</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="ss">f&quot;spawned: </span><span class="sc">{</span><span class="st">&#39;, &#39;</span><span class="sc">.</span>join(names)<span class="sc">}</span><span class="ss">&quot;</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">try</span>:</span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="cf">await</span> run_agent(hub, <span class="st">&quot;lead&quot;</span>, <span class="st">&quot;你是 lead agent&quot;</span>,</span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;Spawn 3 个 helper 各 sleep 不同秒数后回报给你，然后 dismiss 它们&quot;</span>,</span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>            tools<span class="op">=</span>[SEND_MESSAGE, WAIT_FOR_MESSAGE,</span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>                   {<span class="st">&quot;name&quot;</span>: <span class="st">&quot;create_subagents&quot;</span>, <span class="st">&quot;input_schema&quot;</span>: {...}},</span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>                   {<span class="st">&quot;name&quot;</span>: <span class="st">&quot;kill_subagents&quot;</span>, <span class="st">&quot;input_schema&quot;</span>: {...}}],</span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>            extra_dispatch<span class="op">=</span>{<span class="st">&quot;create_subagents&quot;</span>: create_subagents,</span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>                            <span class="st">&quot;kill_subagents&quot;</span>: <span class="kw">lambda</span> b: cancel(helpers, b.<span class="bu">input</span>[<span class="st">&quot;subagent_ids&quot;</span>])})</span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>    <span class="cf">finally</span>:</span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> t <span class="kw">in</span> helpers.values(): t.cancel()</span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li><strong>Hub.inbox 永远要 drain</strong>。否则 agent
+永远不会看到别人发来的消息——Cookbook 把 drain 写在 run_agent
+末尾，是把”消息到达”和”工具结果”合并，<strong>避免 agent 需要主动
+poll</strong>。</li>
+<li><strong>subagent 数量 = 并发预算</strong>。Cookbook 默认
+<code>maxItems: 10</code>。<strong>生产里要监控 spawn 数 ×
+平均时延</strong>，否则一个 lead 把 100 个 subagent 全 spawn 出来直接
+OOM。</li>
+<li><strong>kill_subagents 是必备</strong>。任何 spawn 出去的 subagent
+必须有终止路径——<code>try/finally</code> +
+<code>asyncio.gather(..., return_exceptions=True)</code>。生产里漏写
+finally 是经典 leak。</li>
+<li><strong>lead 和 subagent 共享同一个 client / API
+key</strong>。注意<strong>rate limit 是全局共享的</strong>，不是按
+subagent 隔离。<strong>监控 429</strong>——并发高时 subagent
+之间会互相挤占配额。</li>
+</ul>
+<hr />
+<h2 id="落地清单">落地清单</h2>
+<table>
+<thead>
+<tr class="header">
+<th>场景</th>
+<th>优先模式</th>
+<th>解决的问题</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>单任务流水线</td>
+<td>#1 chaining</td>
+<td>多步转换 / 提取</td>
+</tr>
+<tr class="even">
+<td>多输入同处理</td>
+<td>#2 parallelization</td>
+<td>批量分析 / 评估</td>
+</tr>
+<tr class="odd">
+<td>多入口分发</td>
+<td>#3 routing</td>
+<td>客服 / 文档分类路由</td>
+</tr>
+<tr class="even">
+<td>复杂任务动态拆</td>
+<td>#4 orchestrator-workers</td>
+<td>多视角内容生成</td>
+</tr>
+<tr class="odd">
+<td>有标准可迭代</td>
+<td>#5 evaluator-optimizer</td>
+<td>代码 / 长文 / 翻译</td>
+</tr>
+<tr class="even">
+<td>规模化并行</td>
+<td>#6 async multi-agent</td>
+<td>多源研究 / 大规模任务</td>
+</tr>
+</tbody>
+</table>
+<h2 id="选型速查">选型速查</h2>
+<pre><code>你的任务是：
+├─ 单输入 / 多步转换 → chaining
+├─ 多输入 / 同样处理 → parallelization
+├─ 多输入 / 不同处理 → routing
+├─ 输入类型多样 / 拆法不固定 → orchestrator-workers
+├─ 输出有明确评判标准 → evaluator-optimizer
+└─ 需要并发跑多个长任务 → async multi-agent</code></pre>
+<p><strong>反向警告</strong>：以下场景<strong>不要用</strong> agent
+pattern：</p>
+<ul>
+<li>单轮 Q&amp;A → 直接 <code>messages.create</code></li>
+<li>简单分类 → <code>tool_choice={"type": "tool"}</code> + 单
+schema</li>
+<li>数据查询 → RAG（<a
+href="blog/posts/2026-09-15-rag-engineering-patterns.md">RAG 5
+模式</a>）</li>
+<li>多步但步骤固定 → <strong>写死 Python 函数</strong>比 agent
+更可靠</li>
+</ul>
+<h2 id="与其它模式的关系">与其它模式的关系</h2>
+<ul>
+<li><strong>vs Tool Use</strong>：Tool Use 是”调单个工具”，Agent pattern
+是”组织多个工具调用”。Chaining / parallelization / routing 本质都是
+tool_use 编排模式。</li>
+<li><strong>vs Agent SDK</strong>：<a
+href="blog/posts/2026-09-15-claude-agent-sdk-engineering.md">Claude
+Agent SDK</a> 给的是”开箱即用的 Agent
+框架”，这里给的是”模式语言”。<strong>SDK 内部实现就是这 6 个
+pattern</strong>。</li>
+<li><strong>vs Skills</strong>：<a
+href="blog/posts/2026-09-15-claude-skills-engineering.md">Skills</a>
+是”装专业能力”，patterns 是”编排方式”。<strong>两者正交</strong>——一个
+subagent 可以挂一个 skill。</li>
+<li><strong>vs Extended Thinking</strong>：Evaluator-Optimizer
+适合<strong>多轮迭代优化</strong>的场景，<strong>单步复杂任务</strong>用
+extended_thinking 更划算。</li>
+</ul>
+<p>参考资料：</p>
+<ul>
+<li><a
+href="https://github.com/anthropics/claude-cookbooks/tree/main/patterns/agents">patterns/agents
+目录</a></li>
+<li><a
+href="https://anthropic.com/research/building-effective-agents">Building
+Effective Agents 论文</a></li>
+<li>配套阅读：<a
+href="blog/posts/2026-09-15-claude-agent-sdk-engineering.md">Claude
+Agent SDK 5 模式</a>、<a
+href="blog/posts/2026-09-15-tool-use-engineering-patterns.md">Tool Use 7
+模式</a></li>
+</ul>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>
