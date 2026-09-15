@@ -64,27 +64,27 @@
             </div>
             <div class="card-body">
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="../../../../2026-09-15-multiagent-plan-master-worker.html">Agent 项目的生产可靠性三角：Plan、主子分层与 A2A</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <h5 class="mb-1"><a href="../../2026-09-15-multiagent-plan-master-worker.html">Agent 项目的生产可靠性三角：Plan、主子分层与 A2A</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
                     <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">MultiAgent</span> <span class="badge bg-secondary">Plan-and-Execute</span> <span class="badge bg-secondary">工程落地</span> </small></p>
                     <p class="mb-1">得物 MultiAgent 平台这篇不写&quot;什么是 Agent&quot;，写的是&quot;演示 Agent 和生产 Agent 的距离&quot;。核心是把 Plan 当作一等公民、把主/子 Agent 分层、把可靠性约束从 prompt 层下沉到框架层——这三件事合在一起，决定了 Agent 系统能不能上生产。</p>
                 </div>
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="../../../../2026-09-15-multiagent-memory-four-layers.html">Agent 记忆不是 prompt 拼接：四层架构与异步沉淀</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <h5 class="mb-1"><a href="../../2026-09-15-multiagent-memory-four-layers.html">Agent 记忆不是 prompt 拼接：四层架构与异步沉淀</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
                     <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">记忆系统</span> <span class="badge bg-secondary">MemOS</span> <span class="badge bg-secondary">工程落地</span> </small></p>
                     <p class="mb-1">这篇不讲&quot;把历史塞进 prompt&quot;——它讲怎么把记忆拆成 Working / Session / User / Agent 四层，让请求前并行加载、会话后异步沉淀、用 LLM 判断价值、用冲突处理保持一致。四层不是分类维度的炫技，是把&quot;Agent 记不住东西&quot;这个老大难问题拆成可工程化的子问题。</p>
                 </div>
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="../../../../2026-09-15-multi-agent-research-patterns.html">Multi-Agent Research System 实操：Lead + Subagent 架构的 5 个工程教训</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <h5 class="mb-1"><a href="../../2026-09-15-multi-agent-research-patterns.html">Multi-Agent Research System 实操：Lead + Subagent 架构的 5 个工程教训</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
                     <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">Multi-Agent</span> </small></p>
                     <p class="mb-1">把 Anthropic 多 Agent Research 系统工程文章拆成 5 个工程教训：多 agent 适用边界（research 强、coding 弱）、LeadResearcher + Subagent + CitationAgent 三段架构、Orchestrator delegation 7 条 prompt 原则、Eval 三件套（小样本 + LLM-as-judge + 人类）、Production 三大工程挑战（stateful / debug / 同步 vs 异步）。配具体数据（90.2% / 15x token / 90% time / 40%）+ 落地边界。</p>
                 </div>
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="../../../../2026-09-15-marketing-activity-agent.html">读文笔记：营销活动 Agent 填表单——两阶段架构与组件模块协议</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <h5 class="mb-1"><a href="../../2026-09-15-marketing-activity-agent.html">读文笔记：营销活动 Agent 填表单——两阶段架构与组件模块协议</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
                     <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">LangGraph</span> <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">营销自动化</span> <span class="badge bg-secondary">Human-in-the-loop</span> <span class="badge bg-secondary">渐进式披露</span> </small></p>
                     <p class="mb-1">得物社区营销活动从策划到上线要在 3 个系统间跳转 10+ 次、填 40+ 字段。得物技术用 3 版迭代走通：第一版 AI 帮填字段（失败：范式没变），第二版 Workflow + LangGraph interrupt/resume + 6 个中断点 + Capability Registry（成功），第三版两阶段 Stage 1 只读不写策划生成 + Stage 2 聚合工作台本地表预览。组件模块协议用生命周期约束初始化阶段无副作用。</p>
                 </div>
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="../../../../2026-09-15-managed-agents-arch-patterns.html">Managed Agents 架构：把&quot;大脑&quot;和&quot;双手&quot;解耦的 5 个工程模式</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <h5 class="mb-1"><a href="../../2026-09-15-managed-agents-arch-patterns.html">Managed Agents 架构：把&quot;大脑&quot;和&quot;双手&quot;解耦的 5 个工程模式</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
                     <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">Agent 架构</span> <span class="badge bg-secondary">Harness</span> </small></p>
                     <p class="mb-1">把 Anthropic Managed Agents 工程文章拆成 5 个架构级模式：Pet vs Cattle 的容器陷阱、脑-手解耦、Sandbox 安全边界、Session ≠ Context Window、Many Brains Many Hands。每个模式给定位 + 推论 + 工程落地的具体做法，可以直接拿去面试讲 Agent 架构。</p>
                 </div>

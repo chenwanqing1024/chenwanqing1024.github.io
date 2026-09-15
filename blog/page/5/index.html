@@ -64,27 +64,27 @@
             </div>
             <div class="card-body">
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="../../../../../2026-09-15-madrigal-pharma-multi-agent-platform.html">Madrigal Pharma 多 Agent 平台：医药数据的&quot;看不见的归一化&quot;+ Skills 联邦制 + Trace 反哺 Eval</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <h5 class="mb-1"><a href="../../2026-09-15-madrigal-pharma-multi-agent-platform.html">Madrigal Pharma 多 Agent 平台：医药数据的&quot;看不见的归一化&quot;+ Skills 联邦制 + Trace 反哺 Eval</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
                     <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">多 Agent</span> <span class="badge bg-secondary">医药 RAG</span> <span class="badge bg-secondary">Deep Agents</span> <span class="badge bg-secondary">工程实践</span> </small></p>
                     <p class="mb-1">制药公司 Madrigal 用 LangChain / Deep Agents 搭多 Agent 平台，关键思想：把所有数据源归一化成一致的 tool interface（Agent 不关心数据从哪来）；modular skill 把单一用例变成平台；trace → eval dataset 是生产反馈的闭环。新用例从&quot;几周&quot;降到&quot;几小时&quot;。</p>
                 </div>
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="../../../../../2026-09-15-log-platform-mcp.html">日志平台 MCP + Claude Code Skill：自动化 BUG 排查 — 读《日志诊断 Skill》</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <h5 class="mb-1"><a href="../../2026-09-15-log-platform-mcp.html">日志平台 MCP + Claude Code Skill：自动化 BUG 排查 — 读《日志诊断 Skill》</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
                     <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">日志平台</span> <span class="badge bg-secondary">MCP</span> <span class="badge bg-secondary">Claude Code</span> <span class="badge bg-secondary">Skill</span> <span class="badge bg-secondary">BUG排查</span> <span class="badge bg-secondary">自动化诊断</span> <span class="badge bg-secondary">SQL BUG</span> </small></p>
                     <p class="mb-1">得物技术（作者阿程）把日志查询 MCP 和 Claude Code Skill 结合，实现 /log-diagnosis 一行命令自动完成 查日志 → 找关键信息 → 扫描代码 → 定位根因 全流程。涵盖：MCP 鉴权（secretKey → accessToken，1 小时有效，最多同时 5 个）、Skill 执行链路（分页拉取最多 20 页日志 + traceId 第 9-16 位解析时间范围）、queryString 语法、实战案例 — 发现 SQL 字段 customer_tag 遗漏空字符串处理的隐蔽 BUG。</p>
                 </div>
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="../../../../../2026-09-15-llm-agent-alert-troubleshooter.html">告警排查 Agent 不是替代运维：把 20 分钟的拼凑工作压到 4 分钟</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <h5 class="mb-1"><a href="../../2026-09-15-llm-agent-alert-troubleshooter.html">告警排查 Agent 不是替代运维：把 20 分钟的拼凑工作压到 4 分钟</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
                     <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">LLM Agent</span> <span class="badge bg-secondary">告警排查</span> <span class="badge bg-secondary">ReAct</span> <span class="badge bg-secondary">工程落地</span> </small></p>
                     <p class="mb-1">这篇不讲&quot;AI 排查告警&quot;，讲怎么用 ReAct Agent 把&quot;打开三个平台拼凑数据&quot;这种 20 分钟的体力活压到 4 分钟。核心是 SupervisorAgent + 四个 @Tool（queryLogs / queryMetrics / queryTrace / queryEndpointErrors）+ 工具超时隔离 + 幻觉控制四道闸。结论验收 Agent + 多轮交叉验证才是让 AI 排查能上生产的工程关键。</p>
                 </div>
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="../../../../../2026-09-15-langgraph-three-years-patterns.html">LangGraph 3 年：什么时候用 graph / 什么时候用 harness / 什么时候用 loop——决策框架</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <h5 class="mb-1"><a href="../../2026-09-15-langgraph-three-years-patterns.html">LangGraph 3 年：什么时候用 graph / 什么时候用 harness / 什么时候用 loop——决策框架</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
                     <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">LangGraph</span> <span class="badge bg-secondary">工程哲学</span> <span class="badge bg-secondary">决策框架</span> <span class="badge bg-secondary">工程实践</span> </small></p>
                     <p class="mb-1">LangGraph 3 年的核心经验：什么时候把 Agent 表达为 graph（结构已知、路径确定）、什么时候用 agent harness（结构未知、靠模型推理）、什么时候用 loop（最简版本）。3 个关键 lesson：agent graph 通常不是 DAG、loop 就是简单 graph、动态 transition 重要。附决策框架 + 简历项目骨架。</p>
                 </div>
                 <div class="mb-4">
-                    <h5 class="mb-1"><a href="../../../../../2026-09-15-knowledge-qa-compound-retrieval-agent.html">知识问答复合检索 Agent：Agent 自主决策 + 三阶段质量 Pipeline + 多实例 SSE 断点续传</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <h5 class="mb-1"><a href="../../2026-09-15-knowledge-qa-compound-retrieval-agent.html">知识问答复合检索 Agent：Agent 自主决策 + 三阶段质量 Pipeline + 多实例 SSE 断点续传</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
                     <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">RAG</span> <span class="badge bg-secondary">Multi-Agent</span> <span class="badge bg-secondary">HarnessAgent</span> <span class="badge bg-secondary">Middleware</span> <span class="badge bg-secondary">工程落地</span> </small></p>
                     <p class="mb-1">这篇不讲&quot;AI 知识问答&quot;，讲怎么在 AgentScope 2.0 HarnessAgent 上做&quot;四源融合检索&quot;——Agent 自主决策（搜索→评估→决策循环）替代预设 RAG 流程，三阶段质量 Pipeline（FastPass → Reranker → LLM Grading）在 Middleware 里做精筛，多实例 SSE 断点续传解决生产可靠性。核心是把 Agent 决策权、Middleware 关注点分离、SSE 三路径恢复做出来。</p>
                 </div>
