@@ -63,6 +63,14 @@ source-author: 得物技术
 - **组件协议模块：** 统一生命周期 + "初始化无副作用" 硬规则 + 双轨注册（显式选择 + 条件注入 + "已自动注入"提示），符合开闭原则；
 - **工程妥协模块：** 复用已有运行时 + 独立构建 + 消息协议通信，把开发精力放在真正新增的价值上，不重造已有轮子；但要在事前评估长期维护成本。
 
+### 工程落地实践
+
+**分阶段里程碑**：v0.1 把 3 个系统的"运营填 40+ 字段"流程画成有限状态机，先做 Workflow 不加 Agent → v0.5 在工作台聚合 Step1 必填项 + Step2 可选 → v1.0 上 Stage 1 必填 Skill（活动名/时间/话题）+ Agent 自动查资源 → v1.5 接 Interrupt/Resume + Checkpointer（Redis）→ v2.0 上 Stage 2 写权限 + 发布双签。每阶段必须有"运营从想法到上线的时间"基线。
+
+**关键数据契约**：`ActivityContext(activity_id, fields{}, history[])` + `InterruptDecision(approve/reject/edit/respond)` + `Stage2Manifest(created_resources[])`。三件套进数仓做长期分析（哪些活动审批通过率高、哪些 Stage 2 资源经常被返工）。
+
+**常见踩坑 + 兜底**：(1) Agent 跑飞无限循环 → 状态机强制 Stage 1 → Stage 2 → 发布三阶段，每阶段必走 Interrupt；(2) Checkpointer 膨胀 → 90 天前的 Activity 自动归档 + 冷数据转 OSS；(3) Stage 2 误操作 → IAM 最小权限，AI 只用专用 token 而非 admin token；(4) 用户改 1 个字段 3 个系统全要同步 → 工作台聚合视图 + 字段变更事件总线；(5) Interrupt 卡片渲染不一致 → Capability Registry 注册中心统一组件契约。
+
 ## 一句话总结
 
 企业级 Agent 落地的关键不是"AI 多强"，而是"Workflow 与 Agent 的混合范式 + Interrupt/Resume 的人机协作语言 + 渐进式权限分级 + 初始化无副作用的安全约束"——AI 从辅助工具变成流程主体，才是产品价值跃迁的真正拐点。

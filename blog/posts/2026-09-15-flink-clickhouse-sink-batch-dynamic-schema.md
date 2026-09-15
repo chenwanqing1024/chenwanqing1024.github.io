@@ -60,6 +60,14 @@ source-author: 得物技术
 - **Checkpoint 协调模块：** `volatile isFlushing` + `synchronized` 解决 Cleaner 与 flush 冲突，CheckpointTimeout = FutureTimeout × MaxRetries（10 分钟 vs 3 分钟 × 10 次）；
 - **运维保障模块：** 节点扩缩容触发主动 reload（用 etcd watch 替代 1 小时 polling）、P99 延迟监控、queue 长度告警、Future 永久阻塞兜底（finally 里 `completeExceptionally`）。
 
+### 工程落地实践
+
+**分阶段里程碑**：v0.1 跑通单 TM 写本地表（metaSize=1MB、5K TPS）→ v0.5 加 Shard 路由 + 异常节点剔除（5 万 TPS）→ v1.0 接 Checkpoint + 双语义开关 → v1.5 上 etcd watch 做扩缩容主动 reload。每阶段必须留一份对比压测报告。
+
+**关键数据契约**：`WriterConfig(metaSize, flushInterval, maxRetries)`、`BatchBuffer(List.copyOf)`、`ClickHouseShardStrategy` 三件套是横向扩展的基础——抽象出来后上层业务只关心"写哪张表"，下层全部走配置中心动态下发。
+
+**常见踩坑 + 兜底**：(1) Checkpoint 卡死 → 用 `volatile isFlushing` 避免 Cleaner 与 flush 同时进入临界区；(2) 节点剔除后旧数据回写 → Redis 异常列表 1 分钟 refresh + 写前校验节点 ID；(3) 攒批过大撑爆内存 → `metaSize` 按 `(TM Heap × 0.6) / 并发 Channel` 反推上限；(4) 反压时 Future 永久阻塞 → 兜底 `finally completeExceptionally`，把任务标 FAIL 而不是 HANG。
+
 ## 一句话总结
 
 ClickHouse Sink 的工程问题不是"能不能写进去"，而是"按字节攒批、本地表直写、节点动态剔除、Checkpoint 语义分轨"四件事都做对——这就是得物把官方 JDBC Sink 拆开重写的原因。

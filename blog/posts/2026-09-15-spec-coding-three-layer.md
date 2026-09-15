@@ -66,6 +66,16 @@ source-author: 得物技术
 - **MCP 信息通道：** 接口文档 MCP（拉 URL 自动获字段/枚举/必填项）+ 飞书云文档 MCP（直读 PRD）+ 日志/监控 MCP（解决"信息孤岛"失效模式）；
 - **失效兜底：** 对"信息孤岛"类问题（部署、监控、日志），专门建 debug Skill 而不是依赖通用 Claude 模型；对"规范真空"场景，强制要求先补 rule 再写代码。
 
+### 工程落地实践
+
+**分阶段里程碑**：D1-D2 起草 `ts.md`/`lint.md`/`service.md` 三件套 rules（每条规则带正反例）→ D3-D5 抽 3-5 个页面模板入 `.claude/code-design/` → D6-D7 把 Figma 稿转 HTML 入 `.claude/ui-design/` → D8+ 接 MCP（接口文档 + 飞书云文档 + 日志）。每个阶段结束都要写"踩坑日志"沉淀进 rules。
+
+**关键目录契约**：`.claude/rules/`（强制路径，跟项目走，禁止放 `~/.claude/`） + `.claude/code-design/`（文件名 = 模式名，调用指令 = `参考 {路径} 生成 {新页面}`） + `.claude/ui-design/`（HTML 源，AI 可读 class/布局）。三层目录是规范体系的物理骨架，缺一不可。
+
+**常见踩坑 + 兜底**：(1) AI 不读 rules → 在 `settings.json` 里强制 `attachRules: true`；(2) 模板泛滥 → 每个新模板要求"出现 ≥3 次"才准入；(3) Figma 转 HTML 失真 → 强制保留设计稿原始 layer name，AI 用 layer name 做语义匹配；(4) 规范过期 → rules 文件带 `last_reviewed` 字段，CI 扫描 90 天未更新自动标 stale；(5) 多人协作覆盖 → rules 进 PR review，冲突按"项目 owner 有最终决定权"。
+
+## 一句话总结
+
 ## 一句话总结
 
 Spec Coding 的本质不是"AI 写代码"，而是"用三层规范（约束 + 示范 + 视觉）+ MCP 信息通道把不确定性消除在执行之前"——AI 在确定性空间里高速执行，人维护和扩展那个确定性空间的边界。
