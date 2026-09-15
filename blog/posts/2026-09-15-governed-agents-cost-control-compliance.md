@@ -3,8 +3,8 @@ title: Governed Agents 框架：把 LLM Gateway 当成 Agent 的 runtime control
 date: 2026-09-15
 tags: [Agent, LLM Gateway, 治理, 成本控制, 合规, 工程实践]
 summary: 把 LLM Gateway 定位为 Agent 的 runtime control plane（不是简单的 model router）。5 个治理动作：identity / spend / model routing / context efficiency / guardrails。Govern / Decide / Protect / Observe / Assure 5 步运转框架。附完整简历项目骨架。
-source-url: https://www.langchain.com/blog/building-governed-agents-a-framework-for-cost-control-and-compliance
-source-title: Building Governed Agents: A Framework for Cost, Control, and Compliance
+source-url: "https://www.langchain.com/blog/building-governed-agents-a-framework-for-cost-control-and-compliance"
+source-title: "Building Governed Agents: A Framework for Cost, Control, and Compliance"
 source-author: Martha Janicki (LangChain)
 ---
 

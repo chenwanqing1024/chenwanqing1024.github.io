@@ -3,8 +3,8 @@ title: monday.com Sidekick：为什么"加更多 tool"反而让 Agent 更差—�
 date: 2026-09-15
 tags: [Agent, Sidekick, 多 Agent, 工程教训, 工程实践]
 summary: monday.com Sidekick 从单 Agent + N tools 起步，在生产里发现"加 tool 反而让 Agent 更差"——5 个具体失败模式。重构成 5 层架构（context/permission → orchestrator → subagents → tools → sandbox），并给出 tool vs subagent vs sandbox 的决策树。附完整简历项目骨架。
-source-url: https://www.langchain.com/blog/building-monday-com-sidekick-why-capable-agents-need-more-than-just-tools
-source-title: Building monday.com Sidekick: why capable agents need more than just tools
+source-url: "https://www.langchain.com/blog/building-monday-com-sidekick-why-capable-agents-need-more-than-just-tools"
+source-title: "Building monday.com Sidekick: why capable agents need more than just tools"
 source-author: Omri Bruchim (monday.com)
 ---
 

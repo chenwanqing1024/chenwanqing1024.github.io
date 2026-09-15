@@ -3,8 +3,8 @@ title: CX Agent 生产实践：Lyft / Vodafone / LATAM 三家 5 个共同模式 
 date: 2026-09-15
 tags: [Agent, CX, 多 Agent, LangGraph, 工程实践]
 summary: 把 LangChain 三家 CX 客户案例（Lyft 65% deflection + 35% resolution、Vodafone 90% 正确率 + 82% resolution、Concierge 13% → 1% out-of-scope）抽出 5 个跨企业可复用的工程模式，每个模式给定位 + 数据 + 工程提示 + 简历项目骨架。
-source-url: https://www.langchain.com/blog/customer-experience-cx-agents-in-production-lessons-from-lyft-vodafone-and-latam-airlines
-source-title: CX Agents in Production: Lessons from Lyft, Vodafone, and LATAM Airlines
+source-url: "https://www.langchain.com/blog/customer-experience-cx-agents-in-production-lessons-from-lyft-vodafone-and-latam-airlines"
+source-title: "CX Agents in Production: Lessons from Lyft, Vodafone, and LATAM Airlines"
 source-author: Jess Ou (LangChain)
 ---
 
