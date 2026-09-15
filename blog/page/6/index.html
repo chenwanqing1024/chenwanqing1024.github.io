@@ -64,6 +64,11 @@
             </div>
             <div class="card-body">
                 <div class="mb-4">
+                    <h5 class="mb-1"><a href="2026-09-15-claude-cookbook-misc-engineering.html">Claude API 工程实战：从 claude-cookbooks/misc 提炼的 14 个最小可用模式</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">LLM</span> </small></p>
+                    <p class="mb-1">把 anthropics/claude-cookbooks 的 misc 目录拆成 14 个独立模式，按「成本/输出可控/质量保障/长上下文/工作流增强」五个主题分组，每条给出一行定位 + 最小代码 + 工程踩坑提示。所有代码对齐 anthropic-sdk-python ≥ 0.40 的当前接口。</p>
+                </div>
+                <div class="mb-4">
                     <h5 class="mb-1"><a href="2026-09-15-claude-code-sandboxing-isolation.html">Claude Code 沙箱设计：文件系统 + 网络双重隔离的 5 个工程模式</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
                     <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">安全</span> <span class="badge bg-secondary">Sandbox</span> </small></p>
                     <p class="mb-1">把 Anthropic Claude Code Sandboxing 工程文章拆成 5 个工程模式：filesystem + network 双隔离缺一不可、OS 级 sandbox（bubblewrap / seatbelt）替代容器方案、proxy 化网络访问、scoped credential + 内容校验、Claude Code on the web 的 cloud sandbox。配数据（permission prompt 降 84%）+ 落地配置 + 面试可讲的安全模型取舍。</p>
@@ -82,11 +87,6 @@
                     <h5 class="mb-1"><a href="2026-09-15-building-effective-agents-patterns.html">Building Effective Agents 拆解：Workflows vs Agents 的 6 个工程取舍</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
                     <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">Workflow</span> </small></p>
                     <p class="mb-1">把 Anthropic Building Effective Agents 拆成 6 个工程取舍：workflows vs agents 的边界（确定路径 vs 自主决策）、5 个 workflow 模式（prompt chaining / routing / parallelization / orchestrator-workers / evaluator-optimizer）、3 个核心原则（simplicity / transparency / well-crafted ACI）、customer support + coding agent 两个工程落地参考、prompt engineering your tools 的元教训。配代码示例 + 面试可讲的设计决策。</p>
-                </div>
-                <div class="mb-4">
-                    <h5 class="mb-1"><a href="2026-09-15-auto-mode-defense-architecture.html">Claude Code Auto Mode：用两层防御替代人工审批的 6 个工程模式</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
-                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">安全</span> <span class="badge bg-secondary">Agent</span> </small></p>
-                    <p class="mb-1">把 Anthropic Auto Mode 工程文章拆成 6 个可落地的工程模式：审批疲劳的实证、两层防御架构（PI probe + transcript classifier）、三档 tier 决策、Reasoning-Blind Classifier、Subagent 双向闸门、Deny-and-Continue。配自评数据（0.4% FPR / 17% FNR）和工程落地做法。</p>
                 </div>
             </div>
         </div>

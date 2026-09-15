@@ -64,6 +64,11 @@
             </div>
             <div class="card-body">
                 <div class="mb-4">
+                    <h5 class="mb-1"><a href="2026-09-15-managed-agents-arch-patterns.html">Managed Agents 架构：把&quot;大脑&quot;和&quot;双手&quot;解耦的 5 个工程模式</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">Agent 架构</span> <span class="badge bg-secondary">Harness</span> </small></p>
+                    <p class="mb-1">把 Anthropic Managed Agents 工程文章拆成 5 个架构级模式：Pet vs Cattle 的容器陷阱、脑-手解耦、Sandbox 安全边界、Session ≠ Context Window、Many Brains Many Hands。每个模式给定位 + 推论 + 工程落地的具体做法，可以直接拿去面试讲 Agent 架构。</p>
+                </div>
+                <div class="mb-4">
                     <h5 class="mb-1"><a href="2026-09-15-madrigal-pharma-multi-agent-platform.html">Madrigal Pharma 多 Agent 平台：医药数据的&quot;看不见的归一化&quot;+ Skills 联邦制 + Trace 反哺 Eval</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
                     <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">多 Agent</span> <span class="badge bg-secondary">医药 RAG</span> <span class="badge bg-secondary">Deep Agents</span> <span class="badge bg-secondary">工程实践</span> </small></p>
                     <p class="mb-1">制药公司 Madrigal 用 LangChain / Deep Agents 搭多 Agent 平台，关键思想：把所有数据源归一化成一致的 tool interface（Agent 不关心数据从哪来）；modular skill 把单一用例变成平台；trace → eval dataset 是生产反馈的闭环。新用例从&quot;几周&quot;降到&quot;几小时&quot;。</p>
@@ -82,11 +87,6 @@
                     <h5 class="mb-1"><a href="2026-09-15-harness-design-gan-evaluator.html">Harness 设计实战：Generator-Evaluator 模式的 6 个工程教训</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
                     <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">Harness</span> <span class="badge bg-secondary">Agent 架构</span> </small></p>
                     <p class="mb-1">把 Anthropic 长时 Agent Harness 设计文章拆成 6 个工程教训：Context Anxiety 与 Reset 的必要性、Self-Evaluation 偏差、GAN 启发的 Generator-Evaluator、Sprint 契约与文件 handoff、Evaluator 调优要花几轮、Harness 是活系统（每次升级模型要重审）。每个模式配定位 + 数据 + 工程落地。</p>
-                </div>
-                <div class="mb-4">
-                    <h5 class="mb-1"><a href="2026-09-15-governed-agents-cost-control-compliance.html">Governed Agents 框架：把 LLM Gateway 当成 Agent 的 runtime control plane——5 层治理 + 简历级骨架</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
-                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">LLM Gateway</span> <span class="badge bg-secondary">治理</span> <span class="badge bg-secondary">成本控制</span> <span class="badge bg-secondary">合规</span> <span class="badge bg-secondary">工程实践</span> </small></p>
-                    <p class="mb-1">把 LLM Gateway 定位为 Agent 的 runtime control plane（不是简单的 model router）。5 个治理动作：identity / spend / model routing / context efficiency / guardrails。Govern / Decide / Protect / Observe / Assure 5 步运转框架。附完整简历项目骨架。</p>
                 </div>
             </div>
         </div>

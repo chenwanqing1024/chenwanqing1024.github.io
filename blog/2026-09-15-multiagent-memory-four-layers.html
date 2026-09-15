@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="这篇不讲”把历史塞进
+prompt”——它讲怎么把记忆拆成 Working / Session / User / Agent
+四层，让请求前并行加载、会话后异步沉淀、用 LLM
+判断价值、用冲突处理保持一致。四层不是分类维度的炫技，是把”Agent
+记不住东西”这个老大难问题拆成可工程化的子问题。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>Agent 记忆不是 prompt
+拼接：四层架构与异步沉淀 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>Agent 记忆不是 prompt 拼接：四层架构与异步沉淀</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">记忆系统</span> <span class="badge bg-secondary">MemOS</span> <span class="badge bg-secondary">工程落地</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://xie.infoq.cn/article/29f870b888dc584ac1f9e96f7" target="_blank" rel="noopener">企业级
+MultiAgent
+的记忆系统：短期上下文与四层记忆架构实现｜得物技术</a> · 得物技术
+            </div>
+
+<h2 id="原文在说什么">原文在说什么</h2>
+<p>得物这篇把”Agent 记忆”从一个含糊词变成一张可施工的图。</p>
+<p>文章开篇就反对一种最常见的工程偷懒——把全部历史拼到 prompt。理由是
+Agent 一次请求要经过模型、MCP/A2A 工具、RAG、Workflow 和 Sandbox
+五个环节，多轮对话和跨会话协作还要记用户偏好、任务进展、协作约定。记忆不是外挂，是执行链路的一部分。</p>
+<p>作者选了 <strong>MemOS</strong>（1540 题评测综合
+74.33%，单跳多跳均达标）作为长期记忆引擎。后端 Spring Boot 3 + Java
+17，Agent 编排用 AgentScope。新建 Agent 默认
+<code>longMemoryProvider=MEMOS</code>，但 <code>openLongMemory</code>
+默认关闭——开了之后，请求开始时短期会话历史和长期记忆<strong>并行加载</strong>，会话结束后由
+<code>onSessionEndAsync</code> 异步完成筛选、去重和长期沉淀。</p>
+<p><strong>四层记忆模型</strong>对应四个生命周期：</p>
+<ul>
+<li><strong>Working Memory</strong> 只服务当前一步推理，掉电即丢</li>
+<li><strong>Session Memory</strong>
+保存会话内消息历史，是代词消解和多轮推理的上下文</li>
+<li><strong>User Memory</strong> 跨 Agent 共享的用户偏好和稳定事实，对应
+MemOS 的 <code>user_profile</code></li>
+<li><strong>Agent Memory</strong> 某个 Agent 的任务经验和协作约定，对应
+<code>agent_{agentId}</code></li>
+</ul>
+<p>会话结束后，新增消息经过 LLM 判断和去重，从 Session 层沉淀到 User 或
+Agent 层。这里有个反直觉的设计：<strong>四层模型和 MemOS 的
+text_mem/pref_mem/skill_mem/tool_mem
+是两套分类维度</strong>，不能一一对应——四层描述生命周期，MemOS
+描述内容形态。</p>
+<p>短期记忆工程化的核心是 <strong>Redis 优先读取 + MySQL 兜底 + Token
+窗口控制</strong>。代码片段展示了关键的窗口裁剪逻辑：从最新消息向前累加
+token，超过 <code>MAX_TOKEN_WINDOW_SIZE - SUMMARY_TOKEN_BUDGET</code>
+就停止，并用会话摘要（2000 tokens 预算）补齐历史感。Redis 用
+<code>leftPush</code> 写入最新消息在表头，超 200 条
+<code>rightPop</code> 淘汰最旧。</p>
+<p>长期记忆并行加载用 <code>CompletableFuture</code>，配专用线程池
+<code>memoryLoadExecutor</code>（避免 ForkJoinPool.commonPool
+争抢）。MemOS Search 的 query 拼装有意思：只把
+<code>originalMessage</code> 作为主检索词，context 前 200 字符拼到
+<code>userMessage</code>
+后——也就是说<strong>短期记忆不参与增强本次检索</strong>，并行带来的是执行重叠，不是”短期已注入后再增强”。</p>
+<p><strong>Token Budget 分配</strong>是工程细节里的硬菜：长期记忆总预算
+4000 tokens，user_profile 最多占 60%（2400 tokens），剩下的给 Agent
+记忆。截断算法按行累加
+token，达到预算停止——避免把单条记忆拆散。检索结果还要经过
+<code>score &lt; 0.3</code> 过滤和单条 1000 字符截断。</p>
+<p>会话结束后写入流程用 Redis Set 记录已处理消息 hash 做去重，TTL 7
+天；onSessionEndAsync 加 10 分钟会话锁。LLM 智能判断时把新增消息标记为
+<code>[[NEW]]</code>
+喂给模型，模型决定哪些值得长期保留。<strong>本地去重</strong>用四层相似度：exact
+→ contains → 字符级 Jaccard（阈值 0.7）→ 短文本 Levenshtein（阈值
+0.8）。<strong>冲突处理</strong>按 memCubeId
+分组批量检测，再逐条决定写入新记忆、跳过、或记录待失效的旧记忆 ID。</p>
+<p>最反常识的一段：<strong>先写新记忆，后删旧记忆</strong>。作者明说这是”写入优先”的风险控制，不是事务级一致性——MemOS
+是外部 HTTP 服务，无法用本地事务同时包住新增和删除。删除失败只记
+warning，新记忆继续保留。这等于把”不丢新数据”排在”及时清理旧数据”前面。</p>
+<h2 id="我的看法">我的看法</h2>
+<p>我认同作者把”记忆分层”作为架构起点的判断，但有一个 push
+back：<strong>四层架构的可推广性被 MemOS 的特殊性盖住了</strong>。MemOS
+在评测里胜出，但它是基于 cube 模型（user_profile / agent_{id}
+这种可读可写命名空间），并不是所有长期记忆引擎都有这种结构。如果换成
+Mem0（基于 entry 的扁平模型）或 LangChain 的 Zep
+集成，四层架构的代码改动量并不小——你得自己实现 cube
+等价物。这篇没讲”四层架构对底层引擎的依赖边界在哪”，导致它读起来更像
+MemOS 落地文档，而不是可迁移的记忆系统设计。</p>
+<p>第二个 push back：<strong>best-effort
+标注被过度使用</strong>。文章至少三处说”Redis
+失败时整段会话作为新增内容继续处理”、“hash
+写入失败只记录日志”、“删除失败只记录
+warning”。每一处单独看都合理，但合在一起意味着——<strong>记忆系统没有强一致性保证，只有一堆局部降级路径</strong>。实际跑生产时，问题不是”哪个组件失败”，而是”失败组合下记忆变成什么样”。作者没量化什么算”可接受失败率”，也没说失败监控告警怎么做，这是工程化最薄弱的一环。</p>
+<p>第三个补充：<strong>Token Budget 60% 给 user_profile
+是经验值，不是设计选择</strong>。如果你的 Agent
+偏向工具调用（如代码助手），Agent
+记忆的价值可能远高于用户画像（用户偏好变化慢，工具调用模式变化快）。文章没讨论如何按场景调权重，给的是个固定比例。一个更好的设计是让
+budget 比例按 Agent 类型配置——客服 Agent 给 user_profile 多分配、研发
+Agent 给 agent_{id} 多分配。</p>
+<h3 id="怎么落到-agent-项目">怎么落到 Agent 项目</h3>
+<p>如果让我基于这篇做一个<strong>Agent
+项目的记忆子系统</strong>，我会画成这张图：</p>
+<p><strong>核心模块五件套：短期缓存、长期引擎、LLM
+判断器、本地去重器、冲突服务。</strong></p>
+<ol type="1">
+<li><p><strong>短期缓存</strong>：MySQL + Redis 双写。Redis 用
+List（最新消息在表头，超阈值 rightPop 淘汰）。写入顺序先 MySQL 再
+Redis——MySQL 是持久化兜底，Redis 是热点缓存；Redis 失败不回滚
+MySQL。这篇文章的代码片段可以直接抄，但
+<code>MAX_CACHED_MESSAGES=200</code>
+这种参数要按你的会话长度调。</p></li>
+<li><p><strong>长期引擎</strong>：选型不一定要 MemOS，Mem0 / Zep /
+自己的 PG + pgvector 都能做。关键是提供两个
+API：<code>search(scope, query) → List[Memory]</code> 和
+<code>add(scope, content, importance)</code>。如果用
+MemOS，注意四层模型与 MemOS
+类型是两套维度——前者是生命周期，后者是内容形态。</p></li>
+<li><p><strong>LLM 判断器</strong>：会话结束后异步调用
+LLM，决定哪些消息值得长期保留。Prompt 要包含完整对话上下文 +
+标记新增消息（<code>[[NEW]]</code> 标记能让 LLM
+知道重点看什么）。判断结果必须校验——LLM 偶尔会返回空或格式错。</p></li>
+<li><p><strong>本地去重器</strong>：同批次写入前先做内存级去重，按 exact
+→ contains → Jaccard（0.7）→
+Levenshtein（0.8）依次判断。这层只挡重复写入，跨历史的冲突留给冲突服务。</p></li>
+<li><p><strong>冲突服务</strong>：检测新增记忆和已有记忆是否冲突（语义相同但表述不同、事实矛盾等）。<strong>先写后删</strong>是新记忆优先——写入失败比删除失败危险得多。</p></li>
+</ol>
+<p><strong>工程上最容易踩的坑：</strong> - 异步沉淀失败没有重试。文章用
+Redis 锁 + hash 去重，但没说外部服务失败怎么补偿。建议在
+onSessionEndAsync 里加 dead-letter 队列，失败任务落到 DLQ
+用定时任务重试。 - Token Budget
+截断按行累加——这能保留语义完整性，但对中文和多行内容不准。中文 token
+估算偏长，多行 Markdown 经常被截掉开头。 - User Memory 和 Agent Memory
+的权限边界——文章说”跨 Agent 共享”，但没说”哪些 Agent 能读哪些
+cube”。如果两个 Agent 用同一个 userId，记忆就串了。</p>
+<p><strong>面试时被问”Agent
+怎么记住东西”</strong>——直接答四层：Working（一步）、Session（一会话）、User（跨会话）、Agent（跨同
+Agent）。<strong>真正能上生产的不是这四层名字</strong>，而是请求前并行加载、会话后异步沉淀、LLM
+智能判断、本地去重、冲突处理、先写后删这一整套工程链路。讲名字是知识点，讲链路是工程能力。</p>
+<h2 id="一句话总结">一句话总结</h2>
+<p>Agent
+记忆的难点不在分几层，而在每一层的写入时机、读取链路、一致性策略——把这五件事（并行加载、异步沉淀、LLM
+判断、本地去重、冲突处理）做对了，记忆才从”塞
+prompt”变成可工程化的子系统。</p>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>

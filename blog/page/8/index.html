@@ -64,6 +64,11 @@
             </div>
             <div class="card-body">
                 <div class="mb-4">
+                    <h5 class="mb-1"><a href="2026-09-15-advanced-tool-use-three-features.html">高级 Tool Use 三大特性：Tool Search、Programmatic Calling、Tool Examples 的 5 个工程模式</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
+                    <p class="text-muted mb-1"><small>2026-09-15 <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">Tool Use</span> <span class="badge bg-secondary">MCP</span> </small></p>
+                    <p class="mb-1">把 Anthropic Advanced Tool Use 工程文章拆成 5 个工程模式：Tool Search Tool 让 Claude 按需加载（节省 85% token，accuracy 从 49% → 74%）、Programmatic Tool Calling 让代码代替推理做编排（token 降 37%、accuracy 提升 5 个百分点）、Tool Use Examples 替代 schema 模糊（accuracy 从 72% → 90%）。每个模式给定位 + 代码 + 落地边界。</p>
+                </div>
+                <div class="mb-4">
                     <h5 class="mb-1"><a href="2026-09-14-vector-rag-retires.html">向量 RAG 退场，Agent 多轮检索接班</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
                     <p class="text-muted mb-1"><small>2026-09-14 <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">RAG</span> <span class="badge bg-secondary">向量检索</span> <span class="badge bg-secondary">PostgreSQL</span> <span class="badge bg-secondary">读文笔记</span> </small></p>
                     <p class="mb-1">冯若航没宣布 RAG 死亡，他把&quot;作为架构的 RAG&quot;和&quot;作为算子的向量召回&quot;切开了——前者退场，后者降级。最硬的证据是 Claude Code 选了 grep 加 glob，资本选了 PG 而非向量库。文章把这个判断往前推一步：MCP 让检索从流水线变成随手可调的工具，这才是 RAG 退场的真正推手，不是窗口变大。</p>
@@ -82,11 +87,6 @@
                     <h5 class="mb-1"><a href="2026-09-14-scale-yourself-not-subscription.html">蹬掉 10 个订阅不难，难的是把自己 scale 起来</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
                     <p class="text-muted mb-1"><small>2026-09-14 <span class="badge bg-secondary">AI</span> <span class="badge bg-secondary">Codex</span> <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">自动化</span> <span class="badge bg-secondary">复利</span> <span class="badge bg-secondary">读文笔记</span> </small></p>
                     <p class="mb-1">冯若航把&quot;如何凑齐 10 个 200 美元 Codex 订阅&quot;拆成两层：买得到是技术活，蹬得完是体系活。订阅费从来不是瓶颈，能持续堆出可被 AI 自动化的手工活、搭出能自己运转的复利体系、把验收范式从细节转向宏观——这才是真正的稀缺资源。</p>
-                </div>
-                <div class="mb-4">
-                    <h5 class="mb-1"><a href="2026-09-14-docs-over-code-ai-engineering.html">文档驱动：AI 工程的护城河不在代码，在文档</a> <span class="badge bg-info text-dark">读文笔记</span></h5>
-                    <p class="text-muted mb-1"><small>2026-09-14 <span class="badge bg-secondary">Agent</span> <span class="badge bg-secondary">AI 工程</span> <span class="badge bg-secondary">文档驱动</span> </small></p>
-                    <p class="mb-1">冯若航把 AI 软件工程的四条核心做法中的第一条——文档驱动——从&quot;代码的补充&quot;重定位为&quot;代码的输入、工作记忆与验收凭据&quot;。认同文档前置的方向，但 push back 两条：70-80% Token 用于 QC 的比例被简化、&quot;每个 Issue 一份设计文档&quot;的边界没说清；并扩展到 MCP/schema/ADR 这条隐线。</p>
                 </div>
             </div>
         </div>
