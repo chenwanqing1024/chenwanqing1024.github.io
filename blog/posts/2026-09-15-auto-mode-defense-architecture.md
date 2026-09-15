@@ -4,7 +4,7 @@ date: 2026-09-15
 tags: [Claude, AI 工程, 安全, Agent]
 summary: 把 Anthropic Auto Mode 工程文章拆成 6 个可落地的工程模式：审批疲劳的实证、两层防御架构（PI probe + transcript classifier）、三档 tier 决策、Reasoning-Blind Classifier、Subagent 双向闸门、Deny-and-Continue。配自评数据（0.4% FPR / 17% FNR）和工程落地做法。
 source-url: https://www.anthropic.com/engineering/claude-code-auto-mode
-source-title: Auto mode: a middle ground for agentic permission decisions
+source-title: "Auto mode: a middle ground for agentic permission decisions"
 source-author: John Hughes (Anthropic)
 ---
 
