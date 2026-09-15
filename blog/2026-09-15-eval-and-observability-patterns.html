@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="把 claude-cookbooks 里
+observability / tool_evaluation / evals / third_party 4 个目录合并成 6
+个工程模式：Usage &amp; Cost Admin API 监控 / Tool Evaluation XML 框架 /
+Agentic Search harness / Programmatic Tool Calling 杠杆 / Model-as-Judge
+F1 评分 / 第三方生态地图。每个模式一行定位 + 最小代码 + 2-3
+条工程踩坑提示。">
+    <meta name="author" content="Wanqing Chen">
+
+    <title>评测与可观测：从 Usage 监控到 Agent 基准复现的 6
+个工程模式 - Wanqing Chen</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
+    <link href="../navbar.css" rel="stylesheet">
+    <link href="../sticky-footer-navbar.css" rel="stylesheet">
+</head>
+
+<body id="page-top" data-bs-spy="scroll" data-bs-target="#navbar">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="../index.html">@</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar"
+                aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="../index.html">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../publication.html">作品</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="index.html">博客</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../technology.html">技术</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://github.com/chenwanqing1024" target="_blank">项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="../about.html">关于</a></li>
+                </ul>
+                <form class="d-flex" role="search" action="https://www.google.com/search" method="GET" target="_blank">
+                    <input type="hidden" name="sitesearch" value="chenwanqing1024.github.io">
+                    <input class="form-control me-2" type="search" name="q" placeholder="关键词" aria-label="Search">
+                    <button class="btn btn-outline-success" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="py-3">
+            <h1>评测与可观测：从 Usage 监控到 Agent 基准复现的 6
+个工程模式</h1>
+            <p class="text-muted">
+                2026-09-15 · <span class="badge bg-secondary">Claude</span> <span class="badge bg-secondary">AI
+工程</span> <span class="badge bg-secondary">Evals</span> <span class="badge bg-secondary">Observability</span> 
+            </p>
+
+            <div class="alert alert-light border" role="note">
+                <strong>读文笔记。</strong>本文是对他人文章的摘要与评述，非原文转载。
+                原文：<a href="https://github.com/anthropics/claude-cookbooks/tree/main/{observability,tool_evaluation,evals,third_party}" target="_blank" rel="noopener">claude-cookbooks
+/ observability + tool_evaluation + evals + third_party</a> · Anthropic
+            </div>
+
+<h2 id="引子">引子</h2>
+<p>claude-cookbooks 里和”评测 + 可观测”相关的目录有 4 个：</p>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>目录</th>
+<th>解决的问题</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>observability/</code></td>
+<td>怎么从 Admin API 拉 token / cost 数据</td>
+</tr>
+<tr class="even">
+<td><code>tool_evaluation/</code></td>
+<td>怎么评测一组 tool definition 的可用性</td>
+</tr>
+<tr class="odd">
+<td><code>evals/</code></td>
+<td>怎么跑 agentic search 基准（DeepSearchQA / BrowseComp）</td>
+</tr>
+<tr class="even">
+<td><code>third_party/</code></td>
+<td>第三方集成（LlamaIndex / Pinecone / MongoDB 等）的样板</td>
+</tr>
+</tbody>
+</table>
+<p>它们的共同主题：<strong>怎么”度量 + 监控”一个 Claude
+应用</strong>——这是 AI
+工程和传统软件工程最不一样的地方。传统软件上线后看 latency / error
+rate，AI 应用上线后还要看 <strong>模型评测分数 + token 成本 + 缓存命中率
++ 工具调用成功率</strong>。这 4 个目录把”Anthropic
+怎么度量自己的产品”和”开发者怎么度量自己的应用”都说清楚了。</p>
+<p>这篇文章把它们合并成 6 个相互独立的工程模式，按”<strong>观测 →
+单任务评测 → 长链路基准 → 评分 → 生态</strong>”排列。每个模式配一行定位
++ 最小代码 + 2-3 条工程踩坑提示。</p>
+<hr />
+<h2 id="usage-cost-admin-api拉-token-cost-数据">1. Usage &amp; Cost
+Admin API：拉 token / cost 数据</h2>
+<p><strong>一行定位</strong>：用 <code>sk-ant-admin...</code> Admin Key
+调 <code>usage_report/messages</code> 和 <code>cost_report</code>
+两个端点，把 token 消耗和 USD 成本拿到本地做监控。</p>
+<p><strong>最小代码</strong>：</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> os, requests</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> datetime <span class="im">import</span> datetime, time, timedelta</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> AnthropicAdminAPI:</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    BASE <span class="op">=</span> <span class="st">&quot;https://api.anthropic.com/v1/organizations&quot;</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, api_key: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>):</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.api_key <span class="op">=</span> api_key <span class="kw">or</span> os.getenv(<span class="st">&quot;ANTHROPIC_ADMIN_API_KEY&quot;</span>)</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="kw">not</span> <span class="va">self</span>.api_key.startswith(<span class="st">&quot;sk-ant-admin&quot;</span>):</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>            <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">&quot;需要 Admin Key（sk-ant-admin... 开头）&quot;</span>)</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.headers <span class="op">=</span> {</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;anthropic-version&quot;</span>: <span class="st">&quot;2023-06-01&quot;</span>,</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;x-api-key&quot;</span>: <span class="va">self</span>.api_key,</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;Content-Type&quot;</span>: <span class="st">&quot;application/json&quot;</span>,</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>        }</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> get(<span class="va">self</span>, endpoint: <span class="bu">str</span>, <span class="op">**</span>params):</span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>        r <span class="op">=</span> requests.get(<span class="ss">f&quot;</span><span class="sc">{</span><span class="va">self</span><span class="sc">.</span>BASE<span class="sc">}</span><span class="ss">/</span><span class="sc">{</span>endpoint<span class="sc">}</span><span class="ss">&quot;</span>,</span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>                         headers<span class="op">=</span><span class="va">self</span>.headers, params<span class="op">=</span>params, timeout<span class="op">=</span><span class="dv">30</span>)</span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>        r.raise_for_status()</span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> r.json()</span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a><span class="co"># 最近 7 天按模型聚合</span></span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a>client <span class="op">=</span> AnthropicAdminAPI()</span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a>end <span class="op">=</span> datetime.combine(datetime.utcnow(), time.<span class="bu">min</span>)</span>
+<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a>resp <span class="op">=</span> client.get(</span>
+<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;usage_report/messages&quot;</span>,</span>
+<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a>    starting_at<span class="op">=</span>(end <span class="op">-</span> timedelta(days<span class="op">=</span><span class="dv">7</span>)).strftime(<span class="st">&quot;%Y-%m-</span><span class="sc">%d</span><span class="st">T%H:%M:%SZ&quot;</span>),</span>
+<span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a>    ending_at<span class="op">=</span>end.strftime(<span class="st">&quot;%Y-%m-</span><span class="sc">%d</span><span class="st">T%H:%M:%SZ&quot;</span>),</span>
+<span id="cb1-30"><a href="#cb1-30" aria-hidden="true" tabindex="-1"></a>    bucket_width<span class="op">=</span><span class="st">&quot;1d&quot;</span>,</span>
+<span id="cb1-31"><a href="#cb1-31" aria-hidden="true" tabindex="-1"></a>    <span class="op">**</span>{<span class="st">&quot;group_by[]&quot;</span>: [<span class="st">&quot;model&quot;</span>]},</span>
+<span id="cb1-32"><a href="#cb1-32" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-33"><a href="#cb1-33" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> bucket <span class="kw">in</span> resp[<span class="st">&quot;data&quot;</span>]:</span>
+<span id="cb1-34"><a href="#cb1-34" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> r <span class="kw">in</span> bucket[<span class="st">&quot;results&quot;</span>]:</span>
+<span id="cb1-35"><a href="#cb1-35" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(r[<span class="st">&quot;model&quot;</span>], r[<span class="st">&quot;uncached_input_tokens&quot;</span>], r[<span class="st">&quot;output_tokens&quot;</span>])</span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li><strong>Admin Key 和普通 Key
+是两套权限</strong>。<code>sk-ant-admin...</code> 在 Console → Settings
+→ Admin Keys 里单独生成，<strong>不能调
+<code>messages.create</code></strong>——它只用于读 admin
+端点。生产里把它放在单独 secret、单独权限里。</li>
+<li><strong>bucket_width 有硬限制</strong>：usage 端点支持
+<code>1m</code> / <code>1h</code> / <code>1d</code>；cost
+端点<strong>只支持 <code>1d</code></strong>，最多 31
+天/请求。要拿月度数据必须分页 + 跨多个请求拼。</li>
+<li><strong>Priority Tier 成本永远拿不到</strong>。Cookbook
+明确说：“Priority Tier uses a different billing model and will never
+appear in the cost endpoint”——usage 端点能看 token 数，但 cost
+端点查不到 USD。要做 P0 监控就别用 Priority Tier。</li>
+<li><strong>分页靠 <code>has_more</code> +
+<code>next_page</code></strong>，<strong>没有 cursor
+token</strong>。Cookbook 的 <code>fetch_all_usage_data()</code> 循环
+while <code>has_more</code>，最多 <code>max_pages</code> 兜底——生产里加
+<code>max_pages=100</code>，防止 API 异常时死循环。</li>
+</ul>
+<hr />
+<h2 id="tool-evaluation-xml-框架单任务评测">2. Tool Evaluation XML
+框架：单任务评测</h2>
+<p><strong>一行定位</strong>：用一份 XML
+评测文件（<code>&lt;task&gt;&lt;prompt&gt;</code> +
+<code>&lt;response&gt;</code>）+ 一组 tool schema，跑一遍 agent loop，用
+XML 标签抽取 + 字符串相等判分，输出 markdown 报告。</p>
+<p><strong>最小代码</strong>（评测文件格式）：</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode xml"><code class="sourceCode xml"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">evaluation</span>&gt;</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    &lt;<span class="kw">task</span>&gt;</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>        &lt;<span class="kw">prompt</span>&gt;Calculate the compound interest on $10,000 at 5% APR,</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>                compounded monthly for 3 years. Round to 2 decimal places.&lt;/<span class="kw">prompt</span>&gt;</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>        &lt;<span class="kw">response</span>&gt;11614.72&lt;/<span class="kw">response</span>&gt;</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    &lt;/<span class="kw">task</span>&gt;</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>    &lt;<span class="kw">task</span>&gt;</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>        &lt;<span class="kw">prompt</span>&gt;Calculate the pH of a 3.5 × 10^-5 M H+ solution.</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>                Round to 2 decimal places.&lt;/<span class="kw">prompt</span>&gt;</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>        &lt;<span class="kw">response</span>&gt;4.46&lt;/<span class="kw">response</span>&gt;</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>    &lt;/<span class="kw">task</span>&gt;</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>&lt;/<span class="kw">evaluation</span>&gt;</span></code></pre></div>
+<p><strong>Agent + 评测函数</strong>：</p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> re, time</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> anthropic <span class="im">import</span> Anthropic</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>EVALUATION_PROMPT <span class="op">=</span> <span class="st">&quot;&quot;&quot;You are an AI assistant with access to tools.</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="st">- Provide summary of each step, wrapped in &lt;summary&gt; tags</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="st">- Provide feedback on the tools provided, wrapped in &lt;feedback&gt; tags</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="st">- Provide your final response, wrapped in &lt;response&gt; tags</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="st">For numeric responses, provide just the number. If you cannot solve the task,</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="st">return &lt;response&gt;NOT_FOUND&lt;/response&gt;. Your response should go last.&quot;&quot;&quot;</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>client <span class="op">=</span> Anthropic()</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> <span class="st">&quot;claude-sonnet-4-6&quot;</span></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> agent_loop(prompt, tools):</span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>    <span class="co">&quot;&quot;&quot;简化版 tool-use loop，记录每个 tool 的调用次数和耗时&quot;&quot;&quot;</span></span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>    messages <span class="op">=</span> [{<span class="st">&quot;role&quot;</span>: <span class="st">&quot;user&quot;</span>, <span class="st">&quot;content&quot;</span>: prompt}]</span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>    metrics <span class="op">=</span> {}  <span class="co"># {tool_name: {&quot;count&quot;: N, &quot;durations&quot;: [...]}}</span></span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> <span class="va">True</span>:</span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>        resp <span class="op">=</span> client.messages.create(</span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>            model<span class="op">=</span>model, max_tokens<span class="op">=</span><span class="dv">4096</span>,</span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>            system<span class="op">=</span>EVALUATION_PROMPT, messages<span class="op">=</span>messages, tools<span class="op">=</span>tools,</span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>        messages.append({<span class="st">&quot;role&quot;</span>: <span class="st">&quot;assistant&quot;</span>, <span class="st">&quot;content&quot;</span>: resp.content})</span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> resp.stop_reason <span class="op">!=</span> <span class="st">&quot;tool_use&quot;</span>:</span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>            <span class="cf">break</span></span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>        tool_use <span class="op">=</span> <span class="bu">next</span>(b <span class="cf">for</span> b <span class="kw">in</span> resp.content <span class="cf">if</span> b.<span class="bu">type</span> <span class="op">==</span> <span class="st">&quot;tool_use&quot;</span>)</span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>        t0 <span class="op">=</span> time.time()</span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a>        tool_result <span class="op">=</span> dispatch(tool_use.name, tool_use.<span class="bu">input</span>)   <span class="co"># 业务侧分发</span></span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a>        metrics.setdefault(tool_use.name, {<span class="st">&quot;count&quot;</span>: <span class="dv">0</span>, <span class="st">&quot;durations&quot;</span>: []})</span>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a>        metrics[tool_use.name][<span class="st">&quot;count&quot;</span>] <span class="op">+=</span> <span class="dv">1</span></span>
+<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a>        metrics[tool_use.name][<span class="st">&quot;durations&quot;</span>].append(time.time() <span class="op">-</span> t0)</span>
+<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a>        messages.append({<span class="st">&quot;role&quot;</span>: <span class="st">&quot;user&quot;</span>, <span class="st">&quot;content&quot;</span>: [{</span>
+<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;type&quot;</span>: <span class="st">&quot;tool_result&quot;</span>, <span class="st">&quot;tool_use_id&quot;</span>: tool_use.<span class="bu">id</span>, <span class="st">&quot;content&quot;</span>: tool_result,</span>
+<span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a>        }]})</span>
+<span id="cb3-35"><a href="#cb3-35" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">next</span>((b.text <span class="cf">for</span> b <span class="kw">in</span> resp.content <span class="cf">if</span> <span class="bu">hasattr</span>(b, <span class="st">&quot;text&quot;</span>)), <span class="va">None</span>), metrics</span>
+<span id="cb3-36"><a href="#cb3-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-37"><a href="#cb3-37" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> evaluate(task, tools):</span>
+<span id="cb3-38"><a href="#cb3-38" aria-hidden="true" tabindex="-1"></a>    text, metrics <span class="op">=</span> agent_loop(task[<span class="st">&quot;prompt&quot;</span>], tools)</span>
+<span id="cb3-39"><a href="#cb3-39" aria-hidden="true" tabindex="-1"></a>    response <span class="op">=</span> re.findall(<span class="vs">r&quot;&lt;response&gt;(.*?)&lt;/response&gt;&quot;</span>, text, re.DOTALL)</span>
+<span id="cb3-40"><a href="#cb3-40" aria-hidden="true" tabindex="-1"></a>    actual <span class="op">=</span> response[<span class="op">-</span><span class="dv">1</span>].strip() <span class="cf">if</span> response <span class="cf">else</span> <span class="va">None</span></span>
+<span id="cb3-41"><a href="#cb3-41" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> {</span>
+<span id="cb3-42"><a href="#cb3-42" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;prompt&quot;</span>: task[<span class="st">&quot;prompt&quot;</span>], <span class="st">&quot;expected&quot;</span>: task[<span class="st">&quot;response&quot;</span>],</span>
+<span id="cb3-43"><a href="#cb3-43" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;actual&quot;</span>: actual, <span class="st">&quot;score&quot;</span>: <span class="bu">int</span>(actual <span class="op">==</span> task[<span class="st">&quot;response&quot;</span>]),</span>
+<span id="cb3-44"><a href="#cb3-44" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;tool_calls&quot;</span>: metrics,</span>
+<span id="cb3-45"><a href="#cb3-45" aria-hidden="true" tabindex="-1"></a>    }</span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li><strong>XML 评测文件的硬约束</strong>：<code>&lt;prompt&gt;</code>
+是用户输入、<code>&lt;response&gt;</code> 是 gold
+answer——<strong>只支持字符串完全相等判分</strong>。所以这模式只适合”答案明确”的场景（数值、ID、单词）。模糊匹配的场景用
+§5 的 model-as-judge。</li>
+<li><strong>判分函数要分桶</strong>。Cookbook 的 calculator
+例子所有题都判
+<code>int(response == expected)</code>，对数值题就过——但<strong>空格 /
+大小写 / 千分位</strong>会让 100% 的正确答案被判 0 分。生产里至少加
+<code>re.sub(r"\s+", "", actual) == re.sub(r"\s+", "", expected)</code>
+这种预处理。</li>
+<li><strong>tool description
+写得好不好，直接影响评测分数</strong>。Cookbook 故意把 calculator tool
+的 <code>description</code> 和参数 <code>description</code> 都设为
+<code>""</code>——这是为了演示<strong>坏 description
+会让模型乱调工具</strong>。生产里写完 tool 第一件事：跑 5-8 个 task 看看
+<code>&lt;feedback&gt;</code> 标签里模型说什么，按反馈改
+description。</li>
+</ul>
+<hr />
+<h2 id="agentic-search-harness跑长链路基准">3. Agentic Search
+Harness：跑长链路基准</h2>
+<p><strong>一行定位</strong>：用 <code>web_search</code> +
+<code>web_fetch</code> + <code>code_execution</code>
+的”程序化调用”组合，配 <code>thinking: adaptive</code> +
+<code>effort: max</code> + <code>task_budget</code>，复现 Anthropic 在
+DeepSearchQA / BrowseComp 上的官方分数。</p>
+<p><strong>最小代码</strong>（核心配置）：</p>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> anthropic</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>MODEL <span class="op">=</span> <span class="st">&quot;claude-sonnet-5&quot;</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>GRADER_MODEL <span class="op">=</span> <span class="st">&quot;claude-opus-4-6&quot;</span>     <span class="co"># ← 关键：评测模型固定用更强的 Opus</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="co"># 长链路必须延长超时：单次 stream() 内部可能跑 30+ tool calls 几分钟</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>client <span class="op">=</span> anthropic.Anthropic(</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>    max_retries<span class="op">=</span><span class="dv">20</span>,</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>    timeout<span class="op">=</span>anthropic.Timeout(<span class="fl">5.0</span>, read<span class="op">=</span><span class="fl">3600.0</span>, write<span class="op">=</span><span class="fl">600.0</span>, pool<span class="op">=</span><span class="fl">600.0</span>),</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>TOOLS <span class="op">=</span> [</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>    {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;code_execution_20260521&quot;</span>, <span class="st">&quot;name&quot;</span>: <span class="st">&quot;code_execution&quot;</span>},</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>    {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;web_search_20260318&quot;</span>, <span class="st">&quot;name&quot;</span>: <span class="st">&quot;web_search&quot;</span>,</span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>     <span class="st">&quot;max_uses&quot;</span>: <span class="dv">10_000</span>,</span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>     <span class="st">&quot;allowed_callers&quot;</span>: [<span class="st">&quot;code_execution_20260521&quot;</span>],     <span class="co"># ← 关键：只允许沙箱内调</span></span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>     <span class="st">&quot;response_inclusion&quot;</span>: <span class="st">&quot;excluded&quot;</span>},                   <span class="co"># ← 关键：结果不进 context</span></span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>    {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;web_fetch_20260318&quot;</span>, <span class="st">&quot;name&quot;</span>: <span class="st">&quot;web_fetch&quot;</span>,</span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>     <span class="st">&quot;max_uses&quot;</span>: <span class="dv">10_000</span>, <span class="st">&quot;max_content_tokens&quot;</span>: <span class="dv">1_000_000</span>,</span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>     <span class="st">&quot;allowed_callers&quot;</span>: [<span class="st">&quot;code_execution_20260521&quot;</span>],</span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>     <span class="st">&quot;response_inclusion&quot;</span>: <span class="st">&quot;excluded&quot;</span>},</span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a>BETAS <span class="op">=</span> [<span class="st">&quot;compact-2026-01-12&quot;</span>, <span class="st">&quot;task-budgets-2026-03-13&quot;</span>]</span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a>THINKING <span class="op">=</span> {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;adaptive&quot;</span>}     <span class="co"># 让模型自己决定什么时候该想</span></span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a>OUTPUT_CONFIG <span class="op">=</span> {</span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;effort&quot;</span>: <span class="st">&quot;max&quot;</span>,                                  <span class="co"># 用模型卡报告的最高档</span></span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;task_budget&quot;</span>: {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;tokens&quot;</span>, <span class="st">&quot;total&quot;</span>: <span class="dv">3_000_000</span>},   <span class="co"># 跨 turn 的输出预算</span></span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a><span class="co"># 触发压缩 + 自定义摘要指令（最容易被忽视的杠杆）</span></span>
+<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a>COMPACT_INSTRUCTIONS <span class="op">=</span> (</span>
+<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;Your summary MUST begin by restating the user&#39;s ORIGINAL QUESTION &quot;</span></span>
+<span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;verbatim in &lt;original_question&gt;...&lt;/original_question&gt; tags. &quot;</span></span>
+<span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;Then summarize key sources found, partial answers, and what remains. &quot;</span></span>
+<span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;Your summary MUST also include this verbatim: &quot;</span></span>
+<span id="cb4-37"><a href="#cb4-37" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;&#39;Provide your final answer wrapped in &lt;result&gt;...&lt;/result&gt; tags.&#39;&quot;</span></span>
+<span id="cb4-38"><a href="#cb4-38" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb4-39"><a href="#cb4-39" aria-hidden="true" tabindex="-1"></a>CONTEXT_MANAGEMENT <span class="op">=</span> {<span class="st">&quot;edits&quot;</span>: [{</span>
+<span id="cb4-40"><a href="#cb4-40" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;type&quot;</span>: <span class="st">&quot;compact_20260112&quot;</span>,</span>
+<span id="cb4-41"><a href="#cb4-41" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;trigger&quot;</span>: {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;input_tokens&quot;</span>, <span class="st">&quot;value&quot;</span>: <span class="dv">200_000</span>},</span>
+<span id="cb4-42"><a href="#cb4-42" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;instructions&quot;</span>: COMPACT_INSTRUCTIONS,</span>
+<span id="cb4-43"><a href="#cb4-43" aria-hidden="true" tabindex="-1"></a>}]}</span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li><strong><code>allowed_callers</code> +
+<code>response_inclusion: "excluded"</code>
+是评测分数的第一杠杆</strong>。一个 deep research 题能触发 50+ 次
+<code>web_fetch</code>，不这样配置的话每次结果都进
+context，<strong>直接超 context window</strong>。Cookbook 的原话：“for
+deep research this is essential”。</li>
+<li><strong><code>COMPACT_INSTRUCTIONS</code> 比 trigger
+阈值更重要</strong>。Cookbook 明确说：“Without them, the post-compaction
+agent has a summary of <em>what it found</em> but not <em>what it was
+asked</em>… scores
+zero”。<strong>指令里必须包含”原题复述”和”答案格式”</strong>两件事。</li>
+<li><strong>timeout
+是分档的</strong>。<code>Timeout(5.0, read=3600.0, write=600.0, pool=600.0)</code>——<code>read=3600</code>
+是关键：单个 stream 事件最长等 1 小时。<strong>默认 60s
+直接挂</strong>。</li>
+<li><strong><code>max_retries=20</code></strong>：单次跑几百题时中途遇到
+429/529 是常态。SDK 默认 2 次重试不够——一次完整 benchmark 跑 2
+小时，中途 5 分钟断网就全废。</li>
+</ul>
+<hr />
+<h2 id="programmatic-tool-calling评测的最大杠杆">4. Programmatic Tool
+Calling：评测的最大杠杆</h2>
+<p><strong>一行定位</strong>：把 <code>web_search</code> /
+<code>web_fetch</code> 从”Claude 直接调的工具”降级成”沙箱里 Python
+代码调的库”——结果不进 context、只在沙箱里读、最后只 surface
+摘要，<strong>50+ 次 fetch 也不会爆 context</strong>。</p>
+<p><strong>最小代码</strong>：</p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Claude 在沙箱里写的 Python（自动生成的代码长这样）：</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> anthropic_client <span class="im">as</span> ac</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>results <span class="op">=</span> []</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> q <span class="kw">in</span> [<span class="st">&quot;Q1 2024 bank CEO tenure&quot;</span>, <span class="st">&quot;JPMorgan CEO since&quot;</span>, <span class="st">&quot;Jamie Dimon appointment&quot;</span>]:</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    results.append(ac.web_search(query<span class="op">=</span>q, max_results<span class="op">=</span><span class="dv">5</span>))</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Claude 在沙箱里读每个结果，**这些结果不进 main context**：</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> r <span class="kw">in</span> results:</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(r.title, r.snippet)</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a><span class="co"># 最后只把打印的输出 surface 回 main conversation</span></span></code></pre></div>
+<p><strong>对比数据</strong>：</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>方式</th>
+<th>单次 deep research context 占用</th>
+<th>能跑几题</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>不用 PTC（web_search 直接调）</td>
+<td>50+ fetch × ~5K token = 250K+</td>
+<td>1 题就要压缩或超限</td>
+</tr>
+<tr class="even">
+<td>用 PTC（沙箱内调）</td>
+<td>只 surface 摘要 ~2K token</td>
+<td>1 题轻松 200K context</td>
+</tr>
+</tbody>
+</table>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li><strong>PTC 的核心是”转换协议边界”</strong>——把”LLM ↔︎ 工具”变成”LLM
+→ 代码 → 工具 → 代码 → LLM”。<strong>好处</strong>：工具结果不进 LLM
+context，省 token、省 attention 噪音；<strong>代价</strong>：debug
+比直接调难，错误处理要写到 sandbox 代码里。</li>
+<li><strong>不是所有工具都适合 PTC</strong>。PTC 要求工具是”沙箱内
+Python 代码能调的 API”——HTTP / DB / 文件都好做，但像
+<code>messages.create</code> 这种”要 LLM
+决策的”就不适合（套娃递归）。Cookbook 默认只把 <code>web_search</code> /
+<code>web_fetch</code> 标
+<code>allowed_callers: ["code_execution"]</code>。</li>
+<li><strong><code>response_inclusion: "excluded"</code>
+是必配</strong>。就算配了 <code>allowed_callers</code>，<strong>默认
+tool result 还是会进 context</strong>——<code>excluded</code>
+才是关键开关。Cookbook 把它和 <code>allowed_callers</code>
+配对出现。</li>
+</ul>
+<hr />
+<h2 id="model-as-judge-graderf1-抽取-result">5. Model-as-Judge
+Grader：F1 + 抽取 <code>&lt;result&gt;</code></h2>
+<p><strong>一行定位</strong>：用更强的模型（<code>claude-opus-4-6</code>）当裁判，喂”问题
++ 标准答案 + 响应”让它输出 XML 评分——再解析 XML 算 precision / recall /
+F1。</p>
+<p><strong>最小代码</strong>：</p>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1) prompt 模型把答案包在 &lt;result&gt; 标签里（评测时才能精确抽取）</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>USER_PROMPT <span class="op">=</span> <span class="st">&quot;&quot;&quot;I want you to answer the following question.</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="st">&lt;question&gt;</span><span class="sc">{question}</span><span class="st">&lt;/question&gt;</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="st">First plan out your response. Then provide a short and concise answer</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="st">in &lt;result&gt; tags. For multiple answers, separate them with commas.&quot;&quot;&quot;</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 2) 评测 prompt：让 grader 模型按固定 XML 输出</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>GRADER_PROMPT <span class="op">=</span> <span class="st">&quot;&quot;&quot;Your task is to evaluate whether a given response arrived at the correct answer.</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a><span class="st">Question: &lt;question&gt;</span><span class="sc">{question}</span><span class="st">&lt;/question&gt;</span></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="st">Correct answer (type: </span><span class="sc">{answer_type}</span><span class="st">): &lt;correct_answer&gt;</span><span class="sc">{answer}</span><span class="st">&lt;/correct_answer&gt;</span></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a><span class="st">Response to evaluate: &lt;response&gt;</span><span class="sc">{response}</span><span class="st">&lt;/response&gt;</span></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a><span class="st">For each expected answer item, indicate whether it appears in the response.</span></span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a><span class="st">Then list any answers in the response that are NOT in the correct-answer list.</span></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a><span class="st">Wording does not need to match exactly.</span></span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a><span class="st">Reply in this exact XML format:</span></span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a><span class="st">&lt;evaluation&gt;</span></span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a><span class="st">  &lt;explanation&gt;one sentence&lt;/explanation&gt;</span></span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a><span class="st">  &lt;correctness_details&gt;</span></span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a><span class="st">    &lt;item answer=&quot;expected_item_1&quot; correct=&quot;true|false&quot;/&gt;</span></span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a><span class="st">  &lt;/correctness_details&gt;</span></span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a><span class="st">  &lt;excessive_answers&gt;</span></span>
+<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a><span class="st">    &lt;item&gt;extra_item_if_any&lt;/item&gt;</span></span>
+<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a><span class="st">  &lt;/excessive_answers&gt;</span></span>
+<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a><span class="st">&lt;/evaluation&gt;&quot;&quot;&quot;</span></span>
+<span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-28"><a href="#cb6-28" aria-hidden="true" tabindex="-1"></a><span class="co"># 3) 解析 + 算 F1</span></span>
+<span id="cb6-29"><a href="#cb6-29" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> re</span>
+<span id="cb6-30"><a href="#cb6-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-31"><a href="#cb6-31" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> grade(client, grader_model, question, response_text):</span>
+<span id="cb6-32"><a href="#cb6-32" aria-hidden="true" tabindex="-1"></a>    extracted <span class="op">=</span> extract_result_tag(response_text) <span class="kw">or</span> response_text</span>
+<span id="cb6-33"><a href="#cb6-33" aria-hidden="true" tabindex="-1"></a>    msg <span class="op">=</span> client.messages.create(</span>
+<span id="cb6-34"><a href="#cb6-34" aria-hidden="true" tabindex="-1"></a>        model<span class="op">=</span>grader_model, max_tokens<span class="op">=</span><span class="dv">1024</span>,</span>
+<span id="cb6-35"><a href="#cb6-35" aria-hidden="true" tabindex="-1"></a>        messages<span class="op">=</span>[{<span class="st">&quot;role&quot;</span>: <span class="st">&quot;user&quot;</span>, <span class="st">&quot;content&quot;</span>: GRADER_PROMPT.<span class="bu">format</span>(</span>
+<span id="cb6-36"><a href="#cb6-36" aria-hidden="true" tabindex="-1"></a>            question<span class="op">=</span>question[<span class="st">&quot;problem&quot;</span>], answer<span class="op">=</span>question[<span class="st">&quot;answer&quot;</span>],</span>
+<span id="cb6-37"><a href="#cb6-37" aria-hidden="true" tabindex="-1"></a>            answer_type<span class="op">=</span>question[<span class="st">&quot;answer_type&quot;</span>], response<span class="op">=</span>extracted)}],</span>
+<span id="cb6-38"><a href="#cb6-38" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb6-39"><a href="#cb6-39" aria-hidden="true" tabindex="-1"></a>    grader_text <span class="op">=</span> msg.content[<span class="dv">0</span>].text</span>
+<span id="cb6-40"><a href="#cb6-40" aria-hidden="true" tabindex="-1"></a>    items <span class="op">=</span> re.findall(<span class="vs">r&#39;&lt;item\s+answer=&quot;([^&quot;]+)&quot;\s+correct=&quot;(true|false)&quot;\s*/?&gt;&#39;</span>,</span>
+<span id="cb6-41"><a href="#cb6-41" aria-hidden="true" tabindex="-1"></a>                       grader_text)</span>
+<span id="cb6-42"><a href="#cb6-42" aria-hidden="true" tabindex="-1"></a>    ex_block <span class="op">=</span> re.search(<span class="vs">r&quot;&lt;excessive_answers&gt;(.*?)&lt;/excessive_answers&gt;&quot;</span>,</span>
+<span id="cb6-43"><a href="#cb6-43" aria-hidden="true" tabindex="-1"></a>                         grader_text, re.DOTALL)</span>
+<span id="cb6-44"><a href="#cb6-44" aria-hidden="true" tabindex="-1"></a>    excessive <span class="op">=</span> re.findall(<span class="vs">r&quot;&lt;item&gt;([^&lt;]+)&lt;/item&gt;&quot;</span>, ex_block.group(<span class="dv">1</span>)) <span class="cf">if</span> ex_block <span class="cf">else</span> []</span>
+<span id="cb6-45"><a href="#cb6-45" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-46"><a href="#cb6-46" aria-hidden="true" tabindex="-1"></a>    n_correct <span class="op">=</span> <span class="bu">sum</span>(<span class="dv">1</span> <span class="cf">for</span> _, c <span class="kw">in</span> items <span class="cf">if</span> c <span class="op">==</span> <span class="st">&quot;true&quot;</span>)</span>
+<span id="cb6-47"><a href="#cb6-47" aria-hidden="true" tabindex="-1"></a>    submitted <span class="op">=</span> n_correct <span class="op">+</span> <span class="bu">len</span>(excessive)</span>
+<span id="cb6-48"><a href="#cb6-48" aria-hidden="true" tabindex="-1"></a>    precision <span class="op">=</span> n_correct <span class="op">/</span> submitted <span class="cf">if</span> submitted <span class="cf">else</span> <span class="fl">0.0</span></span>
+<span id="cb6-49"><a href="#cb6-49" aria-hidden="true" tabindex="-1"></a>    recall    <span class="op">=</span> n_correct <span class="op">/</span> <span class="bu">len</span>(items) <span class="cf">if</span> items <span class="cf">else</span> <span class="fl">0.0</span></span>
+<span id="cb6-50"><a href="#cb6-50" aria-hidden="true" tabindex="-1"></a>    f1 <span class="op">=</span> <span class="dv">2</span> <span class="op">*</span> precision <span class="op">*</span> recall <span class="op">/</span> (precision <span class="op">+</span> recall) <span class="cf">if</span> (precision <span class="op">+</span> recall) <span class="cf">else</span> <span class="fl">0.0</span></span>
+<span id="cb6-51"><a href="#cb6-51" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> {<span class="st">&quot;precision&quot;</span>: precision, <span class="st">&quot;recall&quot;</span>: recall, <span class="st">&quot;f1&quot;</span>: f1,</span>
+<span id="cb6-52"><a href="#cb6-52" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;extracted&quot;</span>: extracted}</span>
+<span id="cb6-53"><a href="#cb6-53" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-54"><a href="#cb6-54" aria-hidden="true" tabindex="-1"></a><span class="co"># 4) BrowseComp 单答案场景：用 A/B/C 单字母评分（更便宜、更快）</span></span>
+<span id="cb6-55"><a href="#cb6-55" aria-hidden="true" tabindex="-1"></a>BROWSECOMP_GRADER <span class="op">=</span> <span class="st">&quot;&quot;&quot;...</span></span>
+<span id="cb6-56"><a href="#cb6-56" aria-hidden="true" tabindex="-1"></a><span class="st">Consider these statements about the sample answer:</span></span>
+<span id="cb6-57"><a href="#cb6-57" aria-hidden="true" tabindex="-1"></a><span class="st"> (A) It matches the ground-truth answer.</span></span>
+<span id="cb6-58"><a href="#cb6-58" aria-hidden="true" tabindex="-1"></a><span class="st"> (B) It does not match the ground-truth answer.</span></span>
+<span id="cb6-59"><a href="#cb6-59" aria-hidden="true" tabindex="-1"></a><span class="st"> (C) It says something like &quot;I&#39;m not sure&quot; or &quot;I don&#39;t know&quot;.</span></span>
+<span id="cb6-60"><a href="#cb6-60" aria-hidden="true" tabindex="-1"></a><span class="st">Respond with exactly one letter (A, B, or C) and nothing else.&quot;&quot;&quot;</span></span></code></pre></div>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li><strong>Grader 模型要”和被测模型错开”</strong>。Cookbook 强制
+<code>GRADER_MODEL = claude-opus-4-6</code>，<strong>不管被测模型是
+Sonnet 还是 Haiku</strong>。用模型自己评自己 = 评分虚高
+30%+，<strong>跨模型不可比</strong>。</li>
+<li><strong>只评 <code>&lt;result&gt;</code> 标签里的内容，不评整段
+response</strong>。Cookbook 的原话：“feeding the whole response to the
+grader inflates both false positives and false negatives”。<strong>先
+<code>extract_result_tag()</code> 抽取再评分</strong>是必备步骤。</li>
+<li><strong>F1 &gt; 准确率</strong>。set-valued 任务（“列出 3
+个国家”）准确率会惩罚”多答对的”和”少答的”——F1 用 precision/recall
+调和更准确。<strong>BrowseComp 这种单答案任务用
+accuracy</strong>（<code>grader_letter == "A"</code>），因为 set-valued
+vs single-answer 是两种问题。</li>
+<li><strong>max_tokens 给 8（BrowseComp）或
+1024（F1）</strong>。BrowseComp 只要一个字母，<strong>8 token
+就够</strong>——配合 streaming 时几乎免费；F1 grader 要写 XML
+解释，<strong>给 1024 不然会截断</strong>。</li>
+</ul>
+<hr />
+<h2 id="第三方生态地图选-llamaindex-pinecone-mongodb-voyage">6.
+第三方生态地图：选 LlamaIndex / Pinecone / MongoDB / Voyage</h2>
+<p><strong>一行定位</strong>：<code>third_party/</code> 收录了 7+
+主流框架的”Claude 集成样板”——按”RAG / 数据源 / 多模态 / 搜索”分桶。</p>
+<p><strong>生态地图</strong>：</p>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>子目录</th>
+<th>框架</th>
+<th>解决的问题</th>
+<th>集成形态</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>Pinecone/</code></td>
+<td>Pinecone 向量库</td>
+<td>RAG 检索 + agentic RAG</td>
+<td><code>claude_3_rag_agent</code> /
+<code>rag_using_pinecone</code></td>
+</tr>
+<tr class="even">
+<td><code>LlamaIndex/</code></td>
+<td>LlamaIndex 编排</td>
+<td>RAG / Multi-Document Agent / ReAct / Router</td>
+<td>5 个 notebook：Basic_RAG / ReAct / Router / SubQuestion /
+Multi_Document / Multi_Modal</td>
+</tr>
+<tr class="odd">
+<td><code>MongoDB/</code></td>
+<td>MongoDB Atlas</td>
+<td>向量检索 + metadata 过滤</td>
+<td>Atlas Vector Search 集成</td>
+</tr>
+<tr class="even">
+<td><code>VoyageAI/</code></td>
+<td>Voyage Embeddings</td>
+<td>替换 OpenAI/Cohere embedder</td>
+<td>voyage-2 / voyage-large-2</td>
+</tr>
+<tr class="odd">
+<td><code>Wikipedia/</code></td>
+<td>Wikipedia API</td>
+<td>知识库检索</td>
+<td>直接 HTTP + wikipedia 库</td>
+</tr>
+<tr class="even">
+<td><code>WolframAlpha/</code></td>
+<td>WolframAlpha</td>
+<td>数学 / 科学计算</td>
+<td>wolframalpha 库 + tool schema</td>
+</tr>
+<tr class="odd">
+<td><code>Deepgram/</code></td>
+<td>Deepgram ASR</td>
+<td>语音转文本</td>
+<td>audio 文件上传 + transcription tool</td>
+</tr>
+<tr class="even">
+<td><code>ElevenLabs/</code></td>
+<td>ElevenLabs TTS</td>
+<td>文本转语音</td>
+<td>streaming TTS tool</td>
+</tr>
+</tbody>
+</table>
+<p><strong>工程提示</strong>：</p>
+<ul>
+<li><strong><code>third_party/</code> 不是”Anthropic
+推荐”</strong>——它是”第三方维护的样板”。Cookbook 明确说这些 notebook
+由第三方贡献者维护，<strong>Anthropic 不保证 API
+兼容性</strong>。生产里用要先跑一遍、确认 SDK 版本还在维护。</li>
+<li><strong>选型路径</strong>：
+<ul>
+<li><strong>简单 RAG</strong> → <code>Pinecone/rag_using_pinecone</code>
+或 <code>LlamaIndex/Basic_RAG_With_LlamaIndex</code>（pick
+one，不要两个都学）</li>
+<li><strong>多文档 / 复杂查询</strong> →
+<code>LlamaIndex/Multi_Document_Agents</code>（一个文档一个 agent，比
+single-agent 大文档好得多）</li>
+<li><strong>语音场景</strong> → <code>Deepgram</code>（ASR）+
+<code>ElevenLabs</code>（TTS）+ Claude（理解）三件套</li>
+<li><strong>数学 / 物理 / 化学</strong> → <code>WolframAlpha</code> 比让
+Claude 自己算强 100 倍</li>
+</ul></li>
+<li><strong>集成样板的核心价值是 schema 适配</strong>。每个 notebook
+里最有用的部分是”怎么把第三方 SDK 的输入输出映射到 Claude 的 tool
+schema”——<strong>schema 写得对，模型就能调对</strong>；schema
+写得错，模型调飞。</li>
+</ul>
+<hr />
+<h2 id="落地清单">落地清单</h2>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>场景</th>
+<th>优先模式</th>
+<th>解决的问题</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>生产 token / cost 监控</td>
+<td>#1 Usage &amp; Cost API</td>
+<td>财务分摊 / 异常告警</td>
+</tr>
+<tr class="even">
+<td>评测一个 tool definition</td>
+<td>#2 Tool Evaluation XML</td>
+<td>tool description 优化</td>
+</tr>
+<tr class="odd">
+<td>跑长链路 agent 基准</td>
+<td>#3 Agentic Search Harness</td>
+<td>复现官方分数 / 自建 benchmark</td>
+</tr>
+<tr class="even">
+<td>评估”工具描述好不好”</td>
+<td>#2 + #5 F1 grader</td>
+<td>A/B tool description</td>
+</tr>
+<tr class="odd">
+<td>选型第三方框架</td>
+<td>#6 third_party map</td>
+<td>决定用 Pinecone 还是 LlamaIndex</td>
+</tr>
+<tr class="even">
+<td>评测 set-valued 输出</td>
+<td>#5 Model-as-Judge F1</td>
+<td>多答案题打分</td>
+</tr>
+</tbody>
+</table>
+<h2 id="选型速查">选型速查</h2>
+<pre><code>你的目标是：
+├─ 监控生产数据 → Usage &amp; Cost Admin API（#1）
+├─ 评测一个 tool 的可用性 → Tool Evaluation XML（#2）
+├─ 跑 deep research 基准 → Agentic Search Harness（#3）
+│   ├─ 调 50+ 次 web_fetch 会爆 context → PTC（#4）
+│   ├─ 评分靠 F1 → Model-as-Judge（#5）
+│   └─ 单答案（BrowseComp）→ A/B/C 单字母 grader（#5 变体）
+└─ 选第三方框架 → third_party 生态地图（#6）</code></pre>
+<p><strong>反向警告</strong>：以下场景<strong>不要用</strong> 这 6
+个模式：</p>
+<ul>
+<li><strong>实时监控</strong>：Usage &amp; Cost API 是
+T+1（按天聚合），不是实时——实时监控用 LangSmith / Helicone / 自建 OTLP
+pipeline。</li>
+<li><strong>评测主观质量</strong>（写作风格 / 创意）：Model-as-Judge 的
+F1 是机械打分，<strong>主观题用 pairwise preference + human
+eval</strong>（参考 LMSys Chatbot Arena 方法论）。</li>
+<li><strong>小规模调试</strong>：单个 case
+看就够，<strong>别动不动就跑全套评测</strong>——一次完整 DeepSearchQA 跑
+2 小时、几百美元。</li>
+</ul>
+<h2 id="与其它模式的关系">与其它模式的关系</h2>
+<ul>
+<li><strong>评测 vs 成本优化</strong>：<a
+href="blog/posts/2026-09-15-cost-optimization-engineering.md">成本优化 7
+模式</a> 里的 <code>usage_cost()</code> 是”单请求成本估算”，<strong>这里
+#1 是”组织级成本聚合”</strong>——一个看单条、一个看板。</li>
+<li><strong>评测 vs Skills</strong>：<a
+href="blog/posts/2026-09-15-claude-skills-engineering.md">Skills 6
+模式</a> 里的自定义 skill 可以挂评测脚本——<strong>评测逻辑可以打包成
+skill</strong>，让 Claude 在生成时主动评估自己。</li>
+<li><strong>PTC vs Tool Use</strong>：<a
+href="blog/posts/2026-09-15-tool-use-engineering-patterns.md">Tool Use 7
+模式</a> 里的 <code>programmatic_tool_calling_20250924</code> 是 PTC
+的最小用法，<strong>#4 是 PTC 在评测场景的极致形态</strong>——50+
+工具调用 + 排除 context + streaming。</li>
+<li><strong>第三方 vs RAG</strong>：<a
+href="blog/posts/2026-09-15-rag-engineering-patterns.md">RAG 5 模式</a>
+是”RAG 怎么设计”，<strong><code>third_party/Pinecone/</code> 和
+<code>third_party/LlamaIndex/</code> 是”RAG 怎么落地”</strong>——把 RAG
+模式和框架样板结合就是完整方案。</li>
+<li><strong>评测 vs Agent</strong>：评测 harness 是”长链路 agent
+的标准化环境”——参考 <a
+href="blog/posts/2026-09-15-patterns-agents-engineering.md">Patterns/Agents
+6 模式</a> 里的 orchestrator-workers，可以做 multi-agent 对比评测。</li>
+</ul>
+<p>参考资料：</p>
+<ul>
+<li><a
+href="https://github.com/anthropics/claude-cookbooks/tree/main/observability">observability/usage_cost_api.ipynb</a></li>
+<li><a
+href="https://github.com/anthropics/claude-cookbooks/tree/main/tool_evaluation">tool_evaluation/tool_evaluation.ipynb</a></li>
+<li><a
+href="https://github.com/anthropics/claude-cookbooks/tree/main/evals/agentic_search">evals/agentic_search/reproduce_agentic_search_benchmarks.ipynb</a></li>
+<li><a
+href="https://github.com/anthropics/claude-cookbooks/tree/main/third_party">third_party/</a></li>
+<li><a href="https://docs.claude.com/en/api/admin-api">Usage &amp; Cost
+Admin API 官方文档</a></li>
+<li>配套阅读：<a
+href="blog/posts/2026-09-15-cost-optimization-engineering.md">成本优化 7
+模式</a>、<a
+href="blog/posts/2026-09-15-claude-skills-engineering.md">Skills 6
+模式</a></li>
+</ul>
+        </article>
+
+        <p><a href="index.html">&larr; 返回博客列表</a></p>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container">
+                <p class="text-muted">最后更新：2026-09-15</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV2MPK8M2HN" crossorigin="anonymous"></script>
+
+</body>
+
+</html>
