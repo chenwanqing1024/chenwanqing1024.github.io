@@ -3,7 +3,7 @@ title: Claude Code 实战：把 Coding Agent 用出 10x 效率的 6 个工程模
 date: 2026-09-15
 tags: [Claude, AI 工程, Claude Code, Agent]
 summary: 把 Anthropic Claude Code Best Practices 官方文档拆成 6 个工程模式：Verify 工作流（测试 / build / screenshot 是 must-have）、Explore→Plan→Code→Commit 四段、CLAUDE.md 极简主义、Permission + Sandbox + Auto mode 三层防御、Context 主动管理（/clear / /compact / subagent）、Parallel Sessions + Fan-out + Adversarial Review 扩展模式。配具体命令 + 失败模式 + 面试可讲的设计取舍。
-source-url: https://www.code.claude.com/docs/en/best-practices
+source-url: "https://code.claude.com/docs/en/best-practices"
 source-title: Best practices for Claude Code
 source-author: Anthropic
 ---
@@ -419,7 +419,7 @@ Claude Code best practices 的核心论点是**"context window 是核心资源�
 
 参考资料：
 
-- [Best practices for Claude Code](https://www.code.claude.com/docs/en/best-practices) — Anthropic
-- [How Claude Code works](https://www.code.claude.com/docs/en/how-claude-code-works) — Agentic loop 内部机制
-- [Extend Claude Code](https://www.code.claude.com/docs/en/extend-claude-code) — Skills / hooks / MCP / subagents
+- [Best practices for Claude Code](https://code.claude.com/docs/en/best-practices) — Anthropic
+- [How Claude Code works](https://code.claude.com/docs/en/how-claude-code-works) — Agentic loop 内部机制
+- [Extend Claude Code](https://code.claude.com/docs/en/extend-claude-code) — Skills / hooks / MCP / subagents
 - [Claude Code overview](https://www.anthropic.com/claude-code) — 官方主页
